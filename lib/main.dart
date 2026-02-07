@@ -13,6 +13,7 @@ import 'providers/settings_provider.dart';
 import 'providers/theme_provider.dart';
 import 'screens/home_screen.dart';
 import 'screens/settings_screen.dart';
+import 'services/firestore_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -21,6 +22,7 @@ void main() async {
   );
   await FirebaseApi().initNotifications();
   await NotificationService().init(); // Initialize the notification service
+  await FirestoreService().init(); // Initialize the firestore service
   runApp(
     MultiProvider(
       providers: [
