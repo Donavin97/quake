@@ -36,6 +36,16 @@ class _HomeScreenState extends State<HomeScreen> {
         title: const Text('Recent Earthquakes'),
         actions: [
           IconButton(
+            icon: const Icon(Icons.refresh),
+            onPressed: () {
+              Provider.of<EarthquakeProvider>(
+                context,
+                listen: false,
+              ).fetchEarthquakes();
+            },
+            tooltip: 'Refresh Data',
+          ),
+          IconButton(
             icon: Icon(
               themeProvider.themeMode == ThemeMode.dark
                   ? Icons.light_mode
