@@ -2,9 +2,23 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/settings_provider.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 class SettingsScreen extends StatelessWidget {
   const SettingsScreen({super.key});
+
+  void _getAndStoreFCMToken() async {
+    final fcmToken = await FirebaseMessaging.instance.getToken();
+    if (fcmToken != null) {
+      print('FCM Token: $fcmToken');
+      // Store the token in Firestore
+      await FirebaseFirestore.instance.collection('fcmTokens').doc(fcmToken).set({
+        'token': fcmToken,
+        'createdAt': FieldValue.serverTimestamp(),
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -61,6 +75,11 @@ class SettingsScreen extends StatelessWidget {
                   onSelectionChanged: (newSelection) {
                     settings.setTimeWindow(newSelection.first);
                   },
+                ),
+                const SizedBox(height: 24),
+                ElevatedButton(
+                  onPressed: _getAndStoreFCMToken,
+                  child: const Text('Get and Store FCM Token'),
                 ),
               ],
             );
