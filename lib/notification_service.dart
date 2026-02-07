@@ -9,32 +9,46 @@ class NotificationService {
 
   NotificationService._internal();
 
-  final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin = FlutterLocalNotificationsPlugin();
+  final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin =
+      FlutterLocalNotificationsPlugin();
 
   Future<void> init() async {
-    const AndroidInitializationSettings initializationSettingsAndroid = AndroidInitializationSettings('@mipmap/ic_launcher');
+    const AndroidInitializationSettings initializationSettingsAndroid =
+        AndroidInitializationSettings('@mipmap/ic_launcher');
 
     const InitializationSettings initializationSettings = InitializationSettings(
       android: initializationSettingsAndroid,
     );
 
-    await flutterLocalNotificationsPlugin.initialize(initializationSettings);
+    await flutterLocalNotificationsPlugin.initialize(
+      initializationSettings,
+      onDidReceiveNotificationResponse: (NotificationResponse notificationResponse) async {
+        // Handle notification tapped logic here
+      },
+    );
   }
 
-  Future<void> showNotification(String title, String body) async {
+  Future<void> showNotification(
+    int id,
+    String title,
+    String body,
+    String payload,
+  ) async {
     const AndroidNotificationDetails androidPlatformChannelSpecifics = AndroidNotificationDetails(
-      'your channel id', 'your channel name', 
+      'main_channel',
+      'Main Channel',
+      channelDescription: 'Main channel notifications',
       importance: Importance.max,
       priority: Priority.high,
       showWhen: false,
     );
     const NotificationDetails platformChannelSpecifics = NotificationDetails(android: androidPlatformChannelSpecifics);
     await flutterLocalNotificationsPlugin.show(
-      0,
+      id,
       title,
       body,
       platformChannelSpecifics,
-      payload: 'item x',
+      payload: payload,
     );
   }
 }
