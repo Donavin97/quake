@@ -1,6 +1,6 @@
 import 'dart:developer' as developer;
 import 'package:firebase_messaging/firebase_messaging.dart';
-
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'notification_service.dart';
 
 Future<void> handleBackgroundMessage(RemoteMessage message) async {
@@ -18,11 +18,13 @@ Future<void> handleBackgroundMessage(RemoteMessage message) async {
 
 class FirebaseApi {
   final _firebaseMessaging = FirebaseMessaging.instance;
+  final _firestore = FirebaseFirestore.instance;
 
   Future<void> initNotifications() async {
     await _firebaseMessaging.requestPermission();
     final fCMToken = await _firebaseMessaging.getToken();
     developer.log('FCM Token: $fCMToken');
+    _saveTokenToFirestore(fCMToken);
     FirebaseMessaging.onBackgroundMessage(handleBackgroundMessage);
     FirebaseMessaging.onMessage.listen(handleMessage);
   }
@@ -40,5 +42,13 @@ class FirebaseApi {
         message.data.toString(),
       );
     }
+  }
+
+  Future<void> _saveTokenToFirestore(String? token) async {
+    if (token == null) return;
+    await _firestore.collection('fcm_tokens').doc(token).set({
+      'token': token,
+      'createdAt': FieldValue.serverTimestamp(),
+    });
   }
 }

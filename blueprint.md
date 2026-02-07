@@ -1,18 +1,25 @@
+
 # Project Blueprint
 
 ## Overview
 
-This project is a Flutter application that tracks earthquakes and sends notifications to users.
+This document outlines the architecture, features, and design of the Flutter application. It serves as a single source of truth for the project's implementation details.
 
-## Implemented Features
+## Current Features
 
-*   **Earthquake Tracking:** The application will display a list of recent earthquakes.
-*   **Notifications:** The application will send push notifications to users when a new earthquake is detected.
-*   **Settings:** Users will be able to customize the application's settings, such as the minimum magnitude of earthquakes to be displayed.
-*   **Firebase Integration:** The application is connected to the Firebase project `eqapp-56196`.
+* **FCM Push Notifications:** The application is configured to receive Firebase Cloud Messaging (FCM) push notifications.
+* **FCM Token Management:** The application saves the device's FCM token to a "fcm_tokens" collection in Firestore to enable targeted push notifications.
 
-## Current Action: Connect to Firebase
+## Design
 
-*   **Connect to Firebase Project:** Connected the application to the `eqapp-56196` Firebase project.
-*   **Configure Firebase:** Ran `flutterfire configure` to set up the necessary Firebase files.
-*   **Generated `firebase_options.dart`:** The `lib/firebase_options.dart` file was created, containing the Firebase project credentials.
+The application follows a standard Flutter project structure. The core business logic is separated from the UI, and the UI is composed of reusable widgets.
+
+## Plan for Current Request
+
+The user requested to store the FCM token in Firebase. The following steps were taken:
+
+1. **Add `cloud_firestore` dependency:** The `cloud_firestore` package was added to `pubspec.yaml` to enable interaction with Firestore.
+2. **Update `firebase_api.dart`:**
+    - An instance of `FirebaseFirestore` was created.
+    - The `initNotifications` function was updated to call a new `_saveTokenToFirestore` function.
+    - The `_saveTokenToFirestore` function saves the FCM token to a "fcm_tokens" collection in Firestore.
