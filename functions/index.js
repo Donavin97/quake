@@ -30,9 +30,13 @@ exports.fetchEarthquakes = functions.pubsub
           .get();
       const lastFetchTime = lastFetchDoc.data()?.time || 0;
 
+      let newLastFetchTime = lastFetchTime;
 
       for (const earthquake of earthquakes) {
         if (earthquake.time > lastFetchTime) {
+          if (earthquake.time > newLastFetchTime) {
+            newLastFetchTime = earthquake.time;
+          }
           const message = {
             notification: {
               title: `New Earthquake: ${earthquake.mag} magnitude`,
@@ -45,9 +49,11 @@ exports.fetchEarthquakes = functions.pubsub
         }
       }
 
-      await admin.firestore().collection("internal").doc("lastFetch").set({
-        time: Date.now(),
-      });
+      if (newLastFetchTime > lastFetchTime) {
+        await admin.firestore().collection("internal").doc("lastFetch").set({
+          time: newLastFetchTime,
+        });
+      }
 
       return null;
     });
