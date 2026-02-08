@@ -10,24 +10,32 @@ enum TimeWindow {
 class SettingsProvider with ChangeNotifier {
   double _minMagnitude = 0.0;
   TimeWindow _timeWindow = TimeWindow.day;
+  double _radius = 500.0;
 
   final SettingsService _settingsService = SettingsService();
 
   SettingsProvider() {
     _loadMinMagnitude();
     _loadTimeWindow();
+    _loadRadius();
   }
 
   double get minMagnitude => _minMagnitude;
   TimeWindow get timeWindow => _timeWindow;
+  double get radius => _radius;
 
   void _loadMinMagnitude() async {
     _minMagnitude = await _settingsService.getMinMagnitude();
     notifyListeners();
   }
-  
+
   void _loadTimeWindow() async {
     _timeWindow = await _settingsService.getTimeWindow();
+    notifyListeners();
+  }
+
+  void _loadRadius() async {
+    _radius = await _settingsService.getRadius();
     notifyListeners();
   }
 
@@ -40,6 +48,12 @@ class SettingsProvider with ChangeNotifier {
   void setTimeWindow(TimeWindow value) {
     _timeWindow = value;
     _settingsService.setTimeWindow(value);
+    notifyListeners();
+  }
+
+  void setRadius(double value) {
+    _radius = value;
+    _settingsService.setRadius(value);
     notifyListeners();
   }
 

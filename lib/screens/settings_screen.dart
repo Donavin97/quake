@@ -62,6 +62,21 @@ class SettingsScreen extends StatelessWidget {
                     settings.setTimeWindow(newSelection.first);
                   },
                 ),
+                const SizedBox(height: 24),
+                Text(
+                  'Notification Radius (km): ${settings.radius.toStringAsFixed(0)}',
+                  style: Theme.of(context).textTheme.titleLarge,
+                ),
+                Slider(
+                  value: settings.radius,
+                  min: 0,
+                  max: 1000,
+                  divisions: 100,
+                  label: settings.radius.toStringAsFixed(0),
+                  onChanged: (value) {
+                    settings.setRadius(value);
+                  },
+                ),
               ],
             );
           },
