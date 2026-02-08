@@ -3,20 +3,22 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/settings_provider.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
+import '../services/firestore_service.dart';
 
 class SettingsScreen extends StatelessWidget {
   const SettingsScreen({super.key});
 
-  void _getAndStoreFCMToken() async {
+  void _savePreferences(BuildContext context, double minMagnitude) async {
     final fcmToken = await FirebaseMessaging.instance.getToken();
     if (fcmToken != null) {
-      print('FCM Token: $fcmToken');
-      // Store the token in Firestore
-      await FirebaseFirestore.instance.collection('fcmTokens').doc(fcmToken).set({
-        'token': fcmToken,
-        'createdAt': FieldValue.serverTimestamp(),
-      });
+      await FirestoreService().saveUserPreferences(fcmToken, minMagnitude);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Preferences saved!')),
+      );
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Could not get FCM token.')),
+      );
     }
   }
 
@@ -78,8 +80,10 @@ class SettingsScreen extends StatelessWidget {
                 ),
                 const SizedBox(height: 24),
                 ElevatedButton(
-                  onPressed: _getAndStoreFCMToken,
-                  child: const Text('Get and Store FCM Token'),
+                  onPressed: () {
+                    _savePreferences(context, settings.minMagnitude);
+                  },
+                  child: const Text('Save Preferences'),
                 ),
               ],
             );

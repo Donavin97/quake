@@ -12,5 +12,11 @@ class FirestoreService {
     _db = FirebaseFirestore.instance;
   }
 
-  // Add other Firestore methods here, like getting user preferences
+  Future<void> saveUserPreferences(String fcmToken, double minMagnitude) async {
+    await _db.collection('user_preferences').doc(fcmToken).set({
+      'fcm_token': fcmToken,
+      'min_magnitude': minMagnitude,
+      'updated_at': FieldValue.serverTimestamp(),
+    }, SetOptions(merge: true));
+  }
 }

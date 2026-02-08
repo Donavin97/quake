@@ -1,32 +1,57 @@
-/**
- * Import function triggers from their respective submodules:
- *
- * const {onCall} = require("firebase-functions/v2/https");
- * const {onDocumentWritten} = require("firebase-functions/v2/firestore");
- *
- * See a full list of supported triggers at https://firebase.google.com/docs/functions
- */
+const functions = require("firebase-functions");
+const admin = require("firebase-admin");
+const axios = require("axios");
 
-const {setGlobalOptions} = require("firebase-functions");
-const {onRequest} = require("firebase-functions/https");
-const logger = require("firebase-functions/logger");
+admin.initializeApp();
 
-// For cost control, you can set the maximum number of containers that can be
-// running at the same time. This helps mitigate the impact of unexpected
-// traffic spikes by instead downgrading performance. This limit is a
-// per-function limit. You can override the limit for each function using the
-// `maxInstances` option in the function's options, e.g.
-// `onRequest({ maxInstances: 5 }, (req, res) => { ... })`.
-// NOTE: setGlobalOptions does not apply to functions using the v1 API. V1
-// functions should each use functions.runWith({ maxInstances: 10 }) instead.
-// In the v1 API, each function can only serve one request per container, so
-// this will be the maximum concurrent request count.
-setGlobalOptions({maxInstances: 10});
+const db = admin.firestore();
+const messaging = admin.messaging();
 
-// Create and deploy your first functions
-// https://firebase.google.com/docs/functions/get-started
+exports.eqnotify = functions.pubsub.schedule("every 1 minutes").onRun(async (context) => {
+  try {
+    const response = await axios.get("https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/all_hour.geojson");
+    const earthquakes = response.data.features;
 
-exports.helloWorld = onRequest((request, response) => {
-  logger.info("Hello logs!", {structuredData: true});
-  response.send("Hello from Firebase!");
+    if (!earthquakes || earthquakes.length === 0) {
+      console.log("No earthquakes found in the last hour.");
+      return;
+    }
+
+    const usersSnapshot = await db.collection("user_preferences").get();
+
+    if (usersSnapshot.empty) {
+      console.log("No users found in the user_preferences collection.");
+      return;
+    }
+
+    for (const earthquake of earthquakes) {
+      const magnitude = earthquake.properties.mag;
+      const place = earthquake.properties.place;
+
+      for (const userDoc of usersSnapshot.docs) {
+        const user = userDoc.data();
+        const minMagnitude = user.min_magnitude || 0;
+        const fcmToken = user.fcm_token;
+
+        if (fcmToken && magnitude >= minMagnitude) {
+          const payload = {
+            notification: {
+              title: `New Earthquake: ${magnitude.toFixed(1)} magnitude`,
+              body: place,
+            },
+            token: fcmToken,
+          };
+
+          try {
+            await messaging.send(payload);
+            console.log(`Notification sent to user ${userDoc.id} for earthquake ${earthquake.id}`);
+          } catch (error) {
+            console.error(`Error sending notification to user ${userDoc.id}:`, error);
+          }
+        }
+      }
+    }
+  } catch (error) {
+    console.error("Error fetching earthquake data or sending notifications:", error);
+  }
 });
