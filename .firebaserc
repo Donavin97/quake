@@ -1,5 +1,7 @@
 {
-  "projects": {},
+  "projects": {
+    "default": "eqapp-56196"
+  },
   "targets": {},
   "etags": {}
 }

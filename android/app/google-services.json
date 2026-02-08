@@ -1,0 +1,48 @@
+{
+  "project_info": {
+    "project_number": "205624709309",
+    "project_id": "eqapp-56196",
+    "storage_bucket": "eqapp-56196.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:205624709309:android:8e2d62b200eca40f8c67d4",
+        "android_client_info": {
+          "package_name": "com.example.earthquake"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyA6bdr0x5QulCpn0wiXo9vojponvQSYASE"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:205624709309:android:e372b3171bf9c7ad8c67d4",
+        "android_client_info": {
+          "package_name": "com.example.myapp"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyA6bdr0x5QulCpn0wiXo9vojponvQSYASE"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

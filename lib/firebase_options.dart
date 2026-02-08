@@ -42,11 +42,11 @@ class DefaultFirebaseOptions {
   );
 
   static const FirebaseOptions android = FirebaseOptions(
-    apiKey: 'AIzaSyCluBzRD9X29D9fammZIzuWzEeI7QH8CS0',
-    appId: '1:205624709309:android:45806b2dd69f30e98c67d4',
+    apiKey: 'AIzaSyA6bdr0x5QulCpn0wiXo9vojponvQSYASE',
+    appId: '1:205624709309:android:8e2d62b200eca40f8c67d4',
     messagingSenderId: '205624709309',
     projectId: 'eqapp-56196',
-    storageBucket: 'eqapp-56196.appspot.com',
+    storageBucket: 'eqapp-56196.firebasestorage.app',
   );
 
   static const FirebaseOptions ios = FirebaseOptions(
