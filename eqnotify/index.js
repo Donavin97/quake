@@ -39,7 +39,7 @@ exports.eqnotify = functions.pubsub.schedule("every 1 minutes").onRun(
             if (fcmToken && magnitude >= minMagnitude) {
               const payload = {
                 notification: {
-                  title: `New Earthquake: ${magnitude.toFixed(1)} magnitude`,
+                  title: `New Earthquake: ${magnitude.toFixed(2)} magnitude`,
                   body: place,
                 },
                 token: fcmToken,

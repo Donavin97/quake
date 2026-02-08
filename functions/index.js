@@ -39,7 +39,7 @@ exports.fetchEarthquakes = functions.pubsub
           }
           const message = {
             notification: {
-              title: `New Earthquake: ${earthquake.mag} magnitude`,
+              title: `New Earthquake: ${earthquake.mag.toFixed(2)} magnitude`,
               body: earthquake.place,
             },
             topic: "all",
