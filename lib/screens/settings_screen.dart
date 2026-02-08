@@ -2,25 +2,9 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/settings_provider.dart';
-import 'package:firebase_messaging/firebase_messaging.dart';
-import '../services/firestore_service.dart';
 
 class SettingsScreen extends StatelessWidget {
   const SettingsScreen({super.key});
-
-  void _savePreferences(BuildContext context, double minMagnitude) async {
-    final fcmToken = await FirebaseMessaging.instance.getToken();
-    if (fcmToken != null) {
-      await FirestoreService().saveUserPreferences(fcmToken, minMagnitude);
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Preferences saved!')),
-      );
-    } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Could not get FCM token.')),
-      );
-    }
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -77,13 +61,6 @@ class SettingsScreen extends StatelessWidget {
                   onSelectionChanged: (newSelection) {
                     settings.setTimeWindow(newSelection.first);
                   },
-                ),
-                const SizedBox(height: 24),
-                ElevatedButton(
-                  onPressed: () {
-                    _savePreferences(context, settings.minMagnitude);
-                  },
-                  child: const Text('Save Preferences'),
                 ),
               ],
             );
