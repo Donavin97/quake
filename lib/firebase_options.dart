@@ -42,11 +42,11 @@ class DefaultFirebaseOptions {
   );
 
   static const FirebaseOptions android = FirebaseOptions(
-    apiKey: 'AIzaSyA6bdr0x5QulCpn0wiXo9vojponvQSYASE',
-    appId: '1:205624709309:android:8e2d62b200eca40f8c67d4',
-    messagingSenderId: '205624709309',
-    projectId: 'eqapp-56196',
-    storageBucket: 'eqapp-56196.firebasestorage.app',
+    apiKey: 'AIzaSyAmz3tP558eLW3EbeuQWS-R3Qc41u_CqRw',
+    appId: '1:349946205462:android:182c1177801f64925eac37',
+    messagingSenderId: '349946205462',
+    projectId: 'quakewatch-89047796-c7f3c',
+    storageBucket: 'quakewatch-89047796-c7f3c.firebasestorage.app',
   );
 
   static const FirebaseOptions ios = FirebaseOptions(

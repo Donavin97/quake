@@ -1,31 +1,42 @@
 {
-  "flutter": {
-    "platforms": {
-      "android": {
-        "default": {
-          "projectId": "eqapp-56196",
-          "appId": "1:205624709309:android:8e2d62b200eca40f8c67d4",
-          "fileOutput": "android/app/google-services.json"
-        }
-      },
-      "dart": {
-        "lib/firebase_options.dart": {
-          "projectId": "eqapp-56196",
-          "configurations": {
-            "android": "1:205624709309:android:8e2d62b200eca40f8c67d4"
-          }
-        }
-      }
-    }
-  },
-  "functions": {
-    "source": "functions",
-    "predeploy": []
-  },
   "firestore": {
     "database": "(default)",
     "location": "africa-south1",
     "rules": "firestore.rules",
     "indexes": "firestore.indexes.json"
+  },
+  "functions": [
+    {
+      "codebase": "default",
+      "disallowLegacyRuntimeConfig": true,
+      "ignore": [
+        "node_modules",
+        ".git",
+        "firebase-debug.log",
+        "firebase-debug.*.log",
+        "*.local"
+      ],
+      "predeploy": [],
+      "source": "functions"
+    }
+  ],
+  "flutter": {
+    "platforms": {
+      "android": {
+        "default": {
+          "projectId": "quakewatch-89047796-c7f3c",
+          "appId": "1:349946205462:android:182c1177801f64925eac37",
+          "fileOutput": "android/app/google-services.json"
+        }
+      },
+      "dart": {
+        "lib/firebase_options.dart": {
+          "projectId": "quakewatch-89047796-c7f3c",
+          "configurations": {
+            "android": "1:349946205462:android:182c1177801f64925eac37"
+          }
+        }
+      }
+    }
   }
 }
