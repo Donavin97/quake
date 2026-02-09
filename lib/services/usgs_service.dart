@@ -1,19 +1,26 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import 'package:geolocator/geolocator.dart';
 import '../models/earthquake.dart';
 import '../models/time_window.dart';
 
 class UsgsService {
   Future<List<Earthquake>> getRecentEarthquakes({
     TimeWindow timeWindow = TimeWindow.day,
+    double minMagnitude = 0.0,
     double radius = 1000.0,
+    Position? position,
   }) async {
     final now = DateTime.now();
     final startTime = _getStartTime(now, timeWindow);
     final endTime = now.toUtc().toIso8601String();
 
-    final url =
-        'https://earthquake.usgs.gov/fdsnws/event/1/query?format=geojson&starttime=$startTime&endtime=$endTime&maxradiuskm=$radius';
+    String url =
+        'https://earthquake.usgs.gov/fdsnws/event/1/query?format=geojson&starttime=$startTime&endtime=$endTime&minmagnitude=$minMagnitude&maxradiuskm=$radius';
+
+    if (position != null) {
+      url += '&latitude=${position.latitude}&longitude=${position.longitude}';
+    }
 
     try {
       final response = await http.get(Uri.parse(url));
