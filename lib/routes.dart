@@ -12,7 +12,7 @@ import 'screens/detail_screen.dart';
 import 'screens/disclaimer_screen.dart';
 import 'screens/home_screen.dart';
 import 'screens/permission_screen.dart';
-import 'services/notification_service.dart';
+import 'notification_service.dart';
 
 class AppRouter {
   final BuildContext context;

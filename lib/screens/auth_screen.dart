@@ -1,4 +1,3 @@
-
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
@@ -22,7 +21,7 @@ class _AuthScreenState extends State<AuthScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final authService = Provider.of<AuthService>(context);
+    final authService = Provider.of<AuthService>(context, listen: false);
     final themeProvider = Provider.of<ThemeProvider>(context);
 
     return Scaffold(
@@ -77,6 +76,7 @@ class _AuthScreenState extends State<AuthScreen> {
               ElevatedButton(
                 onPressed: () async {
                   if (_formKey.currentState!.validate()) {
+                    final router = GoRouter.of(context);
                     final email = _emailController.text;
                     final password = _passwordController.text;
                     try {
@@ -87,11 +87,13 @@ class _AuthScreenState extends State<AuthScreen> {
                         await authService.createUserWithEmailAndPassword(
                             email, password);
                       }
-                      context.go('/');
+                      router.go('/');
                     } catch (e) {
-                      setState(() {
-                        _errorMessage = e.toString();
-                      });
+                      if (mounted) {
+                        setState(() {
+                          _errorMessage = e.toString();
+                        });
+                      }
                     }
                   }
                 },
@@ -111,13 +113,16 @@ class _AuthScreenState extends State<AuthScreen> {
               const SizedBox(height: 20),
               ElevatedButton.icon(
                 onPressed: () async {
+                  final router = GoRouter.of(context);
                   try {
                     await authService.signInWithGoogle();
-                    context.go('/');
+                    router.go('/');
                   } catch (e) {
-                    setState(() {
-                      _errorMessage = e.toString();
-                    });
+                    if (mounted) {
+                      setState(() {
+                        _errorMessage = e.toString();
+                      });
+                    }
                   }
                 },
                 icon: const Icon(Icons.login),

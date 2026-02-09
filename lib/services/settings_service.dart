@@ -19,13 +19,13 @@ class SettingsService {
 
   Future<TimeWindow> getTimeWindow() async {
     final prefs = await SharedPreferences.getInstance();
-    final timeWindowString = prefs.getString(_timeWindowKey) ?? 'day';
-    return TimeWindow.values.firstWhere((e) => e.toString().split('.').last == timeWindowString);
+    final timeWindowIndex = prefs.getInt(_timeWindowKey) ?? 0;
+    return TimeWindow.values[timeWindowIndex];
   }
 
   Future<void> setTimeWindow(TimeWindow value) async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(_timeWindowKey, value.toString().split('.').last);
+    await prefs.setInt(_timeWindowKey, value.index);
   }
 
   Future<double> getRadius() async {

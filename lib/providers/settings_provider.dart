@@ -44,7 +44,7 @@ class SettingsProvider with ChangeNotifier {
     try {
       position = await Geolocator.getCurrentPosition();
     } catch (e) {
-      print('Could not get position: $e');
+      // Could not get position
     }
     if (minMagnitude != null) {
       _minMagnitude = minMagnitude;

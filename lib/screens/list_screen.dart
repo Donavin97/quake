@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
-import '../models/earthquake.dart';
 import '../providers/earthquake_provider.dart';
 
 class ListScreen extends StatelessWidget {

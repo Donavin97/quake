@@ -11,7 +11,7 @@ class AuthService {
       final UserCredential userCredential = await _auth.signInAnonymously();
       return userCredential.user;
     } catch (e) {
-      print('Failed to sign in anonymously: $e');
+      // Failed to sign in anonymously
       return null;
     }
   }
@@ -26,7 +26,7 @@ class AuthService {
       );
       return userCredential.user;
     } catch (e) {
-      print('Failed to sign in with email and password: $e');
+      // Failed to sign in with email and password
       rethrow;
     }
   }
@@ -41,7 +41,7 @@ class AuthService {
       );
       return userCredential.user;
     } catch (e) {
-      print('Failed to create user with email and password: $e');
+      // Failed to create user with email and password
       rethrow;
     }
   }
@@ -61,7 +61,7 @@ class AuthService {
       final UserCredential userCredential = await _auth.signInWithCredential(credential);
       return userCredential.user;
     } catch (e) {
-      print('Failed to sign in with Google: $e');
+      // Failed to sign in with Google
       rethrow;
     }
   }
@@ -71,7 +71,7 @@ class AuthService {
       await _googleSignIn.signOut();
       await _auth.signOut();
     } catch (e) {
-      print('Failed to sign out: $e');
+      // Failed to sign out
       rethrow;
     }
   }

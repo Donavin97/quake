@@ -37,7 +37,9 @@ class MyApp extends StatelessWidget {
         ),
         ChangeNotifierProvider(create: (context) => ThemeProvider()),
         ChangeNotifierProvider(create: (context) => SettingsProvider()),
-        ChangeNotifierProvider(create: (context) => EarthquakeProvider()),
+        ChangeNotifierProvider(
+          create: (context) => EarthquakeProvider()..fetchEarthquakes(),
+        ),
         ChangeNotifierProvider(create: (context) => LocationProvider()),
       ],
       child: Consumer<ThemeProvider>(

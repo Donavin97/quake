@@ -1,4 +1,3 @@
-
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
@@ -35,8 +34,9 @@ class _HomeScreenState extends State<HomeScreen> {
           IconButton(
             icon: const Icon(Icons.exit_to_app),
             onPressed: () async {
+              final router = GoRouter.of(context);
               await authService.signOut();
-              context.go('/auth');
+              router.go('/auth');
             },
           ),
         ],

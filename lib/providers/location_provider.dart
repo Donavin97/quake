@@ -8,10 +8,12 @@ class LocationProvider with ChangeNotifier {
   Position? _currentPosition;
   bool _isLoading = false;
   String? _error;
+  bool _permissionGranted = false;
 
   Position? get currentPosition => _currentPosition;
   bool get isLoading => _isLoading;
   String? get error => _error;
+  bool get isPermissionGranted => _permissionGranted;
 
   Future<void> determinePosition() async {
     _isLoading = true;
@@ -24,6 +26,25 @@ class LocationProvider with ChangeNotifier {
       _error = e.toString();
     } finally {
       _isLoading = false;
+      notifyListeners();
+    }
+  }
+
+  Future<void> requestPermission() async {
+    LocationPermission permission = await Geolocator.requestPermission();
+    _updatePermissionStatus(permission);
+  }
+
+  Future<void> checkPermission() async {
+    LocationPermission permission = await Geolocator.checkPermission();
+    _updatePermissionStatus(permission);
+  }
+
+  void _updatePermissionStatus(LocationPermission permission) {
+    final granted = permission == LocationPermission.whileInUse ||
+        permission == LocationPermission.always;
+    if (_permissionGranted != granted) {
+      _permissionGranted = granted;
       notifyListeners();
     }
   }

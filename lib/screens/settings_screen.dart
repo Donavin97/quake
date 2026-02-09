@@ -81,9 +81,7 @@ class SettingsScreen extends StatelessWidget {
                 const SizedBox(height: 24),
                 ElevatedButton(
                   onPressed: () {
-                    final settingsProvider =
-                        Provider.of<SettingsProvider>(context, listen: false);
-                    settingsProvider.loadSettingsFromFirestore();
+                    settings.loadSettingsFromFirestore();
                   },
                   child: const Text('Load Settings from Firestore'),
                 ),

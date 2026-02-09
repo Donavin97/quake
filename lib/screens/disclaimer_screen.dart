@@ -26,6 +26,7 @@ class DisclaimerScreen extends StatelessWidget {
               onPressed: () async {
                 final prefs = await SharedPreferences.getInstance();
                 await prefs.setBool('disclaimer_accepted', true);
+                if (!context.mounted) return;
                 context.go('/');
               },
               child: const Text('Accept'),
