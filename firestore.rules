@@ -1,14 +1,10 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    match /fcm_tokens/{token} {
-      allow create, update, read, write: if true;
-    }
-    match /user_preferences/{fcmToken} {
-      allow create, update, read, write: if true;
-    }
-    match /{document=**} {
-      allow read, write: if false;
+    match /user_preferences/{userId} {
+      // WARNING: Insecure rules, allowing anyone to read/write.
+      // This should be properly secured before going to production.
+      allow read, write: if true;
     }
   }
 }

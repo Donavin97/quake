@@ -19,7 +19,6 @@ class EarthquakeProvider with ChangeNotifier {
   String? get error => _error;
 
   EarthquakeProvider() {
-    _firestoreService.init();
   }
 
   Future<void> fetchEarthquakes() async {

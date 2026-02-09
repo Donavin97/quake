@@ -1,22 +1,25 @@
-
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:geolocator/geolocator.dart';
 
 class FirestoreService {
-  static final FirestoreService _instance = FirestoreService._internal();
-  factory FirestoreService() => _instance;
-  FirestoreService._internal();
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
-  late FirebaseFirestore _db;
-
-  Future<void> init() async {
-    _db = FirebaseFirestore.instance;
+  Future<void> saveUserPreferences(String userId, Map<String, dynamic> preferences, {Position? position}) async {
+    if (position != null) {
+      preferences['location'] = GeoPoint(position.latitude, position.longitude);
+    }
+    await _firestore.collection('user_preferences').doc(userId).set(preferences, SetOptions(merge: true));
   }
 
-  Future<void> saveUserPreferences(String fcmToken, double minMagnitude) async {
-    await _db.collection('user_preferences').doc(fcmToken).set({
-      'fcm_token': fcmToken,
-      'min_magnitude': minMagnitude,
-      'updated_at': FieldValue.serverTimestamp(),
-    }, SetOptions(merge: true));
+  Future<Map<String, dynamic>?> getUserPreferences(String userId) async {
+    final doc = await _firestore.collection('user_preferences').doc(userId).get();
+    return doc.data();
+  }
+
+  Future<void> saveFCMToken(String token) async {
+    await _firestore.collection('fcm_tokens').doc(token).set({
+      'token': token,
+      'createdAt': FieldValue.serverTimestamp(),
+    });
   }
 }
