@@ -16,10 +16,10 @@ class UsgsService {
     final endTime = now.toUtc().toIso8601String();
 
     String url =
-        'https://earthquake.usgs.gov/fdsnws/event/1/query?format=geojson&starttime=$startTime&endtime=$endTime&minmagnitude=$minMagnitude&maxradiuskm=$radius';
+        'https://earthquake.usgs.gov/fdsnws/event/1/query?format=geojson&starttime=$startTime&endtime=$endTime&minmagnitude=$minMagnitude';
 
-    if (position != null) {
-      url += '&latitude=${position.latitude}&longitude=${position.longitude}';
+    if (position != null && radius > 0.0) {
+      url += '&latitude=${position.latitude}&longitude=${position.longitude}&maxradiuskm=$radius';
     }
 
     try {
