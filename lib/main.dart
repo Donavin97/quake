@@ -5,30 +5,30 @@ import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 
-import 'firebase_api.dart';
 import 'firebase_options.dart';
+import 'models/earthquake.dart';
 import 'notification_service.dart';
 import 'providers/earthquake_provider.dart';
+import 'providers/location_provider.dart';
 import 'providers/settings_provider.dart';
 import 'providers/theme_provider.dart';
+import 'screens/detail_screen.dart';
 import 'screens/home_screen.dart';
 import 'screens/settings_screen.dart';
-import 'services/firestore_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
-  await FirebaseApi().initNotifications();
-  await NotificationService().init(); // Initialize the notification service
-  await FirestoreService().init(); // Initialize the firestore service
+  await NotificationService().init();
   runApp(
     MultiProvider(
       providers: [
         ChangeNotifierProvider(create: (context) => ThemeProvider()),
         ChangeNotifierProvider(create: (context) => SettingsProvider()),
         ChangeNotifierProvider(create: (context) => EarthquakeProvider()),
+        ChangeNotifierProvider(create: (context) => LocationProvider()),
       ],
       child: const MyApp(),
     ),
@@ -38,19 +38,30 @@ void main() async {
 final GoRouter _router = GoRouter(
   routes: <RouteBase>[
     GoRoute(
-      path: '/',
-      builder: (BuildContext context, GoRouterState state) {
-        return const HomeScreen();
-      },
-      routes: <RouteBase>[
-        GoRoute(
-          path: 'settings',
-          builder: (BuildContext context, GoRouterState state) {
-            return const SettingsScreen();
-          },
-        ),
-      ],
-    ),
+        path: '/',
+        builder: (BuildContext context, GoRouterState state) {
+          return const HomeScreen();
+        },
+        routes: <RouteBase>[
+          GoRoute(
+            path: 'settings',
+            builder: (BuildContext context, GoRouterState state) {
+              return const SettingsScreen();
+            },
+          ),
+          GoRoute(
+            path: 'details',
+            builder: (BuildContext context, GoRouterState state) {
+              final earthquake = state.extra as Earthquake?;
+              if (earthquake != null) {
+                return DetailScreen(earthquake: earthquake);
+              } else {
+                // Handle the case where the earthquake data is missing
+                return const Text('Error: Earthquake data not found');
+              }
+            },
+          ),
+        ]),
   ],
 );
 
@@ -70,6 +81,13 @@ class MyApp extends StatelessWidget {
       bodyMedium: GoogleFonts.openSans(fontSize: 14),
     );
 
+    final AppBarTheme appBarTheme = AppBarTheme(
+      backgroundColor: primarySeedColor,
+      foregroundColor: Colors.white,
+      titleTextStyle:
+          GoogleFonts.oswald(fontSize: 24, fontWeight: FontWeight.bold),
+    );
+
     final ThemeData lightTheme = ThemeData(
       useMaterial3: true,
       colorScheme: ColorScheme.fromSeed(
@@ -77,12 +95,7 @@ class MyApp extends StatelessWidget {
         brightness: Brightness.light,
       ),
       textTheme: appTextTheme,
-      appBarTheme: AppBarTheme(
-        backgroundColor: primarySeedColor,
-        foregroundColor: Colors.white,
-        titleTextStyle:
-            GoogleFonts.oswald(fontSize: 24, fontWeight: FontWeight.bold),
-      ),
+      appBarTheme: appBarTheme,
     );
 
     final ThemeData darkTheme = ThemeData(
@@ -92,12 +105,7 @@ class MyApp extends StatelessWidget {
         brightness: Brightness.dark,
       ),
       textTheme: appTextTheme,
-      appBarTheme: AppBarTheme(
-        backgroundColor: Colors.grey[900],
-        foregroundColor: Colors.white,
-        titleTextStyle:
-            GoogleFonts.oswald(fontSize: 24, fontWeight: FontWeight.bold),
-      ),
+      appBarTheme: appBarTheme.copyWith(backgroundColor: Colors.grey[900]),
     );
 
     return Consumer<ThemeProvider>(

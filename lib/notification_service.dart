@@ -1,18 +1,69 @@
+
+import 'dart:developer' as developer;
+import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:geolocator/geolocator.dart';
+import 'package:geodesy/geodesy.dart';
+
+// Must be a top-level function
+@pragma('vm:entry-point')
+Future<void> handleBackgroundMessage(RemoteMessage message) async {
+  // If you're going to use other Firebase services in the background, such as Firestore,
+  // make sure you call `initializeApp` before using other Firebase services.
+  await Firebase.initializeApp();
+
+  developer.log('Handling a background message ${message.messageId}');
+
+  final prefs = await SharedPreferences.getInstance();
+  final minMagnitude = prefs.getDouble('minMagnitude') ?? 0.0;
+  final radius = prefs.getDouble('radius') ?? 1000.0;
+  final earthquakeMagnitude = double.parse(message.data['magnitude'] ?? '0.0');
+
+  if (earthquakeMagnitude >= minMagnitude) {
+    final earthquakeLat = double.parse(message.data['lat'] ?? '0.0');
+    final earthquakeLng = double.parse(message.data['lng'] ?? '0.0');
+    final earthquakeLocation = LatLng(earthquakeLat, earthquakeLng);
+
+    final position = await Geolocator.getCurrentPosition();
+    final userLocation = LatLng(position.latitude, position.longitude);
+
+    final distance = Geodesy().distanceBetweenTwoGeoPoints(userLocation, earthquakeLocation);
+
+    if (distance <= radius * 1000) {
+       if (message.notification != null) {
+            developer.log('Message also contained a notification: ${message.notification}');
+            final notificationService = NotificationService();
+            notificationService.showNotification(
+              id: message.hashCode,
+              title: message.notification?.title ?? '',
+              body: message.notification?.body ?? '',
+              payload: message.data.toString(),
+            );
+          }
+    }
+  }
+}
 
 class NotificationService {
-  static final NotificationService _notificationService = NotificationService._internal();
+  static final NotificationService _instance = NotificationService._internal();
 
   factory NotificationService() {
-    return _notificationService;
+    return _instance;
   }
 
   NotificationService._internal();
 
-  final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin =
+  final FirebaseMessaging _firebaseMessaging = FirebaseMessaging.instance;
+  final FlutterLocalNotificationsPlugin _flutterLocalNotificationsPlugin =
       FlutterLocalNotificationsPlugin();
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+
 
   Future<void> init() async {
+    // Init local notifications
     const AndroidInitializationSettings initializationSettingsAndroid =
         AndroidInitializationSettings('@mipmap/ic_launcher');
 
@@ -20,35 +71,86 @@ class NotificationService {
       android: initializationSettingsAndroid,
     );
 
-    await flutterLocalNotificationsPlugin.initialize(
+    await _flutterLocalNotificationsPlugin.initialize(
       initializationSettings,
-      onDidReceiveNotificationResponse: (NotificationResponse notificationResponse) async {
-        // Handle notification tapped logic here
-      },
+      onDidReceiveNotificationResponse: onDidReceiveNotificationResponse,
     );
+
+    // Init Firebase Messaging
+    await _firebaseMessaging.requestPermission();
+    final fCMToken = await _firebaseMessaging.getToken();
+    developer.log('FCM Token: $fCMToken');
+    _saveTokenToFirestore(fCMToken);
+    _firebaseMessaging.subscribeToTopic('all');
+
+    FirebaseMessaging.onBackgroundMessage(handleBackgroundMessage);
+
+    FirebaseMessaging.onMessage.listen((RemoteMessage message) async {
+        developer.log('Got a message whilst in the foreground!');
+
+        final prefs = await SharedPreferences.getInstance();
+        final minMagnitude = prefs.getDouble('minMagnitude') ?? 0.0;
+        final radius = prefs.getDouble('radius') ?? 1000.0;
+        final earthquakeMagnitude = double.parse(message.data['magnitude'] ?? '0.0');
+
+        if (earthquakeMagnitude >= minMagnitude) {
+          final earthquakeLat = double.parse(message.data['lat'] ?? '0.0');
+          final earthquakeLng = double.parse(message.data['lng'] ?? '0.0');
+          final earthquakeLocation = LatLng(earthquakeLat, earthquakeLng);
+
+          final position = await Geolocator.getCurrentPosition();
+          final userLocation = LatLng(position.latitude, position.longitude);
+
+          final distance = Geodesy().distanceBetweenTwoGeoPoints(userLocation, earthquakeLocation);
+
+          if (distance <= radius * 1000) {
+            if (message.notification != null) {
+              developer.log('Message also contained a notification: ${message.notification}');
+              showNotification(
+                id: message.hashCode,
+                title: message.notification?.title ?? '',
+                body: message.notification?.body ?? '',
+                payload: message.data.toString(),
+              );
+            }
+          }
+        }
+    });
   }
 
-  Future<void> showNotification(
-    int id,
-    String title,
-    String body,
-    String payload,
-  ) async {
+  void onDidReceiveNotificationResponse(NotificationResponse notificationResponse) async {
+    // Handle notification tap
+  }
+
+  Future<void> showNotification({
+    required int id,
+    required String title,
+    required String body,
+    required String payload,
+  }) async {
     const AndroidNotificationDetails androidPlatformChannelSpecifics = AndroidNotificationDetails(
       'main_channel',
       'Main Channel',
       channelDescription: 'Main channel notifications',
       importance: Importance.max,
       priority: Priority.high,
-      showWhen: false,
+      showWhen: true, // show timestamp
     );
-    const NotificationDetails platformChannelSpecifics = NotificationDetails(android: androidPlatformChannelSpecifics);
-    await flutterLocalNotificationsPlugin.show(
+    const NotificationDetails notificationDetails = NotificationDetails(android: androidPlatformChannelSpecifics);
+    await _flutterLocalNotificationsPlugin.show(
       id,
       title,
       body,
-      platformChannelSpecifics,
+      notificationDetails,
       payload: payload,
     );
+  }
+
+  Future<void> _saveTokenToFirestore(String? token) async {
+    if (token == null) return;
+    await _firestore.collection('fcm_tokens').doc(token).set({
+      'token': token,
+      'createdAt': FieldValue.serverTimestamp(),
+    });
   }
 }

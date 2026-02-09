@@ -6,6 +6,7 @@ class Earthquake {
   final double longitude;
   final double latitude;
   final double depth;
+  double? distanceFromUser;
 
   Earthquake({
     required this.id,
@@ -15,6 +16,7 @@ class Earthquake {
     required this.longitude,
     required this.latitude,
     required this.depth,
+    this.distanceFromUser,
   });
 
   factory Earthquake.fromJson(Map<String, dynamic> json) {

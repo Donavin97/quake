@@ -1,6 +1,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:myapp/models/time_window.dart';
 import '../providers/settings_provider.dart';
 
 class SettingsScreen extends StatelessWidget {
@@ -30,7 +31,7 @@ class SettingsScreen extends StatelessWidget {
                   divisions: 100,
                   label: settings.minMagnitude.toStringAsFixed(1),
                   onChanged: (value) {
-                    settings.setMinMagnitude(value);
+                    settings.updateSettings(minMagnitude: value);
                   },
                 ),
                 const SizedBox(height: 24),
@@ -59,7 +60,7 @@ class SettingsScreen extends StatelessWidget {
                   ],
                   selected: {settings.timeWindow},
                   onSelectionChanged: (newSelection) {
-                    settings.setTimeWindow(newSelection.first);
+                    settings.updateSettings(timeWindow: newSelection.first);
                   },
                 ),
                 const SizedBox(height: 24),
@@ -74,7 +75,7 @@ class SettingsScreen extends StatelessWidget {
                   divisions: 100,
                   label: settings.radius.toStringAsFixed(0),
                   onChanged: (value) {
-                    settings.setRadius(value);
+                    settings.updateSettings(radius: value);
                   },
                 ),
               ],

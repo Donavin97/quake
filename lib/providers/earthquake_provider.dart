@@ -1,9 +1,15 @@
+
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../models/earthquake.dart';
+import '../models/time_window.dart';
 import '../services/usgs_service.dart';
+import '../services/firestore_service.dart';
 
 class EarthquakeProvider with ChangeNotifier {
   final UsgsService _usgsService = UsgsService();
+  final FirestoreService _firestoreService = FirestoreService();
+
   List<Earthquake> _earthquakes = [];
   bool _isLoading = false;
   String? _error;
@@ -12,13 +18,24 @@ class EarthquakeProvider with ChangeNotifier {
   bool get isLoading => _isLoading;
   String? get error => _error;
 
+  EarthquakeProvider() {
+    _firestoreService.init();
+  }
+
   Future<void> fetchEarthquakes() async {
     _isLoading = true;
     _error = null;
     notifyListeners();
 
     try {
-      _earthquakes = await _usgsService.getRecentEarthquakes();
+      final prefs = await SharedPreferences.getInstance();
+      final timeWindowIndex = prefs.getInt('timeWindow') ?? 0;
+      final timeWindow = TimeWindow.values[timeWindowIndex];
+      final radius = prefs.getDouble('radius') ?? 1000.0;
+      _earthquakes = await _usgsService.getRecentEarthquakes(
+        timeWindow: timeWindow,
+        radius: radius,
+      );
     } catch (e) {
       _error = e.toString();
     } finally {

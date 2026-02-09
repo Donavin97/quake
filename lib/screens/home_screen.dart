@@ -5,7 +5,6 @@ import 'package:provider/provider.dart';
 import '../providers/earthquake_provider.dart';
 import '../providers/theme_provider.dart';
 import '../widgets/earthquake_list_item.dart';
-import 'detail_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -82,13 +81,7 @@ class _HomeScreenState extends State<HomeScreen> {
               return EarthquakeListItem(
                 earthquake: earthquake,
                 onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) =>
-                          DetailScreen(earthquake: earthquake),
-                    ),
-                  );
+                  context.go('/details', extra: earthquake);
                 },
               );
             },

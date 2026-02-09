@@ -1,16 +1,19 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import '../models/earthquake.dart';
+import '../models/time_window.dart';
 
 class UsgsService {
-  Future<List<Earthquake>> getRecentEarthquakes() async {
+  Future<List<Earthquake>> getRecentEarthquakes({
+    TimeWindow timeWindow = TimeWindow.day,
+    double radius = 1000.0,
+  }) async {
     final now = DateTime.now();
-    final yesterday = now.subtract(const Duration(days: 1));
-    final startTime = yesterday.toUtc().toIso8601String();
+    final startTime = _getStartTime(now, timeWindow);
     final endTime = now.toUtc().toIso8601String();
 
     final url =
-        'https://earthquake.usgs.gov/fdsnws/event/1/query?format=geojson&starttime=$startTime&endtime=$endTime';
+        'https://earthquake.usgs.gov/fdsnws/event/1/query?format=geojson&starttime=$startTime&endtime=$endTime&maxradiuskm=$radius';
 
     try {
       final response = await http.get(Uri.parse(url));
@@ -25,6 +28,17 @@ class UsgsService {
     } catch (e) {
       // Return mock data if fetching fails
       return _getMockEarthquakes();
+    }
+  }
+
+  String _getStartTime(DateTime now, TimeWindow timeWindow) {
+    switch (timeWindow) {
+      case TimeWindow.day:
+        return now.subtract(const Duration(days: 1)).toUtc().toIso8601String();
+      case TimeWindow.week:
+        return now.subtract(const Duration(days: 7)).toUtc().toIso8601String();
+      case TimeWindow.month:
+        return now.subtract(const Duration(days: 30)).toUtc().toIso8601String();
     }
   }
 
