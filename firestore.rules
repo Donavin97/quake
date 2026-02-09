@@ -4,7 +4,17 @@ service cloud.firestore {
     match /user_preferences/{userId} {
       // WARNING: Insecure rules, allowing anyone to read/write.
       // This should be properly secured before going to production.
-      allow read, write: if true;
+      allow creat, update, read, write: if true;
+    }
+    match /user_preferences/{fcmToken} {
+      // WARNING: Insecure rules, allowing anyone to read/write.
+      // This should be properly secured before going to production.
+      allow read, write, update, creat: if true;
+    }
+    match /metadata/{lastNotified} {
+      // WARNING: Insecure rules, allowing anyone to read/write.
+      // This should be properly secured before going to production.
+      allow creat, update, read, write: if true;
     }
   }
 }
