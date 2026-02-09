@@ -1,4 +1,8 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:geolocator/geolocator.dart';
+import 'package:myapp/services/firestore_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/time_window.dart';
 
@@ -10,6 +14,9 @@ class SettingsProvider with ChangeNotifier {
   double _minMagnitude = 0.0;
   TimeWindow _timeWindow = TimeWindow.day;
   double _radius = 1000.0;
+
+  final FirestoreService _firestoreService = FirestoreService();
+  final FirebaseAuth _auth = FirebaseAuth.instance;
 
   double get minMagnitude => _minMagnitude;
   TimeWindow get timeWindow => _timeWindow;
@@ -34,6 +41,12 @@ class SettingsProvider with ChangeNotifier {
     double? radius,
   }) async {
     final prefs = await SharedPreferences.getInstance();
+    Position? position;
+    try {
+      position = await Geolocator.getCurrentPosition();
+    } catch (e) {
+      print('Could not get position: $e');
+    }
     if (minMagnitude != null) {
       _minMagnitude = minMagnitude;
       await prefs.setDouble(_minMagnitudeKey, minMagnitude);
@@ -47,6 +60,18 @@ class SettingsProvider with ChangeNotifier {
       await prefs.setDouble(_radiusKey, radius);
     }
     notifyListeners();
+    final user = _auth.currentUser;
+    if (user != null) {
+      await _firestoreService.saveUserPreferences(
+        user.uid,
+        {
+          'minMagnitude': _minMagnitude,
+          'timeWindow': _timeWindow.index,
+          'radius': _radius,
+        },
+        position: position,
+      );
+    }
   }
 
   Future<void> setMinMagnitude(double value) async {
