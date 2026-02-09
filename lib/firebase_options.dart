@@ -36,9 +36,9 @@ class DefaultFirebaseOptions {
     apiKey: 'AIzaSyCluBzRD9X29D9fammZIzuWzEeI7QH8CS0',
     appId: '1:205624709309:web:45806b2dd69f30e98c67d4',
     messagingSenderId: '205624709309',
-    projectId: 'eqapp-56196',
-    authDomain: 'eqapp-56196.firebaseapp.com',
-    storageBucket: 'eqapp-56196.appspot.com',
+    projectId: 'quakewatch-89047796-c7f3c',
+    authDomain: 'quakewatch-89047796-c7f3c.firebaseapp.com',
+    storageBucket: 'quakewatch-89047796-c7f3c.appspot.com',
   );
 
   static const FirebaseOptions android = FirebaseOptions(
@@ -53,8 +53,8 @@ class DefaultFirebaseOptions {
     apiKey: 'AIzaSyCluBzRD9X29D9fammZIzuWzEeI7QH8CS0',
     appId: '1:205624709309:ios:45806b2dd69f30e98c67d4',
     messagingSenderId: '205624709309',
-    projectId: 'eqapp-56196',
-    storageBucket: 'eqapp-56196.appspot.com',
+    projectId: 'quakewatch-89047796-c7f3c',
+    storageBucket: 'quakewatch-89047796-c7f3c.appspot.com',
     iosBundleId: 'com.example.myapp',
   );
 
@@ -62,8 +62,8 @@ class DefaultFirebaseOptions {
     apiKey: 'AIzaSyCluBzRD9X29D9fammZIzuWzEeI7QH8CS0',
     appId: '1:205624709309:ios:45806b2dd69f30e98c67d4',
     messagingSenderId: '205624709309',
-    projectId: 'eqapp-56196',
-    storageBucket: 'eqapp-56196.appspot.com',
+    projectId: 'quakewatch-89047796-c7f3c',
+    storageBucket: 'quakewatch-89047796-c7f3c.appspot.com',
     iosBundleId: 'com.example.myapp',
   );
 }
