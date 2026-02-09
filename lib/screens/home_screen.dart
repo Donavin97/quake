@@ -27,29 +27,37 @@ class _HomeScreenState extends State<HomeScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _fetchData();
       FirebaseMessaging.instance.getToken().then((token) {
-        setState(() {
-          fcmToken = token;
-        });
+        if (mounted) {
+          setState(() {
+            fcmToken = token;
+          });
+        }
       });
     });
   }
 
   Future<void> _fetchData() async {
     final locationProvider = Provider.of<LocationProvider>(context, listen: false);
+    final earthquakeProvider = Provider.of<EarthquakeProvider>(context, listen: false);
+
     await locationProvider.determinePosition();
 
-    final earthquakeProvider = Provider.of<EarthquakeProvider>(context, listen: false);
-    await earthquakeProvider.fetchEarthquakes(position: locationProvider.currentPosition);
+    if (!mounted) return;
+
+    await earthquakeProvider.fetchEarthquakes(
+      position: locationProvider.currentPosition,
+    );
   }
 
   void _showFilterAndTokenInfo() async {
+    final scaffoldMessenger = ScaffoldMessenger.of(context);
     final prefs = await SharedPreferences.getInstance();
     final minMagnitude = prefs.getDouble('minMagnitude') ?? 0.0;
     final radius = prefs.getDouble('radius') ?? 1000.0;
     final timeWindowIndex = prefs.getInt('timeWindow') ?? 0;
     final timeWindow = TimeWindow.values[timeWindowIndex];
 
-    ScaffoldMessenger.of(context).showSnackBar(
+    scaffoldMessenger.showSnackBar(
       SnackBar(
         content: Column(
           crossAxisAlignment: CrossAxisAlignment.start,

@@ -14,6 +14,11 @@ class EarthquakeListItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final subtitle = StringBuffer(earthquake.time.toString());
+    if (earthquake.distance != null) {
+      subtitle.write(' - ${earthquake.distance?.toStringAsFixed(1)} km away');
+    }
+
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       child: ListTile(
@@ -24,7 +29,7 @@ class EarthquakeListItem extends StatelessWidget {
           ),
         ),
         title: Text(earthquake.place, style: GoogleFonts.openSans()),
-        subtitle: Text(earthquake.time.toString()),
+        subtitle: Text(subtitle.toString()),
         onTap: onTap,
       ),
     );

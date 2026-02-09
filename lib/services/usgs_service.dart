@@ -58,7 +58,6 @@ class UsgsService {
         magnitude: 4.5,
         latitude: 37.7749,
         longitude: -122.4194,
-        depth: 10.0,
       ),
       Earthquake(
         id: 'mock2',
@@ -67,7 +66,6 @@ class UsgsService {
         magnitude: 5.2,
         latitude: 35.6895,
         longitude: 139.6917,
-        depth: 25.0,
       ),
       Earthquake(
         id: 'mock3',
@@ -76,7 +74,6 @@ class UsgsService {
         magnitude: 6.1,
         latitude: -33.4489,
         longitude: -70.6693,
-        depth: 70.0,
       ),
     ];
   }

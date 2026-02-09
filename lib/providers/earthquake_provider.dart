@@ -1,15 +1,12 @@
-
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/earthquake.dart';
 import '../models/time_window.dart';
 import '../services/usgs_service.dart';
-import '../services/firestore_service.dart';
 
 class EarthquakeProvider with ChangeNotifier {
   final UsgsService _usgsService = UsgsService();
-  final FirestoreService _firestoreService = FirestoreService();
 
   List<Earthquake> _earthquakes = [];
   bool _isLoading = false;
@@ -38,6 +35,17 @@ class EarthquakeProvider with ChangeNotifier {
         radius: radius,
         position: position,
       );
+      if (position != null) {
+        for (var earthquake in _earthquakes) {
+          final distance = Geolocator.distanceBetween(
+            position.latitude,
+            position.longitude,
+            earthquake.latitude,
+            earthquake.longitude,
+          );
+          earthquake.distance = distance / 1000; // Convert to kilometers
+        }
+      }
     } catch (e) {
       _error = e.toString();
     } finally {

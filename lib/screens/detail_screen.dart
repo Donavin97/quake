@@ -9,6 +9,8 @@ class DetailScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final distance = earthquake.distance;
+
     return Scaffold(
       appBar: AppBar(
         title: Text('Earthquake Details', style: GoogleFonts.oswald()),
@@ -30,8 +32,14 @@ class DetailScreen extends StatelessWidget {
             Text(
               'Coordinates: (${earthquake.latitude.toStringAsFixed(2)}, ${earthquake.longitude.toStringAsFixed(2)})',
             ),
-            const SizedBox(height: 8),
-            Text('Depth: ${earthquake.depth.toStringAsFixed(2)} km'),
+            if (distance != null)
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const SizedBox(height: 8),
+                  Text('Distance: ${distance.toStringAsFixed(2)} km'),
+                ],
+              ),
           ],
         ),
       ),
