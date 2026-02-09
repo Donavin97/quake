@@ -2,19 +2,10 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     match /user_preferences/{userId} {
-      // WARNING: Insecure rules, allowing anyone to read/write.
-      // This should be properly secured before going to production.
-      allow creat, update, read, write: if true;
+      allow read, write: if request.auth != null && request.auth.uid == userId;
     }
-    match /user_preferences/{fcmToken} {
-      // WARNING: Insecure rules, allowing anyone to read/write.
-      // This should be properly secured before going to production.
-      allow read, write, update, creat: if true;
-    }
-    match /metadata/{lastNotified} {
-      // WARNING: Insecure rules, allowing anyone to read/write.
-      // This should be properly secured before going to production.
-      allow creat, update, read, write: if true;
+    match /fcm_tokens/{token} {
+      allow write: if true;
     }
   }
 }

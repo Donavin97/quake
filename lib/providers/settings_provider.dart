@@ -1,4 +1,3 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
@@ -71,6 +70,19 @@ class SettingsProvider with ChangeNotifier {
         },
         position: position,
       );
+    }
+  }
+
+  Future<void> loadSettingsFromFirestore() async {
+    final user = _auth.currentUser;
+    if (user != null) {
+      final prefs = await _firestoreService.getUserPreferences(user.uid);
+      if (prefs != null) {
+        _minMagnitude = prefs['minMagnitude'] ?? 0.0;
+        _timeWindow = TimeWindow.values[prefs['timeWindow'] ?? 0];
+        _radius = prefs['radius'] ?? 1000.0;
+        notifyListeners();
+      }
     }
   }
 

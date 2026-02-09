@@ -78,6 +78,15 @@ class SettingsScreen extends StatelessWidget {
                     settings.updateSettings(radius: value);
                   },
                 ),
+                const SizedBox(height: 24),
+                ElevatedButton(
+                  onPressed: () {
+                    final settingsProvider =
+                        Provider.of<SettingsProvider>(context, listen: false);
+                    settingsProvider.loadSettingsFromFirestore();
+                  },
+                  child: const Text('Load Settings from Firestore'),
+                ),
               ],
             );
           },
