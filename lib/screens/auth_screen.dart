@@ -109,7 +109,7 @@ class _AuthScreenState extends State<AuthScreen> {
                     : 'Have an account? Login'),
               ),
               const SizedBox(height: 20),
-              ElevatedButton(
+              ElevatedButton.icon(
                 onPressed: () async {
                   try {
                     await authService.signInWithGoogle();
@@ -120,7 +120,8 @@ class _AuthScreenState extends State<AuthScreen> {
                     });
                   }
                 },
-                child: const Text('Sign in with Google'),
+                icon: const Icon(Icons.login),
+                label: const Text('Continue with Google'),
               ),
             ],
           ),

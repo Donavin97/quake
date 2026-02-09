@@ -60,6 +60,9 @@ class NotificationService {
   final FlutterLocalNotificationsPlugin _flutterLocalNotificationsPlugin =
       FlutterLocalNotificationsPlugin();
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  bool _isPermissionGranted = false;
+
+  bool get isPermissionGranted => _isPermissionGranted;
 
 
   Future<void> init() async {
@@ -77,7 +80,7 @@ class NotificationService {
     );
 
     // Init Firebase Messaging
-    await _firebaseMessaging.requestPermission();
+    await requestPermission();
     final fCMToken = await _firebaseMessaging.getToken();
     developer.log('FCM Token: $fCMToken');
     _saveTokenToFirestore(fCMToken);
@@ -116,6 +119,11 @@ class NotificationService {
           }
         }
     });
+  }
+
+  Future<void> requestPermission() async {
+    final settings = await _firebaseMessaging.requestPermission();
+    _isPermissionGranted = settings.authorizationStatus == AuthorizationStatus.authorized;
   }
 
   void onDidReceiveNotificationResponse(NotificationResponse notificationResponse) async {
