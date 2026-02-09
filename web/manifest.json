@@ -1,6 +1,6 @@
 {
-    "name": "myapp",
-    "short_name": "myapp",
+    "name": "Shake Track",
+    "short_name": "Shake Track",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0175C2",
