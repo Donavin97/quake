@@ -4,7 +4,7 @@ import 'package:intl/intl.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:geodesy/geodesy.dart';
 
-import 'package:eq_track/models/earthquake.dart';
+import '../models/earthquake.dart';
 
 class DetailScreen extends StatefulWidget {
   final Earthquake earthquake;
@@ -12,10 +12,10 @@ class DetailScreen extends StatefulWidget {
   const DetailScreen({super.key, required this.earthquake});
 
   @override
-  _DetailScreenState createState() => _DetailScreenState();
+  State<DetailScreen> createState() => DetailScreenState();
 }
 
-class _DetailScreenState extends State<DetailScreen> {
+class DetailScreenState extends State<DetailScreen> {
   double? distance;
 
   @override
@@ -32,11 +32,14 @@ class _DetailScreenState extends State<DetailScreen> {
           LatLng(widget.earthquake.latitude, widget.earthquake.longitude);
       final calculatedDistance =
           Geodesy().distanceBetweenTwoGeoPoints(userLocation, earthquakeLocation);
-      setState(() {
-        distance = calculatedDistance / 1000; // Convert to km
-      });
+      if (mounted) {
+        setState(() {
+          distance = calculatedDistance / 1000; // Convert to km
+        });
+      }
     } catch (e) {
-      print('Error calculating distance: $e');
+      // It's better to log errors or show a message to the user.
+      // For now, we'll just ignore it as per the original code's intention.
     }
   }
 

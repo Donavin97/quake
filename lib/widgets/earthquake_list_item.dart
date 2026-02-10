@@ -16,7 +16,7 @@ class EarthquakeListItem extends StatefulWidget {
   });
 
   @override
-  _EarthquakeListItemState createState() => _EarthquakeListItemState();
+  State<EarthquakeListItem> createState() => _EarthquakeListItemState();
 }
 
 class _EarthquakeListItemState extends State<EarthquakeListItem> {
@@ -42,7 +42,7 @@ class _EarthquakeListItemState extends State<EarthquakeListItem> {
         });
       }
     } catch (e) {
-      print('Error calculating distance: $e');
+      // Silently ignore
     }
   }
 

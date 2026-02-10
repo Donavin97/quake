@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
 import '../providers/earthquake_provider.dart';
@@ -22,7 +21,7 @@ class ListScreen extends StatelessWidget {
             Padding(
               padding: const EdgeInsets.all(8.0),
               child: Text(
-                'Last updated: ${DateFormat.yMMMd().add_jms().format(earthquakeProvider.lastUpdated!)}',
+                'Last updated: ${earthquakeProvider.lastUpdated!}',
                 style: Theme.of(context).textTheme.bodySmall,
               ),
             ),

@@ -1,3 +1,4 @@
+
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
@@ -23,15 +24,34 @@ class SettingsProvider with ChangeNotifier {
 
   SettingsProvider() {
     _loadSettings();
+    _auth.authStateChanges().listen((_) => _loadSettings());
   }
 
   Future<void> _loadSettings() async {
-    final prefs = await SharedPreferences.getInstance();
-    _minMagnitude = prefs.getDouble(_minMagnitudeKey) ?? 0.0;
-    final timeWindowIndex = prefs.getInt(_timeWindowKey) ?? 0;
-    _timeWindow = TimeWindow.values[timeWindowIndex];
-    _radius = prefs.getDouble(_radiusKey) ?? 1000.0;
+    final user = _auth.currentUser;
+    if (user != null) {
+      final firestorePrefs = await _firestoreService.getUserPreferences(user.uid);
+      if (firestorePrefs != null) {
+        _minMagnitude = firestorePrefs['minMagnitude'] ?? 0.0;
+        _timeWindow = TimeWindow.values[firestorePrefs['timeWindow'] ?? 0];
+        _radius = firestorePrefs['radius'] ?? 1000.0;
+      } else {
+        // No settings in firestore, load from local, then save to firestore
+        await _loadFromSharedPrefs();
+        await updateSettings();
+      }
+    } else {
+      await _loadFromSharedPrefs();
+    }
     notifyListeners();
+  }
+  
+  Future<void> _loadFromSharedPrefs() async {
+      final prefs = await SharedPreferences.getInstance();
+      _minMagnitude = prefs.getDouble(_minMagnitudeKey) ?? 0.0;
+      final timeWindowIndex = prefs.getInt(_timeWindowKey) ?? 0;
+      _timeWindow = TimeWindow.values[timeWindowIndex];
+      _radius = prefs.getDouble(_radiusKey) ?? 1000.0;
   }
 
   Future<void> updateSettings({
@@ -70,19 +90,6 @@ class SettingsProvider with ChangeNotifier {
         },
         position: position,
       );
-    }
-  }
-
-  Future<void> loadSettingsFromFirestore() async {
-    final user = _auth.currentUser;
-    if (user != null) {
-      final prefs = await _firestoreService.getUserPreferences(user.uid);
-      if (prefs != null) {
-        _minMagnitude = prefs['minMagnitude'] ?? 0.0;
-        _timeWindow = TimeWindow.values[prefs['timeWindow'] ?? 0];
-        _radius = prefs['radius'] ?? 1000.0;
-        notifyListeners();
-      }
     }
   }
 
