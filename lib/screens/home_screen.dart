@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
 import '../providers/earthquake_provider.dart';
+import '../providers/location_provider.dart';
 import '../services/auth_service.dart';
 import 'list_screen.dart';
 import 'map_screen.dart';
@@ -27,6 +28,7 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     final authService = Provider.of<AuthService>(context, listen: false);
+    final locationProvider = Provider.of<LocationProvider>(context, listen: false);
 
     return Scaffold(
       appBar: AppBar(
@@ -48,7 +50,7 @@ class _HomeScreenState extends State<HomeScreen> {
         onTap: (index) {
           if (_currentIndex == 2 && index != 2) {
             Provider.of<EarthquakeProvider>(context, listen: false)
-                .fetchEarthquakes();
+                .fetchEarthquakes(position: locationProvider.currentPosition);
           }
           setState(() {
             _currentIndex = index;
