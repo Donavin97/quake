@@ -18,12 +18,28 @@ void main() async {
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
-  await NotificationService().checkPermission();
-  runApp(const MyApp());
+
+  final notificationService = NotificationService();
+  await notificationService.checkPermission();
+
+  final locationProvider = LocationProvider();
+  await locationProvider.checkPermission();
+
+  runApp(MyApp(
+    notificationService: notificationService,
+    locationProvider: locationProvider,
+  ));
 }
 
 class MyApp extends StatelessWidget {
-  const MyApp({super.key});
+  final NotificationService notificationService;
+  final LocationProvider locationProvider;
+
+  const MyApp({
+    super.key,
+    required this.notificationService,
+    required this.locationProvider,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -34,14 +50,14 @@ class MyApp extends StatelessWidget {
           create: (_) => authService,
         ),
         Provider<NotificationService>(
-          create: (_) => NotificationService(),
+          create: (_) => notificationService,
         ),
         ChangeNotifierProvider(create: (context) => ThemeProvider()),
         ChangeNotifierProvider(create: (context) => SettingsProvider()),
         ChangeNotifierProvider(
           create: (context) => EarthquakeProvider()..fetchEarthquakes(),
         ),
-        ChangeNotifierProvider(create: (context) => LocationProvider()),
+        ChangeNotifierProvider(create: (context) => locationProvider),
       ],
       child: Consumer<ThemeProvider>(
         builder: (context, themeProvider, child) {
