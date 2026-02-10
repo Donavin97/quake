@@ -27,10 +27,11 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final authService = AuthService();
     return MultiProvider(
       providers: [
         Provider<AuthService>(
-          create: (_) => AuthService(),
+          create: (_) => authService,
         ),
         Provider<NotificationService>(
           create: (_) => NotificationService(),
@@ -45,7 +46,7 @@ class MyApp extends StatelessWidget {
       child: Consumer<ThemeProvider>(
         builder: (context, themeProvider, child) {
           return MaterialApp.router(
-            routerConfig: AppRouter(context).router,
+            routerConfig: AppRouter(context, authService).router,
             title: 'QuakeTrack',
             theme: AppTheme.lightTheme,
             darkTheme: AppTheme.darkTheme,

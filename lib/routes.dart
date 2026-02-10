@@ -1,5 +1,4 @@
 
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
@@ -13,23 +12,25 @@ import 'screens/disclaimer_screen.dart';
 import 'screens/home_screen.dart';
 import 'screens/permission_screen.dart';
 import 'notification_service.dart';
+import 'services/auth_service.dart';
 
 class AppRouter {
   final BuildContext context;
+  final AuthService authService;
 
-  AppRouter(this.context);
+  AppRouter(this.context, this.authService);
 
   GoRouter get router {
-    final firebaseUser = Provider.of<User?>(context, listen: false);
     final locationProvider = Provider.of<LocationProvider>(context, listen: false);
     final notificationService = Provider.of<NotificationService>(context, listen: false);
 
     return GoRouter(
       initialLocation: '/',
+      refreshListenable: authService,
       redirect: (BuildContext context, GoRouterState state) async {
         final prefs = await SharedPreferences.getInstance();
         final disclaimerAccepted = prefs.getBool('disclaimer_accepted') ?? false;
-        final bool loggedIn = firebaseUser != null;
+        final bool loggedIn = authService.currentUser != null;
         final bool onAuth = state.matchedLocation == '/auth';
         final bool onDisclaimer = state.matchedLocation == '/disclaimer';
         final bool onPermission = state.matchedLocation == '/permission';

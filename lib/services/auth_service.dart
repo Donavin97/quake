@@ -1,10 +1,19 @@
 
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/material.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 
-class AuthService {
+class AuthService with ChangeNotifier {
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final GoogleSignIn _googleSignIn = GoogleSignIn();
+
+  User? get currentUser => _auth.currentUser;
+
+  AuthService() {
+    _auth.authStateChanges().listen((user) {
+      notifyListeners();
+    });
+  }
 
   Future<User?> signInAnonymously() async {
     try {
