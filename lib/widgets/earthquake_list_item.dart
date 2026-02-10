@@ -1,11 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
-import 'package:geolocator/geolocator.dart';
-import 'package:geodesy/geodesy.dart';
 
 import '../models/earthquake.dart';
 
-class EarthquakeListItem extends StatefulWidget {
+class EarthquakeListItem extends StatelessWidget {
   final Earthquake earthquake;
   final VoidCallback onTap;
 
@@ -16,41 +13,10 @@ class EarthquakeListItem extends StatefulWidget {
   });
 
   @override
-  State<EarthquakeListItem> createState() => _EarthquakeListItemState();
-}
-
-class _EarthquakeListItemState extends State<EarthquakeListItem> {
-  double? distance;
-
-  @override
-  void initState() {
-    super.initState();
-    _calculateDistance();
-  }
-
-  Future<void> _calculateDistance() async {
-    try {
-      final position = await Geolocator.getCurrentPosition();
-      final userLocation = LatLng(position.latitude, position.longitude);
-      final earthquakeLocation =
-          LatLng(widget.earthquake.latitude, widget.earthquake.longitude);
-      final calculatedDistance =
-          Geodesy().distanceBetweenTwoGeoPoints(userLocation, earthquakeLocation);
-      if (mounted) {
-        setState(() {
-          distance = calculatedDistance / 1000; // Convert to km
-        });
-      }
-    } catch (e) {
-      // Silently ignore
-    }
-  }
-
-  @override
   Widget build(BuildContext context) {
-    final subtitle = StringBuffer(widget.earthquake.time.toString());
-    if (distance != null) {
-      subtitle.write(' - ${distance?.toStringAsFixed(1)} km away');
+    final subtitle = StringBuffer(earthquake.time.toString());
+    if (earthquake.distance != null) {
+      subtitle.write(' - ${earthquake.distance?.toStringAsFixed(1)} km away');
     }
 
     return Card(
@@ -58,13 +24,12 @@ class _EarthquakeListItemState extends State<EarthquakeListItem> {
       child: ListTile(
         leading: CircleAvatar(
           child: Text(
-            widget.earthquake.magnitude.toStringAsFixed(2),
-            style: GoogleFonts.roboto(fontWeight: FontWeight.bold),
+            earthquake.magnitude.toStringAsFixed(2),
           ),
         ),
-        title: Text(widget.earthquake.place, style: GoogleFonts.openSans()),
+        title: Text(earthquake.place),
         subtitle: Text(subtitle.toString()),
-        onTap: widget.onTap,
+        onTap: onTap,
       ),
     );
   }

@@ -1,8 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import 'package:geolocator/geolocator.dart';
-import 'package:geodesy/geodesy.dart';
 
 import '../models/earthquake.dart';
 
@@ -27,11 +25,12 @@ class DetailScreenState extends State<DetailScreen> {
   Future<void> _calculateDistance() async {
     try {
       final position = await Geolocator.getCurrentPosition();
-      final userLocation = LatLng(position.latitude, position.longitude);
-      final earthquakeLocation =
-          LatLng(widget.earthquake.latitude, widget.earthquake.longitude);
-      final calculatedDistance =
-          Geodesy().distanceBetweenTwoGeoPoints(userLocation, earthquakeLocation);
+      final calculatedDistance = Geolocator.distanceBetween(
+        position.latitude,
+        position.longitude,
+        widget.earthquake.latitude,
+        widget.earthquake.longitude,
+      );
       if (mounted) {
         setState(() {
           distance = calculatedDistance / 1000; // Convert to km
@@ -47,7 +46,7 @@ class DetailScreenState extends State<DetailScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text('Earthquake Details', style: GoogleFonts.oswald()),
+        title: const Text('Earthquake Details'),
       ),
       body: Padding(
         padding: const EdgeInsets.all(16.0),

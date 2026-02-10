@@ -38,7 +38,7 @@ class EarthquakeProvider with ChangeNotifier {
         position: position,
       );
       if (position != null) {
-        for (var earthquake in _earthquakes) {
+        for (final earthquake in _earthquakes) {
           final distance = Geolocator.distanceBetween(
             position.latitude,
             position.longitude,

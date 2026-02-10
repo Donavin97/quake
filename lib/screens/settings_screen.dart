@@ -1,7 +1,6 @@
-
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:myapp/models/time_window.dart';
+import '../models/time_window.dart';
 import '../providers/settings_provider.dart';
 
 class SettingsScreen extends StatelessWidget {
@@ -26,7 +25,6 @@ class SettingsScreen extends StatelessWidget {
                 ),
                 Slider(
                   value: settings.minMagnitude,
-                  min: 0,
                   max: 10,
                   divisions: 100,
                   label: settings.minMagnitude.toStringAsFixed(1),
@@ -70,7 +68,6 @@ class SettingsScreen extends StatelessWidget {
                 ),
                 Slider(
                   value: settings.radius,
-                  min: 0,
                   max: 1000,
                   divisions: 100,
                   label: settings.radius.toStringAsFixed(0),

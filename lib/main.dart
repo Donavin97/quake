@@ -1,4 +1,3 @@
-
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -21,27 +20,11 @@ void main() async {
   );
   await BackgroundService.initialize();
 
-  final notificationService = NotificationService();
-  await notificationService.checkPermission();
-
-  final locationProvider = LocationProvider();
-  await locationProvider.checkPermission();
-
-  runApp(MyApp(
-    notificationService: notificationService,
-    locationProvider: locationProvider,
-  ));
+  runApp(const MyApp());
 }
 
 class MyApp extends StatelessWidget {
-  final NotificationService notificationService;
-  final LocationProvider locationProvider;
-
-  const MyApp({
-    super.key,
-    required this.notificationService,
-    required this.locationProvider,
-  });
+  const MyApp({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -52,14 +35,15 @@ class MyApp extends StatelessWidget {
           create: (_) => authService,
         ),
         Provider<NotificationService>(
-          create: (_) => notificationService,
+          create: (_) => NotificationService()..checkPermission(),
         ),
+        ChangeNotifierProvider(
+            create: (context) => LocationProvider()..checkPermission()),
         ChangeNotifierProvider(create: (context) => ThemeProvider()),
         ChangeNotifierProvider(create: (context) => SettingsProvider()),
         ChangeNotifierProvider(
           create: (context) => EarthquakeProvider()..fetchEarthquakes(),
         ),
-        ChangeNotifierProvider(create: (context) => locationProvider),
       ],
       child: Consumer<ThemeProvider>(
         builder: (context, themeProvider, child) {

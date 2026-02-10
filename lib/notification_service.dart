@@ -6,7 +6,6 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:geolocator/geolocator.dart';
-import 'package:geodesy/geodesy.dart';
 
 // Must be a top-level function
 @pragma('vm:entry-point')
@@ -25,13 +24,15 @@ Future<void> handleBackgroundMessage(RemoteMessage message) async {
   if (earthquakeMagnitude >= minMagnitude) {
     final earthquakeLat = double.parse(message.data['lat'] ?? '0.0');
     final earthquakeLng = double.parse(message.data['lng'] ?? '0.0');
-    final earthquakeLocation = LatLng(earthquakeLat, earthquakeLng);
 
     try {
       final position = await Geolocator.getCurrentPosition();
-      final userLocation = LatLng(position.latitude, position.longitude);
-      final distance =
-          Geodesy().distanceBetweenTwoGeoPoints(userLocation, earthquakeLocation);
+      final distance = Geolocator.distanceBetween(
+        position.latitude,
+        position.longitude,
+        earthquakeLat,
+        earthquakeLng,
+      );
 
       if (distance <= radius * 1000) {
         if (message.notification != null) {
@@ -117,13 +118,15 @@ class NotificationService {
       if (earthquakeMagnitude >= minMagnitude) {
         final earthquakeLat = double.parse(message.data['lat'] ?? '0.0');
         final earthquakeLng = double.parse(message.data['lng'] ?? '0.0');
-        final earthquakeLocation = LatLng(earthquakeLat, earthquakeLng);
 
         try {
           final position = await Geolocator.getCurrentPosition();
-          final userLocation = LatLng(position.latitude, position.longitude);
-          final distance = Geodesy()
-              .distanceBetweenTwoGeoPoints(userLocation, earthquakeLocation);
+          final distance = Geolocator.distanceBetween(
+            position.latitude,
+            position.longitude,
+            earthquakeLat,
+            earthquakeLng,
+          );
 
           if (distance <= radius * 1000) {
             if (message.notification != null) {
@@ -174,7 +177,6 @@ class NotificationService {
       channelDescription: 'Main channel notifications',
       importance: Importance.max,
       priority: Priority.high,
-      showWhen: true, // show timestamp
       sound: RawResourceAndroidNotificationSound('earthquake'),
     );
     const NotificationDetails notificationDetails =
