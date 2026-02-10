@@ -1,5 +1,5 @@
-
 import 'dart:developer' as developer;
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -82,6 +82,20 @@ class NotificationService {
       initializationSettings,
       onDidReceiveNotificationResponse: onDidReceiveNotificationResponse,
     );
+
+    // Handle token updates
+    _firebaseMessaging.onTokenRefresh.listen((fcmToken) {
+      _saveTokenToFirestore(fcmToken);
+    });
+
+    // Handle user authentication state changes
+    FirebaseAuth.instance.authStateChanges().listen((user) {
+      if (user != null) {
+        _firebaseMessaging.getToken().then((fcmToken) {
+          _saveTokenToFirestore(fcmToken);
+        });
+      }
+    });
 
     // Init Firebase Messaging
     final fCMToken = await _firebaseMessaging.getToken();
@@ -175,8 +189,9 @@ class NotificationService {
   }
 
   Future<void> _saveTokenToFirestore(String? token) async {
-    if (token == null) return;
-    await _firestore.collection('fcm_tokens').doc(token).set({
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null || token == null) return;
+    await _firestore.collection('user_fcm_tokens').doc(user.uid).set({
       'token': token,
       'createdAt': FieldValue.serverTimestamp(),
     });

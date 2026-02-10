@@ -1,20 +1,20 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
+    // Users can only read and write their own preferences
     match /user_preferences/{userId} {
-      // WARNING: Insecure rules, allowing anyone to read/write.
-      // This should be properly secured before going to production.
-      allow creat, update, read, write: if true;
+      allow read, write: if request.auth.uid == userId;
     }
-    match /user_preferences/{fcmToken} {
-      // WARNING: Insecure rules, allowing anyone to read/write.
-      // This should be properly secured before going to production.
-      allow read, write, update, creat: if true;
+
+    // Users can manage their own FCM token
+    match /user_fcm_tokens/{userId} {
+      allow read, write: if request.auth.uid == userId;
     }
-    match /metadata/{lastNotified} {
-      // WARNING: Insecure rules, allowing anyone to read/write.
-      // This should be properly secured before going to production.
-      allow creat, update, read, write: if true;
+
+    // Metadata is read-only for authenticated users.
+    match /metadata/{doc} {
+      allow read: if request.auth != null;
+      allow write: if false;
     }
   }
 }

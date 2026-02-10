@@ -47,7 +47,29 @@ class _HomeScreenState extends State<HomeScreen> {
       body: _screens[_currentIndex],
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: _currentIndex,
-        onTap: (index) {
+        onTap: (index) async {
+          if (index == 2) {
+            if (authService.currentUser == null) {
+              await showDialog(
+                context: context,
+                builder: (context) => AlertDialog(
+                  title: const Text('Authentication Required'),
+                  content: const Text(
+                      'Please sign in to access and modify settings.'),
+                  actions: [
+                    TextButton(
+                      onPressed: () {
+                        Navigator.of(context).pop();
+                        context.go('/auth');
+                      },
+                      child: const Text('Sign In'),
+                    ),
+                  ],
+                ),
+              );
+              return;
+            }
+          }
           if (_currentIndex == 2 && index != 2) {
             Provider.of<EarthquakeProvider>(context, listen: false)
                 .fetchEarthquakes(position: locationProvider.currentPosition);

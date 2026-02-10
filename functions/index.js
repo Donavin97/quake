@@ -1,91 +1,75 @@
 const functions = require("firebase-functions");
 const admin = require("firebase-admin");
-const axios = require("axios");
 
 admin.initializeApp();
 
 const db = admin.firestore();
 const messaging = admin.messaging();
 
-exports.checkEarthquakesAndNotify = functions.pubsub.schedule("every 1 minutes").onRun(
-    async (context) => {
-        try {
-            const lastNotified = await db.collection("metadata").doc("lastNotified").get();
-            let lastNotifiedTime = 0;
+exports.earthquakeWebhook = functions.https.onRequest(async (req, res) => {
+    try {
+        const geojson = req.body;
+        const earthquakes = geojson.features;
 
-            if (lastNotified.exists) {
-                lastNotifiedTime = lastNotified.data().timestamp;
-            }
+        if (!earthquakes || earthquakes.length === 0) {
+            console.log("No earthquakes in the webhook payload.");
+            res.status(200).send("No earthquakes to process.");
+            return;
+        }
 
-            const response = await axios.get(
-                "https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/all_hour.geojson",
-            );
-            const earthquakes = response.data.features;
+        const usersSnapshot = await db.collection("user_preferences").get();
 
-            if (!earthquakes || earthquakes.length === 0) {
-                console.log("No earthquakes found in the last hour.");
-                return;
-            }
+        if (usersSnapshot.empty) {
+            console.log("No users found in the user_preferences collection.");
+            res.status(200).send("No users to notify.");
+            return;
+        }
 
-            let maxEarthquakeTime = lastNotifiedTime;
+        const users = usersSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
 
-            for (const earthquake of earthquakes) {
-                const earthquakeTime = earthquake.properties.time;
-                if (earthquakeTime > lastNotifiedTime) {
-                    maxEarthquakeTime = Math.max(maxEarthquakeTime, earthquakeTime);
-                    const magnitude = earthquake.properties.mag;
-                    const place = earthquake.properties.place;
+        for (const earthquake of earthquakes) {
+            const magnitude = earthquake.properties.mag;
+            const place = earthquake.properties.place;
 
-                    const usersSnapshot = await db.collection("user_preferences").get();
+            for (const user of users) {
+                const minMagnitude = user.min_magnitude || 0;
+                const fcmToken = user.fcm_token;
 
-                    if (usersSnapshot.empty) {
-                        console.log("No users found in the user_preferences collection.");
-                        continue;
-                    }
+                if (fcmToken && magnitude >= minMagnitude) {
+                    const payload = {
+                        notification: {
+                            title: `New Earthquake: ${magnitude.toFixed(2)} magnitude`,
+                            body: place,
+                        },
+                        data: {
+                          magnitude: magnitude.toString(),
+                          lat: earthquake.geometry.coordinates[1].toString(),
+                          lng: earthquake.geometry.coordinates[0].toString(),
+                        },
+                        token: fcmToken,
+                    };
 
-                    for (const userDoc of usersSnapshot.docs) {
-                        const user = userDoc.data();
-                        const minMagnitude = user.min_magnitude || 0;
-                        const fcmToken = user.fcm_token;
-
-                        if (fcmToken && magnitude >= minMagnitude) {
-                            const payload = {
-                                notification: {
-                                    title: `New Earthquake: ${magnitude.toFixed(2)} magnitude`,
-                                    body: place,
-                                },
-                                data: {
-                                  magnitude: magnitude.toString(),
-                                  lat: earthquake.geometry.coordinates[1].toString(),
-                                  lng: earthquake.geometry.coordinates[0].toString(),
-                                },
-                                token: fcmToken,
-                            };
-
-                            try {
-                                await messaging.send(payload);
-                                console.log(
-                                    `Notification sent to user ${userDoc.id} for earthquake
-                                ${earthquake.id}`,
-                                );
-                            } catch (error) {
-                                console.error(
-                                    `Error sending notification to user ${userDoc.id}:`,
-                                    error,
-                                );
-                            }
-                        }
+                    try {
+                        await messaging.send(payload);
+                        console.log(
+                            `Notification sent to user ${user.id} for earthquake ${earthquake.id}`
+                        );
+                    } catch (error) {
+                        console.error(
+                            `Error sending notification to user ${user.id}:`,
+                            error,
+                        );
                     }
                 }
             }
-
-            await db.collection("metadata").doc("lastNotified").set({ timestamp: maxEarthquakeTime });
-
-        } catch (error) {
-            console.error(
-                "Error fetching earthquake data or sending notifications:",
-                error,
-            );
         }
-    },
-);
+        res.status(200).send("Notifications processed.");
+
+    } catch (error) {
+        console.error(
+            "Error processing earthquake webhook:",
+            error,
+        );
+        res.status(500).send("Internal Server Error");
+    }
+});

@@ -11,10 +11,12 @@ class EarthquakeProvider with ChangeNotifier {
   List<Earthquake> _earthquakes = [];
   bool _isLoading = false;
   String? _error;
+  DateTime? _lastUpdated;
 
   List<Earthquake> get earthquakes => _earthquakes;
   bool get isLoading => _isLoading;
   String? get error => _error;
+  DateTime? get lastUpdated => _lastUpdated;
 
   EarthquakeProvider();
 
@@ -46,6 +48,7 @@ class EarthquakeProvider with ChangeNotifier {
           earthquake.distance = distance / 1000; // Convert to kilometers
         }
       }
+      _lastUpdated = DateTime.now();
     } catch (e) {
       _error = e.toString();
     } finally {
