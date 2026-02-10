@@ -24,13 +24,13 @@ class MapScreen extends StatelessWidget {
         initialCenter: currentPosition != null
             ? LatLng(currentPosition.latitude, currentPosition.longitude)
             : LatLng(38.62, -122.71), // Default center
-        initialZoom: 2.0,
+        initialZoom: 1.0,
       ),
       children: [
         TileLayer(
           urlTemplate: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
           subdomains: const ['a', 'b', 'c'],
-          userAgentPackageName: 'com.example.quaketrack',
+          userAgentPackageName: 'com.liebgott.quaketrack',
         ),
         CircleLayer(
           circles: earthquakes.map((earthquake) {

@@ -58,7 +58,7 @@ class _EarthquakeListItemState extends State<EarthquakeListItem> {
       child: ListTile(
         leading: CircleAvatar(
           child: Text(
-            widget.earthquake.magnitude.toStringAsFixed(1),
+            widget.earthquake.magnitude.toStringAsFixed(2),
             style: GoogleFonts.roboto(fontWeight: FontWeight.bold),
           ),
         ),

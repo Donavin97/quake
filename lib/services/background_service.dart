@@ -19,8 +19,8 @@ class BackgroundService {
   static Future<void> showNotification(String title, String body) async {
     const AndroidNotificationDetails androidPlatformChannelSpecifics =
         AndroidNotificationDetails(
-      'your_channel_id',
-      'your_channel_name',
+      'main_channel',
+      'Main Channel',
       importance: Importance.max,
       priority: Priority.high,
       showWhen: false,
