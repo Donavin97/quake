@@ -52,12 +52,9 @@ class AppRouter {
         }
 
         final hasLocationPermission = locationProvider.isPermissionGranted;
-        if (!hasLocationPermission) {
-          return '/permission';
-        }
-
         final hasNotificationPermission = notificationService.isPermissionGranted;
-        if (!hasNotificationPermission) {
+
+        if (!hasLocationPermission || !hasNotificationPermission) {
           return '/permission';
         }
 

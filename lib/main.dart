@@ -18,7 +18,7 @@ void main() async {
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
-  await NotificationService().init();
+  await NotificationService().checkPermission();
   runApp(const MyApp());
 }
 

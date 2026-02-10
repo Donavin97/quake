@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
+import '../providers/earthquake_provider.dart';
 import '../services/auth_service.dart';
 import 'list_screen.dart';
 import 'map_screen.dart';
@@ -45,6 +46,10 @@ class _HomeScreenState extends State<HomeScreen> {
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: _currentIndex,
         onTap: (index) {
+          if (_currentIndex == 2 && index != 2) {
+            Provider.of<EarthquakeProvider>(context, listen: false)
+                .fetchEarthquakes();
+          }
           setState(() {
             _currentIndex = index;
           });

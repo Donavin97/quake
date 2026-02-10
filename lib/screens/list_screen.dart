@@ -13,18 +13,21 @@ class ListScreen extends StatelessWidget {
     final earthquakeProvider = Provider.of<EarthquakeProvider>(context);
 
     return Scaffold(
-      body: ListView.builder(
-        itemCount: earthquakeProvider.earthquakes.length,
-        itemBuilder: (context, index) {
-          final earthquake = earthquakeProvider.earthquakes[index];
-          return ListTile(
-            title: Text(earthquake.place),
-            subtitle: Text('Magnitude: ${earthquake.magnitude}'),
-            onTap: () {
-              context.go('/details', extra: earthquake);
-            },
-          );
-        },
+      body: RefreshIndicator(
+        onRefresh: () => earthquakeProvider.fetchEarthquakes(),
+        child: ListView.builder(
+          itemCount: earthquakeProvider.earthquakes.length,
+          itemBuilder: (context, index) {
+            final earthquake = earthquakeProvider.earthquakes[index];
+            return ListTile(
+              title: Text(earthquake.place),
+              subtitle: Text('Magnitude: ${earthquake.magnitude}'),
+              onTap: () {
+                context.go('/details', extra: earthquake);
+              },
+            );
+          },
+        ),
       ),
     );
   }

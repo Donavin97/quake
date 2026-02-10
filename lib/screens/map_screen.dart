@@ -1,8 +1,10 @@
 
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:provider/provider.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../providers/earthquake_provider.dart';
 
@@ -23,6 +25,7 @@ class MapScreen extends StatelessWidget {
         TileLayer(
           urlTemplate: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
           subdomains: const ['a', 'b', 'c'],
+          userAgentPackageName: 'com.example.quaketrack',
         ),
         CircleLayer(
           circles: earthquakes.map((earthquake) {
@@ -34,6 +37,20 @@ class MapScreen extends StatelessWidget {
             );
           }).toList(),
         ),
+        RichText(
+          text: TextSpan(
+            children: [
+              const TextSpan(
+                text: "© OpenStreetMap contributors",
+                style: TextStyle(color: Colors.blue, decoration: TextDecoration.underline),
+              ),
+            ],
+            recognizer: TapGestureRecognizer()
+              ..onTap = () {
+                launchUrl(Uri.parse('https://www.openstreetmap.org/copyright'));
+              },
+          ),
+        )
       ],
     );
   }
