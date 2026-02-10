@@ -7,6 +7,7 @@ import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../providers/earthquake_provider.dart';
+import '../providers/location_provider.dart';
 
 class MapScreen extends StatelessWidget {
   const MapScreen({super.key});
@@ -14,12 +15,16 @@ class MapScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final earthquakeProvider = Provider.of<EarthquakeProvider>(context);
+    final locationProvider = Provider.of<LocationProvider>(context);
     final earthquakes = earthquakeProvider.earthquakes;
+    final currentPosition = locationProvider.currentPosition;
 
     return FlutterMap(
       options: MapOptions(
-        initialCenter: LatLng(38.62, -122.71), // Default center
-        initialZoom: 5.0,
+        initialCenter: currentPosition != null
+            ? LatLng(currentPosition.latitude, currentPosition.longitude)
+            : LatLng(38.62, -122.71), // Default center
+        initialZoom: 2.0,
       ),
       children: [
         TileLayer(

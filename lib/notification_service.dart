@@ -161,6 +161,7 @@ class NotificationService {
       importance: Importance.max,
       priority: Priority.high,
       showWhen: true, // show timestamp
+      sound: RawResourceAndroidNotificationSound('earthquake'),
     );
     const NotificationDetails notificationDetails =
         NotificationDetails(android: androidPlatformChannelSpecifics);
