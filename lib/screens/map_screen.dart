@@ -1,10 +1,7 @@
-import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_map/flutter_map.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:go_router/go_router.dart';
-import 'package:latlong2/latlong.dart';
 import 'package:provider/provider.dart';
-import 'package:url_launcher/url_launcher.dart';
 
 import '../providers/earthquake_provider.dart';
 import '../providers/location_provider.dart';
@@ -19,65 +16,42 @@ class MapScreen extends StatelessWidget {
     final earthquakes = earthquakeProvider.earthquakes;
     final currentPosition = locationProvider.currentPosition;
 
-    return FlutterMap(
-      options: MapOptions(
-        initialCenter: currentPosition != null
+    return GoogleMap(
+      initialCameraPosition: CameraPosition(
+        target: currentPosition != null
             ? LatLng(currentPosition.latitude, currentPosition.longitude)
             : const LatLng(0, 0), // Default center
-        initialZoom: 2,
-        minZoom: 1,
+        zoom: 2,
       ),
-      children: [
-        TileLayer(
-          urlTemplate: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
-          userAgentPackageName: 'com.liebgott.quaketrack',
-        ),
-        MarkerLayer(
-          markers: earthquakes.map((earthquake) {
-            final magnitude =
-                earthquake.magnitude < 0 ? 0 : earthquake.magnitude;
-            return Marker(
-              width: magnitude * 4,
-              height: magnitude * 4,
-              point: LatLng(earthquake.latitude, earthquake.longitude),
-              child: GestureDetector(
-                onTap: () {
-                  context.go('/details', extra: earthquake);
-                },
-                child: Container(
-                  decoration: BoxDecoration(
-                    color: _getColorForMagnitude(magnitude.toDouble()),
-                    shape: BoxShape.circle,
-                  ),
-                ),
-              ),
-            );
-          }).toList(),
-        ),
-        RichText(
-          text: TextSpan(
-            text: "© OpenStreetMap contributors",
-            style: const TextStyle(
-                color: Colors.blue, decoration: TextDecoration.underline),
-            recognizer: TapGestureRecognizer()
-              ..onTap = () {
-                launchUrl(Uri.parse('https://www.openstreetmap.org/copyright'));
-              },
+      markers: earthquakes.map((earthquake) {
+        final magnitude = earthquake.magnitude < 0 ? 0 : earthquake.magnitude;
+        return Marker(
+          markerId: MarkerId(earthquake.id),
+          position: LatLng(earthquake.latitude, earthquake.longitude),
+          infoWindow: InfoWindow(
+            title: earthquake.place,
+            snippet: 'Magnitude: ${earthquake.magnitude.toStringAsFixed(2)}',
           ),
-        )
-      ],
+          icon: _getMarkerIconForMagnitude(magnitude.toDouble()),
+          onTap: () {
+            context.go('/details', extra: earthquake);
+          },
+        );
+      }).toSet(),
     );
   }
 
-  Color _getColorForMagnitude(double magnitude) {
+  BitmapDescriptor _getMarkerIconForMagnitude(double magnitude) {
+    double hue;
     if (magnitude < 3.0) {
-      return Colors.green.withAlpha(179);
+      hue = BitmapDescriptor.hueGreen;
     } else if (magnitude < 5.0) {
-      return Colors.yellow.withAlpha(179);
+      hue = BitmapDescriptor.hueYellow;
     } else if (magnitude < 7.0) {
-      return Colors.orange.withAlpha(179);
+      hue = BitmapDescriptor.hueOrange;
     } else {
-      return Colors.red.withAlpha(179);
+      hue = BitmapDescriptor.hueRed;
     }
+    return BitmapDescriptor.defaultMarkerWithHue(hue);
   }
 }

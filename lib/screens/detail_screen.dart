@@ -33,17 +33,16 @@ class DetailScreenState extends State<DetailScreen> {
   Future<void> _calculateDistance() async {
     try {
       final position = await Geolocator.getCurrentPosition();
+      if (!mounted) return;
       final calculatedDistance = Geolocator.distanceBetween(
         position.latitude,
         position.longitude,
         widget.earthquake.latitude,
         widget.earthquake.longitude,
       );
-      if (mounted) {
-        setState(() {
-          distance = calculatedDistance / 1000; // Convert to km
-        });
-      }
+      setState(() {
+        distance = calculatedDistance / 1000; // Convert to km
+      });
     } catch (e) {
       debugPrint('Could not get location: $e');
     }
@@ -61,6 +60,7 @@ class DetailScreenState extends State<DetailScreen> {
       final user = authService.currentUser;
 
       if (user == null) {
+        if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('You must be logged in to report.')),
         );
@@ -68,6 +68,8 @@ class DetailScreenState extends State<DetailScreen> {
       }
 
       final position = await Geolocator.getCurrentPosition();
+      if (!mounted) return;
+
       final report = FeltReport(
         earthquakeId: widget.earthquake.id,
         userId: user.uid,
@@ -77,12 +79,15 @@ class DetailScreenState extends State<DetailScreen> {
 
       await _feltReportService.addFeltReport(report);
 
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Thank you for your report!')),
       );
     } catch (e) {
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Could not submit report. Please try again.')),
+        const SnackBar(
+            content: Text('Could not submit report. Please try again.')),
       );
     } finally {
       if (mounted) {

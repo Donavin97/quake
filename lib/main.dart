@@ -38,6 +38,7 @@ class _MyAppState extends State<MyApp> {
   late final AuthService authService;
   late final GoRouter router;
   late final LocationProvider locationProvider;
+  bool _isInitialized = false;
 
   @override
   void initState() {
@@ -54,13 +55,13 @@ class _MyAppState extends State<MyApp> {
     await widget.notificationService.checkPermission();
     setState(() {
       router = AppRouter(authService).router;
+      _isInitialized = true;
     });
   }
 
   @override
   Widget build(BuildContext context) {
-    // A simple loading screen to show while the async operations in initState complete
-    if (router == null) {
+    if (!_isInitialized) {
       return const MaterialApp(
         home: Scaffold(
           body: Center(child: CircularProgressIndicator()),

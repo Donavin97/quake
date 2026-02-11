@@ -58,7 +58,6 @@ class _FeltReportsMapState extends State<FeltReportsMap> {
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : GoogleMap(
-              mapType: MapType.normal,
               initialCameraPosition: CameraPosition(
                 target: LatLng(widget.earthquake.latitude, widget.earthquake.longitude),
                 zoom: 5,
@@ -70,7 +69,7 @@ class _FeltReportsMapState extends State<FeltReportsMap> {
                 return Marker(
                   markerId: MarkerId(report.userId),
                   position: LatLng(report.location.latitude, report.location.longitude),
-                  infoWindow: InfoWindow(
+                  infoWindow: const InfoWindow(
                     title: 'Felt Report',
                     snippet: 'Reported by a user',
                   ),
@@ -81,7 +80,7 @@ class _FeltReportsMapState extends State<FeltReportsMap> {
                   circleId: CircleId(widget.earthquake.id),
                   center: LatLng(widget.earthquake.latitude, widget.earthquake.longitude),
                   radius: widget.earthquake.magnitude * 20000, // Radius in meters
-                  fillColor: Colors.red.withOpacity(0.3),
+                  fillColor: Colors.red.withAlpha(77),
                   strokeColor: Colors.red,
                   strokeWidth: 2,
                 )

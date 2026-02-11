@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/foundation.dart';
 import '../models/felt_report.dart';
 
 class FeltReportService {
@@ -8,7 +9,7 @@ class FeltReportService {
     try {
       await _feltReportsCollection.add(report.toMap());
     } catch (e) {
-      print('Error adding felt report: $e');
+      debugPrint('Error adding felt report: $e');
     }
   }
 
@@ -20,7 +21,7 @@ class FeltReportService {
 
       return querySnapshot.docs.map((doc) => FeltReport.fromMap(doc.data() as Map<String, dynamic>)).toList();
     } catch (e) {
-      print('Error getting felt reports: $e');
+      debugPrint('Error getting felt reports: $e');
       return [];
     }
   }
