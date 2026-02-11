@@ -71,6 +71,19 @@ class NotificationService {
   bool get isPermissionGranted => _isPermissionGranted;
 
   Future<void> init() async {
+    // Create a custom notification channel
+    const AndroidNotificationChannel channel = AndroidNotificationChannel(
+      'main_channel', // id
+      'Main Channel', // title
+      description: 'Main channel notifications', // description
+      importance: Importance.max,
+      sound: RawResourceAndroidNotificationSound('earthquake'),
+    );
+
+    await _flutterLocalNotificationsPlugin
+        .resolvePlatformSpecificImplementation<
+            AndroidFlutterLocalNotificationsPlugin>()
+        ?.createNotificationChannel(channel);
     // Init local notifications
     const AndroidInitializationSettings initializationSettingsAndroid =
         AndroidInitializationSettings('@mipmap/ic_launcher');
