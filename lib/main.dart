@@ -60,7 +60,6 @@ class _MyAppState extends State<MyApp> {
 
   Future<void> _initApp() async {
     await locationProvider.checkPermission();
-    await widget.notificationService.checkPermission();
   }
 
   @override

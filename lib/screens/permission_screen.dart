@@ -22,7 +22,7 @@ class _PermissionScreenState extends State<PermissionScreen> {
 
     if (locationProvider.isPermissionGranted) {
       await notificationService.init();
-      await notificationService.requestPermission();
+      await notificationService.requestPermissions();
     }
 
     _checkPermissions();
