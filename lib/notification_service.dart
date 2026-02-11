@@ -148,6 +148,11 @@ class NotificationService {
   }
 
   Future<void> checkPermission() async {
+    final prefs = await SharedPreferences.getInstance();
+    if (prefs.getBool('notification_permission_granted') ?? false) {
+      _isPermissionGranted = true;
+      return;
+    }
     final settings = await _firebaseMessaging.getNotificationSettings();
     _isPermissionGranted =
         settings.authorizationStatus == AuthorizationStatus.authorized;
@@ -157,6 +162,9 @@ class NotificationService {
     final settings = await _firebaseMessaging.requestPermission();
     _isPermissionGranted =
         settings.authorizationStatus == AuthorizationStatus.authorized;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(
+        'notification_permission_granted', _isPermissionGranted);
   }
 
   void onDidReceiveNotificationResponse(

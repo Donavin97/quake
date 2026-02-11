@@ -2,6 +2,7 @@
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:myapp/services/location_service.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class LocationProvider with ChangeNotifier {
   final LocationService _locationService = LocationService();
@@ -32,19 +33,27 @@ class LocationProvider with ChangeNotifier {
 
   Future<void> requestPermission() async {
     final LocationPermission permission = await Geolocator.requestPermission();
-    _updatePermissionStatus(permission);
+    await _updatePermissionStatus(permission);
   }
 
   Future<void> checkPermission() async {
+    final prefs = await SharedPreferences.getInstance();
+    if (prefs.getBool('location_permission_granted') ?? false) {
+      _permissionGranted = true;
+      notifyListeners();
+      return;
+    }
     final LocationPermission permission = await Geolocator.checkPermission();
-    _updatePermissionStatus(permission);
+    await _updatePermissionStatus(permission);
   }
 
-  void _updatePermissionStatus(LocationPermission permission) {
+  Future<void> _updatePermissionStatus(LocationPermission permission) async {
     final granted = permission == LocationPermission.whileInUse ||
         permission == LocationPermission.always;
     if (_permissionGranted != granted) {
       _permissionGranted = granted;
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool('location_permission_granted', granted);
       notifyListeners();
     }
   }
