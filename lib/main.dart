@@ -20,9 +20,7 @@ void main() async {
     options: DefaultFirebaseOptions.currentPlatform,
   );
   await BackgroundService.initialize();
-  // Create a single instance of NotificationService
   final notificationService = NotificationService();
-  // Initialize it
   await notificationService.init();
 
   runApp(MyApp(notificationService: notificationService));
@@ -37,30 +35,45 @@ class MyApp extends StatefulWidget {
 }
 
 class _MyAppState extends State<MyApp> {
-  // Create single instances of AuthService and the router
   late final AuthService authService;
   late final GoRouter router;
+  late final LocationProvider locationProvider;
 
   @override
   void initState() {
     super.initState();
     authService = AuthService();
-    router = AppRouter(authService).router;
-    widget.notificationService.checkPermission();
+    locationProvider = LocationProvider();
+
+    // Chain the initialization
+    _initApp();
+  }
+
+  Future<void> _initApp() async {
+    await locationProvider.checkPermission();
+    await widget.notificationService.checkPermission();
+    setState(() {
+      router = AppRouter(authService).router;
+    });
   }
 
   @override
   Widget build(BuildContext context) {
+    // A simple loading screen to show while the async operations in initState complete
+    if (router == null) {
+      return const MaterialApp(
+        home: Scaffold(
+          body: Center(child: CircularProgressIndicator()),
+        ),
+      );
+    }
     return MultiProvider(
       providers: [
-        // Provide the single instance of AuthService
         Provider<AuthService>.value(value: authService),
-        // Provide the single instance of NotificationService
         Provider<NotificationService>.value(
           value: widget.notificationService,
         ),
-        ChangeNotifierProvider(
-            create: (context) => LocationProvider()..checkPermission()),
+        ChangeNotifierProvider.value(value: locationProvider),
         ChangeNotifierProvider(create: (context) => ThemeProvider()),
         ChangeNotifierProvider(create: (context) => SettingsProvider()),
         ChangeNotifierProvider(
@@ -70,7 +83,6 @@ class _MyAppState extends State<MyApp> {
       child: Consumer<ThemeProvider>(
         builder: (context, themeProvider, child) {
           return MaterialApp.router(
-            // Use the single router instance
             routerConfig: router,
             title: 'QuakeTrack',
             theme: AppTheme.lightTheme,

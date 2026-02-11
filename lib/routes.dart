@@ -23,41 +23,41 @@ class AppRouter {
       initialLocation: '/',
       refreshListenable: authService,
       redirect: (BuildContext context, GoRouterState state) async {
-        final locationProvider = Provider.of<LocationProvider>(context, listen: false);
-        final notificationService = Provider.of<NotificationService>(context, listen: false);
-
-        // Wait for permission checks to complete
-        await locationProvider.checkPermission();
-        await notificationService.checkPermission();
+        final locationProvider =
+            Provider.of<LocationProvider>(context, listen: false);
+        final notificationService =
+            Provider.of<NotificationService>(context, listen: false);
 
         final prefs = await SharedPreferences.getInstance();
-        final disclaimerAccepted = prefs.getBool('disclaimer_accepted') ?? false;
+        final disclaimerAccepted =
+            prefs.getBool('disclaimer_accepted') ?? false;
         final loggedIn = authService.currentUser != null;
-        final permissionsGranted = locationProvider.isPermissionGranted && notificationService.isPermissionGranted;
+
+        // We can't reliably check permissions here because of async nature
+        // We will check them in main.dart and rely on the UI to update
 
         final onDisclaimer = state.matchedLocation == '/disclaimer';
         final onAuth = state.matchedLocation == '/auth';
         final onPermission = state.matchedLocation == '/permission';
-        final onSetupScreen = onDisclaimer || onAuth || onPermission;
 
-        // 1. Disclaimer
         if (!disclaimerAccepted) {
           return onDisclaimer ? null : '/disclaimer';
         }
 
-        // 2. Authentication
         if (!loggedIn) {
           return onAuth ? null : '/auth';
         }
+        
+        final permissionsGranted = locationProvider.isPermissionGranted &&
+            notificationService.isPermissionGranted;
 
-        // 3. Permissions
         if (!permissionsGranted) {
           return onPermission ? null : '/permission';
         }
-        
-        // 4. Logged in and has permissions, should be in the main app.
-        // If on any of the initial setup screens, redirect to home.
-        if (onSetupScreen) {
+
+        // If user is on any of the setup screens and they are done with setup,
+        // redirect to home
+        if (onDisclaimer || onAuth || onPermission) {
           return '/';
         }
 
@@ -77,7 +77,6 @@ class AppRouter {
                   if (earthquake != null) {
                     return DetailScreen(earthquake: earthquake);
                   } else {
-                    // Handle the case where the earthquake data is missing
                     return const Text('Error: Earthquake data not found');
                   }
                 },
