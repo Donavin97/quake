@@ -1,6 +1,7 @@
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
+import 'package:go_router/go_router.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -22,19 +23,34 @@ class MapScreen extends StatelessWidget {
       options: MapOptions(
         initialCenter: currentPosition != null
             ? LatLng(currentPosition.latitude, currentPosition.longitude)
-            : const LatLng(38.62, -122.71), // Default center
+            : const LatLng(0, 0), // Default center
+        initialZoom: 2,
+        minZoom: 1,
       ),
       children: [
         TileLayer(
           urlTemplate: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
           userAgentPackageName: 'com.liebgott.quaketrack',
         ),
-        CircleLayer(
-          circles: earthquakes.map((earthquake) {
-            return CircleMarker(
+        MarkerLayer(
+          markers: earthquakes.map((earthquake) {
+            final magnitude =
+                earthquake.magnitude < 0 ? 0 : earthquake.magnitude;
+            return Marker(
+              width: magnitude * 4,
+              height: magnitude * 4,
               point: LatLng(earthquake.latitude, earthquake.longitude),
-              radius: earthquake.magnitude * 2,
-              color: _getColorForMagnitude(earthquake.magnitude),
+              child: GestureDetector(
+                onTap: () {
+                  context.go('/details', extra: earthquake);
+                },
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: _getColorForMagnitude(magnitude.toDouble()),
+                    shape: BoxShape.circle,
+                  ),
+                ),
+              ),
             );
           }).toList(),
         ),

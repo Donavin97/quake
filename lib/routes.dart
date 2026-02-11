@@ -21,8 +21,10 @@ class AppRouter {
   AppRouter(this.context, this.authService);
 
   GoRouter get router {
-    final locationProvider = Provider.of<LocationProvider>(context, listen: false);
-    final notificationService = Provider.of<NotificationService>(context, listen: false);
+    final locationProvider =
+        Provider.of<LocationProvider>(context, listen: false);
+    final notificationService =
+        Provider.of<NotificationService>(context, listen: false);
 
     return GoRouter(
       initialLocation: '/',
@@ -52,13 +54,14 @@ class AppRouter {
         }
 
         final hasLocationPermission = locationProvider.isPermissionGranted;
-        final hasNotificationPermission = notificationService.isPermissionGranted;
+        final hasNotificationPermission =
+            notificationService.isPermissionGranted;
 
         if (!hasLocationPermission || !hasNotificationPermission) {
-          return '/permission';
-        }
-
-        if (onPermission) {
+          if (state.matchedLocation != '/permission') {
+            return '/permission';
+          }
+        } else if (onPermission) {
           return '/';
         }
 
