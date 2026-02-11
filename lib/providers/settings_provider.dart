@@ -2,7 +2,7 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
-import 'package:myapp/services/firestore_service.dart';
+import '../services/firestore_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/time_window.dart';
 

@@ -1,6 +1,6 @@
 
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:myapp/models/time_window.dart';
+import '../models/time_window.dart';
 
 class SettingsService {
   static const _minMagnitudeKey = 'min_magnitude';

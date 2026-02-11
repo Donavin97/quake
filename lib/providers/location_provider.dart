@@ -1,7 +1,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
-import 'package:myapp/services/location_service.dart';
+import '../services/location_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class LocationProvider with ChangeNotifier {
