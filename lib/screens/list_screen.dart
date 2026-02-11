@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
+import '../models/sort_criterion.dart';
 import '../providers/earthquake_provider.dart';
 import '../providers/location_provider.dart';
 import '../widgets/earthquake_list_item.dart';
@@ -21,9 +22,28 @@ class ListScreen extends StatelessWidget {
           if (earthquakeProvider.lastUpdated != null)
             Padding(
               padding: const EdgeInsets.all(8.0),
-              child: Text(
-                'Last updated: ${DateFormat.yMMMd().add_jms().format(earthquakeProvider.lastUpdated!)}',
-                style: Theme.of(context).textTheme.bodySmall,
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    'Last updated: ${DateFormat.yMMMd().add_jms().format(earthquakeProvider.lastUpdated!)}',
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
+                  DropdownButton<SortCriterion>(
+                    value: earthquakeProvider.sortCriterion,
+                    onChanged: (value) {
+                      if (value != null) {
+                        earthquakeProvider.setSortCriterion(value);
+                      }
+                    },
+                    items: SortCriterion.values.map((criterion) {
+                      return DropdownMenuItem(
+                        value: criterion,
+                        child: Text(toBeginningOfSentenceCase(criterion.name)!),
+                      );
+                    }).toList(),
+                  ),
+                ],
               ),
             ),
           Expanded(
