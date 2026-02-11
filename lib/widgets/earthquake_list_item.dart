@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 
 import '../models/earthquake.dart';
 
@@ -14,7 +15,8 @@ class EarthquakeListItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final subtitle = StringBuffer(earthquake.time.toString());
+    final subtitle =
+        StringBuffer(DateFormat.yMMMd().add_jms().format(earthquake.time));
     if (earthquake.distance != null) {
       subtitle.write(' - ${earthquake.distance?.toStringAsFixed(1)} km away');
     }

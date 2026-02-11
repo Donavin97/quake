@@ -26,6 +26,18 @@ class _HomeScreenState extends State<HomeScreen> {
   ];
 
   @override
+  void initState() {
+    super.initState();
+    final locationProvider = Provider.of<LocationProvider>(context, listen: false);
+    final earthquakeProvider = Provider.of<EarthquakeProvider>(context, listen: false);
+    locationProvider.determinePosition().then((_) {
+      if (locationProvider.currentPosition != null) {
+        earthquakeProvider.fetchEarthquakes(position: locationProvider.currentPosition);
+      }
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
     final authService = Provider.of<AuthService>(context, listen: false);
     final locationProvider = Provider.of<LocationProvider>(context, listen: false);
