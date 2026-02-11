@@ -46,6 +46,7 @@ class _MyAppState extends State<MyApp> {
     super.initState();
     authService = AuthService();
     router = AppRouter(authService).router;
+    widget.notificationService.checkPermission();
   }
 
   @override
@@ -56,7 +57,7 @@ class _MyAppState extends State<MyApp> {
         Provider<AuthService>.value(value: authService),
         // Provide the single instance of NotificationService
         Provider<NotificationService>.value(
-          value: widget.notificationService..checkPermission(),
+          value: widget.notificationService,
         ),
         ChangeNotifierProvider(
             create: (context) => LocationProvider()..checkPermission()),

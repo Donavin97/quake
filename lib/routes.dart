@@ -31,39 +31,40 @@ class AppRouter {
         final bool loggedIn = authService.currentUser != null;
         final String location = state.matchedLocation;
 
-        if (!disclaimerAccepted && location != '/disclaimer') {
-          return '/disclaimer';
+        if (!disclaimerAccepted) {
+          // If disclaimer is not accepted, user should be on disclaimer screen.
+          return location == '/disclaimer' ? null : '/disclaimer';
         }
 
-        if (disclaimerAccepted && location == '/disclaimer') {
+        // If disclaimer is accepted and user is on disclaimer screen, redirect to auth.
+        if (location == '/disclaimer') {
           return '/auth';
         }
 
-        if (!loggedIn && location != '/auth' && location != '/disclaimer') {
-          return '/auth';
+        if (!loggedIn) {
+          // If user is not logged in, they should be on the auth screen.
+          return location == '/auth' ? null : '/auth';
         }
 
-        if (loggedIn && location == '/auth') {
+        // If user is logged in and on auth screen, redirect to home.
+        if (location == '/auth') {
           return '/';
         }
 
-        final hasLocationPermission = locationProvider.isPermissionGranted;
-        final hasNotificationPermission =
+        final hasPermissions = locationProvider.isPermissionGranted &&
             notificationService.isPermissionGranted;
 
-        if (loggedIn && !(hasLocationPermission && hasNotificationPermission) && location != '/permission') {
-          return '/permission';
+        if (!hasPermissions) {
+          // If permissions are not granted, user should be on permission screen.
+          return location == '/permission' ? null : '/permission';
         }
 
-        if (loggedIn && (hasLocationPermission && hasNotificationPermission) && location == '/permission') {
+        // If permissions are granted and user is on permission screen, redirect to home.
+        if (location == '/permission') {
           return '/';
         }
 
-        if (loggedIn && (hasLocationPermission && hasNotificationPermission) && location == '/') {
-          return null;
-        }
-
-        return null;
+        return null; // No redirect needed for any other case.
       },
       routes: <RouteBase>[
         GoRoute(
