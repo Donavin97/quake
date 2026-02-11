@@ -28,43 +28,41 @@ class AppRouter {
 
         final prefs = await SharedPreferences.getInstance();
         final disclaimerAccepted = prefs.getBool('disclaimer_accepted') ?? false;
-        final bool loggedIn = authService.currentUser != null;
-        final String location = state.matchedLocation;
+        final loggedIn = authService.currentUser != null;
+        final permissionsGranted = locationProvider.isPermissionGranted && notificationService.isPermissionGranted;
 
+        final onDisclaimer = state.matchedLocation == '/disclaimer';
+        final onAuth = state.matchedLocation == '/auth';
+        final onPermission = state.matchedLocation == '/permission';
+
+        // 1. Disclaimer
         if (!disclaimerAccepted) {
-          // If disclaimer is not accepted, user should be on disclaimer screen.
-          return location == '/disclaimer' ? null : '/disclaimer';
+          return onDisclaimer ? null : '/disclaimer';
         }
 
-        // If disclaimer is accepted and user is on disclaimer screen, redirect to auth.
-        if (location == '/disclaimer') {
-          return '/auth';
-        }
-
+        // 2. Authentication
         if (!loggedIn) {
-          // If user is not logged in, they should be on the auth screen.
-          return location == '/auth' ? null : '/auth';
+            // If coming from disclaimer, go to auth.
+            if(onDisclaimer) return '/auth';
+            // Otherwise, stay on auth if not logged in.
+            return onAuth ? null : '/auth';
         }
 
-        // If user is logged in and on auth screen, redirect to home.
-        if (location == '/auth') {
+        // 3. Permissions
+        if (!permissionsGranted) {
+            // If coming from auth, go to permissions.
+            if(onAuth) return '/permission';
+            // Otherwise, stay on permission if permissions are not granted.
+            return onPermission ? null : '/permission';
+        }
+        
+        // 4. Logged in and has permissions, should be in the main app.
+        // If on any of the initial setup screens, redirect to home.
+        if (onDisclaimer || onAuth || onPermission) {
           return '/';
         }
 
-        final hasPermissions = locationProvider.isPermissionGranted &&
-            notificationService.isPermissionGranted;
-
-        if (!hasPermissions) {
-          // If permissions are not granted, user should be on permission screen.
-          return location == '/permission' ? null : '/permission';
-        }
-
-        // If permissions are granted and user is on permission screen, redirect to home.
-        if (location == '/permission') {
-          return '/';
-        }
-
-        return null; // No redirect needed for any other case.
+        return null; // No redirect needed
       },
       routes: <RouteBase>[
         GoRoute(
