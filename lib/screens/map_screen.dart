@@ -16,11 +16,15 @@ class MapScreen extends StatelessWidget {
     final earthquakes = earthquakeProvider.earthquakes;
     final currentPosition = locationProvider.currentPosition;
 
+    if (currentPosition == null) {
+      return const Center(
+        child: CircularProgressIndicator(),
+      );
+    }
+
     return GoogleMap(
       initialCameraPosition: CameraPosition(
-        target: currentPosition != null
-            ? LatLng(currentPosition.latitude, currentPosition.longitude)
-            : const LatLng(0, 0), // Default center
+        target: LatLng(currentPosition.latitude, currentPosition.longitude),
         zoom: 2,
       ),
       markers: earthquakes.map((earthquake) {

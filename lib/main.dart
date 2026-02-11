@@ -10,8 +10,7 @@ import 'providers/location_provider.dart';
 import 'providers/settings_provider.dart';
 import 'providers/theme_provider.dart';
 import 'routes.dart';
-import 'services/auth_service.dart';
-import 'services/background_service.dart';
+import 'services/services.dart';
 import 'theme.dart';
 
 void main() async {

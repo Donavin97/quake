@@ -4,7 +4,7 @@ import 'package:provider/provider.dart';
 
 import '../providers/earthquake_provider.dart';
 import '../providers/location_provider.dart';
-import '../services/auth_service.dart';
+import '../services/services.dart';
 import 'list_screen.dart';
 import 'map_screen.dart';
 import 'settings_screen.dart';

@@ -11,7 +11,7 @@ import 'screens/disclaimer_screen.dart';
 import 'screens/home_screen.dart';
 import 'screens/permission_screen.dart';
 import 'notification_service.dart';
-import 'services/auth_service.dart';
+import 'services/services.dart';
 
 class AppRouter {
   final AuthService authService;

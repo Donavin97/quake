@@ -7,6 +7,8 @@ import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:geolocator/geolocator.dart';
 
+import 'firebase_options.dart';
+
 // Create a single, top-level instance of FlutterLocalNotificationsPlugin
 final FlutterLocalNotificationsPlugin _flutterLocalNotificationsPlugin =
     FlutterLocalNotificationsPlugin();
@@ -16,7 +18,9 @@ final FlutterLocalNotificationsPlugin _flutterLocalNotificationsPlugin =
 Future<void> handleBackgroundMessage(RemoteMessage message) async {
   // If you're going to use other Firebase services in the background, such as Firestore,
   // make sure you call `initializeApp` before using other Firebase services.
-  await Firebase.initializeApp();
+  await Firebase.initializeApp(
+    options: DefaultFirebaseOptions.currentPlatform,
+  );
 
   developer.log('Handling a background message ${message.messageId}');
 

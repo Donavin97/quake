@@ -5,6 +5,11 @@ allprojects {
     }
 }
 
+plugins {
+    id("com.android.application") version "8.2.1" apply false
+    id("com.google.gms.google-services") version "4.4.1" apply false
+}
+
 val newBuildDir: Directory =
     rootProject.layout.buildDirectory
         .dir("../../build")
