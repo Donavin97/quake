@@ -1,7 +1,6 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
-import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:flutter_map/flutter_map.dart';
+import 'package:latlong2/latlong.dart';
 
 import '../models/earthquake.dart';
 import '../models/felt_report.dart';
@@ -17,7 +16,6 @@ class FeltReportsMap extends StatefulWidget {
 }
 
 class _FeltReportsMapState extends State<FeltReportsMap> {
-  final Completer<GoogleMapController> _controller = Completer();
   final FeltReportService _feltReportService = FeltReportService();
   List<FeltReport> _feltReports = [];
   bool _isLoading = true;
@@ -57,34 +55,41 @@ class _FeltReportsMapState extends State<FeltReportsMap> {
       ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
-          : GoogleMap(
-              initialCameraPosition: CameraPosition(
-                target: LatLng(widget.earthquake.latitude, widget.earthquake.longitude),
-                zoom: 5,
+          : FlutterMap(
+              options: MapOptions(
+                initialCenter: LatLng(widget.earthquake.latitude, widget.earthquake.longitude),
+                initialZoom: 5,
               ),
-              onMapCreated: (GoogleMapController controller) {
-                _controller.complete(controller);
-              },
-              markers: _feltReports.map((report) {
-                return Marker(
-                  markerId: MarkerId(report.userId),
-                  position: LatLng(report.location.latitude, report.location.longitude),
-                  infoWindow: const InfoWindow(
-                    title: 'Felt Report',
-                    snippet: 'Reported by a user',
-                  ),
-                );
-              }).toSet(),
-              circles: {
-                Circle(
-                  circleId: CircleId(widget.earthquake.id),
-                  center: LatLng(widget.earthquake.latitude, widget.earthquake.longitude),
-                  radius: widget.earthquake.magnitude * 20000, // Radius in meters
-                  fillColor: Colors.red.withAlpha(77),
-                  strokeColor: Colors.red,
-                  strokeWidth: 2,
-                )
-              },
+              children: [
+                TileLayer(
+                  urlTemplate: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+                ),
+                CircleLayer(
+                  circles: [
+                    CircleMarker(
+                      point: LatLng(widget.earthquake.latitude, widget.earthquake.longitude),
+                      radius: widget.earthquake.magnitude * 20000,
+                      useRadiusInMeter: true,
+                      color: Colors.red.withAlpha(77),
+                      borderColor: Colors.red,
+                      borderStrokeWidth: 2,
+                    )
+                  ],
+                ),
+                MarkerLayer(
+                  markers: _feltReports.map((report) {
+                    return Marker(
+                      width: 80.0,
+                      height: 80.0,
+                      point: LatLng(report.location.latitude, report.location.longitude),
+                      child: const Icon(
+                        Icons.comment,
+                        color: Colors.blue,
+                      ),
+                    );
+                  }).toList(),
+                ),
+              ],
             ),
     );
   }
