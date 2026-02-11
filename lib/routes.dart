@@ -26,6 +26,10 @@ class AppRouter {
         final locationProvider = Provider.of<LocationProvider>(context, listen: false);
         final notificationService = Provider.of<NotificationService>(context, listen: false);
 
+        // Wait for permission checks to complete
+        await locationProvider.checkPermission();
+        await notificationService.checkPermission();
+
         final prefs = await SharedPreferences.getInstance();
         final disclaimerAccepted = prefs.getBool('disclaimer_accepted') ?? false;
         final loggedIn = authService.currentUser != null;
@@ -34,6 +38,7 @@ class AppRouter {
         final onDisclaimer = state.matchedLocation == '/disclaimer';
         final onAuth = state.matchedLocation == '/auth';
         final onPermission = state.matchedLocation == '/permission';
+        final onSetupScreen = onDisclaimer || onAuth || onPermission;
 
         // 1. Disclaimer
         if (!disclaimerAccepted) {
@@ -42,23 +47,17 @@ class AppRouter {
 
         // 2. Authentication
         if (!loggedIn) {
-            // If coming from disclaimer, go to auth.
-            if(onDisclaimer) return '/auth';
-            // Otherwise, stay on auth if not logged in.
-            return onAuth ? null : '/auth';
+          return onAuth ? null : '/auth';
         }
 
         // 3. Permissions
         if (!permissionsGranted) {
-            // If coming from auth, go to permissions.
-            if(onAuth) return '/permission';
-            // Otherwise, stay on permission if permissions are not granted.
-            return onPermission ? null : '/permission';
+          return onPermission ? null : '/permission';
         }
         
         // 4. Logged in and has permissions, should be in the main app.
         // If on any of the initial setup screens, redirect to home.
-        if (onDisclaimer || onAuth || onPermission) {
+        if (onSetupScreen) {
           return '/';
         }
 
