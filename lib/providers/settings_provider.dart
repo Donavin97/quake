@@ -10,6 +10,8 @@ class SettingsProvider with ChangeNotifier {
   static const String _minMagnitudeKey = 'minMagnitude';
   static const String _timeWindowKey = 'timeWindow';
   static const String _radiusKey = 'radius';
+  static const String _latitudeKey = 'latitude';
+  static const String _longitudeKey = 'longitude';
 
   double _minMagnitude = 0.0;
   TimeWindow _timeWindow = TimeWindow.day;
@@ -63,6 +65,8 @@ class SettingsProvider with ChangeNotifier {
     Position? position;
     try {
       position = await Geolocator.getCurrentPosition();
+      await prefs.setDouble(_latitudeKey, position.latitude);
+      await prefs.setDouble(_longitudeKey, position.longitude);
     } catch (e) {
       // Could not get position
     }

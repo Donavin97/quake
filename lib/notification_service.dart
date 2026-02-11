@@ -27,17 +27,18 @@ Future<void> handleBackgroundMessage(RemoteMessage message) async {
   final prefs = await SharedPreferences.getInstance();
   final minMagnitude = prefs.getDouble('minMagnitude') ?? 0.0;
   final radius = prefs.getDouble('radius') ?? 1000.0;
+  final latitude = prefs.getDouble('latitude');
+  final longitude = prefs.getDouble('longitude');
   final earthquakeMagnitude = double.parse(message.data['magnitude'] ?? '0.0');
 
   if (earthquakeMagnitude >= minMagnitude) {
     final earthquakeLat = double.parse(message.data['lat'] ?? '0.0');
     final earthquakeLng = double.parse(message.data['lng'] ?? '0.0');
 
-    try {
-      final position = await Geolocator.getCurrentPosition();
+    if (latitude != null && longitude != null) {
       final distance = Geolocator.distanceBetween(
-        position.latitude,
-        position.longitude,
+        latitude,
+        longitude,
         earthquakeLat,
         earthquakeLng,
       );
@@ -67,8 +68,8 @@ Future<void> handleBackgroundMessage(RemoteMessage message) async {
           );
         }
       }
-    } catch (e) {
-      developer.log('Error getting user location in background: $e');
+    } else {
+      developer.log('User location not found in SharedPreferences');
     }
   }
 }
@@ -143,6 +144,8 @@ class NotificationService {
       final prefs = await SharedPreferences.getInstance();
       final minMagnitude = prefs.getDouble('minMagnitude') ?? 0.0;
       final radius = prefs.getDouble('radius') ?? 1000.0;
+      final latitude = prefs.getDouble('latitude');
+      final longitude = prefs.getDouble('longitude');
       final earthquakeMagnitude =
           double.parse(message.data['magnitude'] ?? '0.0');
 
@@ -150,11 +153,10 @@ class NotificationService {
         final earthquakeLat = double.parse(message.data['lat'] ?? '0.0');
         final earthquakeLng = double.parse(message.data['lng'] ?? '0.0');
 
-        try {
-          final position = await Geolocator.getCurrentPosition();
+        if (latitude != null && longitude != null) {
           final distance = Geolocator.distanceBetween(
-            position.latitude,
-            position.longitude,
+            latitude,
+            longitude,
             earthquakeLat,
             earthquakeLng,
           );
@@ -171,8 +173,8 @@ class NotificationService {
               );
             }
           }
-        } catch (e) {
-          developer.log('Error getting user location in foreground: $e');
+        } else {
+          developer.log('User location not found in SharedPreferences');
         }
       }
     });
