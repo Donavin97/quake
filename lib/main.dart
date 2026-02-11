@@ -42,13 +42,17 @@ class _MyAppState extends State<MyApp> {
   late final AuthService authService;
   late final GoRouter router;
   late final LocationProvider locationProvider;
-  bool _isInitialized = false;
 
   @override
   void initState() {
     super.initState();
     authService = AuthService();
     locationProvider = LocationProvider();
+    router = AppRouter(
+      authService,
+      locationProvider,
+      widget.notificationService,
+    ).router;
 
     // Chain the initialization
     _initApp();
@@ -57,21 +61,10 @@ class _MyAppState extends State<MyApp> {
   Future<void> _initApp() async {
     await locationProvider.checkPermission();
     await widget.notificationService.checkPermission();
-    setState(() {
-      router = AppRouter(authService).router;
-      _isInitialized = true;
-    });
   }
 
   @override
   Widget build(BuildContext context) {
-    if (!_isInitialized) {
-      return const MaterialApp(
-        home: Scaffold(
-          body: Center(child: CircularProgressIndicator()),
-        ),
-      );
-    }
     return MultiProvider(
       providers: [
         Provider<AuthService>.value(value: authService),
