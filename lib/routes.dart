@@ -33,23 +33,21 @@ class AppRouter {
         final prefs = await SharedPreferences.getInstance();
         final disclaimerAccepted = prefs.getBool('disclaimer_accepted') ?? false;
         final bool loggedIn = authService.currentUser != null;
-        final bool onAuth = state.matchedLocation == '/auth';
-        final bool onDisclaimer = state.matchedLocation == '/disclaimer';
-        final bool onPermission = state.matchedLocation == '/permission';
+        final String location = state.matchedLocation;
 
-        if (!disclaimerAccepted) {
+        if (!disclaimerAccepted && location != '/disclaimer') {
           return '/disclaimer';
         }
 
-        if (onDisclaimer) {
+        if (disclaimerAccepted && location == '/disclaimer') {
           return '/auth';
         }
 
-        if (!loggedIn) {
+        if (!loggedIn && location != '/auth' && location != '/disclaimer') {
           return '/auth';
         }
 
-        if (onAuth) {
+        if (loggedIn && location == '/auth') {
           return '/';
         }
 
@@ -57,11 +55,11 @@ class AppRouter {
         final hasNotificationPermission =
             notificationService.isPermissionGranted;
 
-        if ((!hasLocationPermission || !hasNotificationPermission) && !onPermission) {
+        if (loggedIn && !(hasLocationPermission && hasNotificationPermission) && location != '/permission') {
           return '/permission';
         }
 
-        if ((hasLocationPermission && hasNotificationPermission) && onPermission) {
+        if (loggedIn && (hasLocationPermission && hasNotificationPermission) && location == '/permission') {
           return '/';
         }
 
