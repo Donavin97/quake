@@ -1,8 +1,14 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:intl/intl.dart';
+import 'package:provider/provider.dart';
 
 import '../models/earthquake.dart';
+import '../models/felt_report.dart';
+import '../services/auth_service.dart';
+import '../services/felt_report_service.dart';
+import 'felt_reports_map.dart';
 
 class DetailScreen extends StatefulWidget {
   final Earthquake earthquake;
@@ -15,6 +21,8 @@ class DetailScreen extends StatefulWidget {
 
 class DetailScreenState extends State<DetailScreen> {
   double? distance;
+  bool _isReporting = false;
+  final FeltReportService _feltReportService = FeltReportService();
 
   @override
   void initState() {
@@ -37,9 +45,61 @@ class DetailScreenState extends State<DetailScreen> {
         });
       }
     } catch (e) {
-      // It's better to log errors or show a message to the user.
-      // For now, we'll just ignore it as per the original code's intention.
+      debugPrint('Could not get location: $e');
     }
+  }
+
+  Future<void> _reportFelt() async {
+    if (_isReporting) return;
+
+    setState(() {
+      _isReporting = true;
+    });
+
+    try {
+      final authService = Provider.of<AuthService>(context, listen: false);
+      final user = authService.currentUser;
+
+      if (user == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('You must be logged in to report.')),
+        );
+        return;
+      }
+
+      final position = await Geolocator.getCurrentPosition();
+      final report = FeltReport(
+        earthquakeId: widget.earthquake.id,
+        userId: user.uid,
+        timestamp: Timestamp.now(),
+        location: GeoPoint(position.latitude, position.longitude),
+      );
+
+      await _feltReportService.addFeltReport(report);
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Thank you for your report!')),
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Could not submit report. Please try again.')),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isReporting = false;
+        });
+      }
+    }
+  }
+
+  void _navigateToFeltReportsMap() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => FeltReportsMap(earthquake: widget.earthquake),
+      ),
+    );
   }
 
   @override
@@ -58,21 +118,33 @@ class DetailScreenState extends State<DetailScreen> {
               style: Theme.of(context).textTheme.headlineSmall,
             ),
             const SizedBox(height: 8),
-            Text(
-                'Magnitude: ${widget.earthquake.magnitude.toStringAsFixed(2)}'),
+            Text('Magnitude: ${widget.earthquake.magnitude.toStringAsFixed(2)}'),
             const SizedBox(height: 8),
-            Text(
-                'Time: ${DateFormat.yMMMd().add_jms().format(widget.earthquake.time)}'),
+            Text('Time: ${DateFormat.yMMMd().add_jms().format(widget.earthquake.time)}'),
             const SizedBox(height: 8),
             Text(
               'Coordinates: (${widget.earthquake.latitude.toStringAsFixed(2)}, ${widget.earthquake.longitude.toStringAsFixed(2)})',
             ),
             if (distance != null)
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+              Padding(
+                padding: const EdgeInsets.only(top: 8.0),
+                child: Text('Distance: ${distance!.toStringAsFixed(2)} km from your location'),
+              ),
+            const SizedBox(height: 20),
+            if (_isReporting)
+              const Center(child: CircularProgressIndicator())
+            else
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                 children: [
-                  const SizedBox(height: 8),
-                  Text('Distance: ${distance!.toStringAsFixed(2)} km'),
+                  ElevatedButton(
+                    onPressed: _reportFelt,
+                    child: const Text('Did you feel it?'),
+                  ),
+                  ElevatedButton(
+                    onPressed: _navigateToFeltReportsMap,
+                    child: const Text('View Felt Reports'),
+                  ),
                 ],
               ),
           ],
