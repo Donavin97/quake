@@ -1,4 +1,3 @@
-
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
@@ -15,21 +14,18 @@ import 'notification_service.dart';
 import 'services/auth_service.dart';
 
 class AppRouter {
-  final BuildContext context;
   final AuthService authService;
 
-  AppRouter(this.context, this.authService);
+  AppRouter(this.authService);
 
   GoRouter get router {
-    final locationProvider =
-        Provider.of<LocationProvider>(context, listen: false);
-    final notificationService =
-        Provider.of<NotificationService>(context, listen: false);
-
     return GoRouter(
       initialLocation: '/',
       refreshListenable: authService,
       redirect: (BuildContext context, GoRouterState state) async {
+        final locationProvider = Provider.of<LocationProvider>(context, listen: false);
+        final notificationService = Provider.of<NotificationService>(context, listen: false);
+
         final prefs = await SharedPreferences.getInstance();
         final disclaimerAccepted = prefs.getBool('disclaimer_accepted') ?? false;
         final bool loggedIn = authService.currentUser != null;
@@ -61,6 +57,10 @@ class AppRouter {
 
         if (loggedIn && (hasLocationPermission && hasNotificationPermission) && location == '/permission') {
           return '/';
+        }
+
+        if (loggedIn && (hasLocationPermission && hasNotificationPermission) && location == '/') {
+          return null;
         }
 
         return null;

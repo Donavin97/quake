@@ -7,6 +7,10 @@ import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:geolocator/geolocator.dart';
 
+// Create a single, top-level instance of FlutterLocalNotificationsPlugin
+final FlutterLocalNotificationsPlugin _flutterLocalNotificationsPlugin =
+    FlutterLocalNotificationsPlugin();
+
 // Must be a top-level function
 @pragma('vm:entry-point')
 Future<void> handleBackgroundMessage(RemoteMessage message) async {
@@ -38,11 +42,23 @@ Future<void> handleBackgroundMessage(RemoteMessage message) async {
         if (message.notification != null) {
           developer.log(
               'Message also contained a notification: ${message.notification}');
-          final notificationService = NotificationService();
-          notificationService.showNotification(
-            id: message.hashCode,
-            title: message.notification?.title ?? '',
-            body: message.notification?.body ?? '',
+          // Use the top-level instance to show the notification
+          const AndroidNotificationDetails androidPlatformChannelSpecifics =
+              AndroidNotificationDetails(
+            'main_channel',
+            'Main Channel',
+            channelDescription: 'Main channel notifications',
+            importance: Importance.max,
+            priority: Priority.high,
+            sound: RawResourceAndroidNotificationSound('earthquake'),
+          );
+          const NotificationDetails notificationDetails =
+              NotificationDetails(android: androidPlatformChannelSpecifics);
+          await _flutterLocalNotificationsPlugin.show(
+            message.hashCode,
+            message.notification?.title ?? '',
+            message.notification?.body ?? '',
+            notificationDetails,
             payload: message.data.toString(),
           );
         }
@@ -63,8 +79,6 @@ class NotificationService {
   NotificationService._internal();
 
   final FirebaseMessaging _firebaseMessaging = FirebaseMessaging.instance;
-  final FlutterLocalNotificationsPlugin _flutterLocalNotificationsPlugin =
-      FlutterLocalNotificationsPlugin();
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   bool _isPermissionGranted = false;
 

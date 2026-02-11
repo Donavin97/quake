@@ -1,5 +1,6 @@
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
 import 'firebase_options.dart';
@@ -19,24 +20,43 @@ void main() async {
     options: DefaultFirebaseOptions.currentPlatform,
   );
   await BackgroundService.initialize();
-  await NotificationService().init();
+  // Create a single instance of NotificationService
+  final notificationService = NotificationService();
+  // Initialize it
+  await notificationService.init();
 
-  runApp(const MyApp());
+  runApp(MyApp(notificationService: notificationService));
 }
 
-class MyApp extends StatelessWidget {
-  const MyApp({super.key});
+class MyApp extends StatefulWidget {
+  final NotificationService notificationService;
+  const MyApp({super.key, required this.notificationService});
+
+  @override
+  State<MyApp> createState() => _MyAppState();
+}
+
+class _MyAppState extends State<MyApp> {
+  // Create single instances of AuthService and the router
+  late final AuthService authService;
+  late final GoRouter router;
+
+  @override
+  void initState() {
+    super.initState();
+    authService = AuthService();
+    router = AppRouter(authService).router;
+  }
 
   @override
   Widget build(BuildContext context) {
-    final authService = AuthService();
     return MultiProvider(
       providers: [
-        Provider<AuthService>(
-          create: (_) => authService,
-        ),
-        Provider<NotificationService>(
-          create: (_) => NotificationService()..checkPermission(),
+        // Provide the single instance of AuthService
+        Provider<AuthService>.value(value: authService),
+        // Provide the single instance of NotificationService
+        Provider<NotificationService>.value(
+          value: widget.notificationService..checkPermission(),
         ),
         ChangeNotifierProvider(
             create: (context) => LocationProvider()..checkPermission()),
@@ -49,7 +69,8 @@ class MyApp extends StatelessWidget {
       child: Consumer<ThemeProvider>(
         builder: (context, themeProvider, child) {
           return MaterialApp.router(
-            routerConfig: AppRouter(context, authService).router,
+            // Use the single router instance
+            routerConfig: router,
             title: 'QuakeTrack',
             theme: AppTheme.lightTheme,
             darkTheme: AppTheme.darkTheme,
