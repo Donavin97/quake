@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:rxdart/rxdart.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class NotificationService extends ChangeNotifier {
   final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin =
@@ -22,6 +23,15 @@ class NotificationService extends ChangeNotifier {
         onDidReceiveNotificationResponse: (NotificationResponse response) {
       onNotificationClick.add(response.payload);
     });
+    await checkPermission();
+  }
+
+  Future<void> checkPermission() async {
+    final prefs = await SharedPreferences.getInstance();
+    if (prefs.getBool('notification_permission_granted') ?? false) {
+      _isPermissionGranted = true;
+      notifyListeners();
+    }
   }
 
   Future<void> requestPermissions() async {
@@ -30,6 +40,8 @@ class NotificationService extends ChangeNotifier {
             AndroidFlutterLocalNotificationsPlugin>()
         ?.requestNotificationsPermission();
     _isPermissionGranted = result ?? false;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('notification_permission_granted', _isPermissionGranted);
     notifyListeners();
   }
 

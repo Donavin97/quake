@@ -10,6 +10,7 @@ import 'screens/disclaimer_screen.dart';
 import 'screens/home_screen.dart';
 import 'screens/permission_screen.dart';
 import 'notification_service.dart';
+import 'screens/splash_screen.dart';
 import 'services/services.dart';
 
 class AppRouter {
@@ -21,7 +22,7 @@ class AppRouter {
 
   GoRouter get router {
     return GoRouter(
-      initialLocation: '/',
+      initialLocation: '/splash',
       refreshListenable: Listenable.merge([
         authService,
         locationProvider,
@@ -35,6 +36,7 @@ class AppRouter {
         final permissionsGranted = locationProvider.isPermissionGranted &&
             notificationService.isPermissionGranted;
 
+        final onSplash = state.matchedLocation == '/splash';
         final onDisclaimer = state.matchedLocation == '/disclaimer';
         final onAuth = state.matchedLocation == '/auth';
         final onPermission = state.matchedLocation == '/permission';
@@ -51,7 +53,7 @@ class AppRouter {
           return onPermission ? null : '/permission';
         }
 
-        if (onDisclaimer || onAuth || onPermission) {
+        if (onSplash || onDisclaimer || onAuth || onPermission) {
           return '/';
         }
 
@@ -76,6 +78,12 @@ class AppRouter {
                 },
               ),
             ]),
+        GoRoute(
+          path: '/splash',
+          builder: (BuildContext context, GoRouterState state) {
+            return const SplashScreen();
+          },
+        ),
         GoRoute(
           path: '/disclaimer',
           builder: (BuildContext context, GoRouterState state) {
