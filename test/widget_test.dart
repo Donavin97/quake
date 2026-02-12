@@ -17,9 +17,7 @@ void main() {
     when(mockNotificationService.init()).thenAnswer((_) async => {});
 
     // Build our app and trigger a frame.
-    await tester.pumpWidget(MyApp(
-      notificationService: mockNotificationService,
-    ));
+    await tester.pumpWidget(const MyApp());
 
     // Wait for all animations to complete.
     await tester.pumpAndSettle();

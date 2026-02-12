@@ -25,16 +25,13 @@ void main() async {
       options: DefaultFirebaseOptions.currentPlatform,
     );
     await BackgroundService.initialize();
-    final notificationService = NotificationService();
-    await notificationService.init();
     FlutterError.onError = FirebaseCrashlytics.instance.recordFlutterError;
-    runApp(MyApp(notificationService: notificationService));
+    runApp(const MyApp());
   }, (error, stack) => FirebaseCrashlytics.instance.recordError(error, stack));
 }
 
 class MyApp extends StatefulWidget {
-  final NotificationService notificationService;
-  const MyApp({super.key, required this.notificationService});
+  const MyApp({super.key});
 
   @override
   State<MyApp> createState() => _MyAppState();
@@ -43,12 +40,14 @@ class MyApp extends StatefulWidget {
 class _MyAppState extends State<MyApp> {
   late final GoRouter router;
   late final UserProvider userProvider;
+  late final NotificationService notificationService;
 
   @override
   void initState() {
     super.initState();
     userProvider = UserProvider();
-    router = AppRouter(userProvider).router;
+    notificationService = NotificationService();
+    router = AppRouter(userProvider, notificationService).router;
   }
 
   @override
@@ -57,7 +56,7 @@ class _MyAppState extends State<MyApp> {
       providers: [
         Provider<AuthService>.value(value: AuthService()),
         Provider<NotificationService>.value(
-          value: widget.notificationService,
+          value: notificationService,
         ),
         ChangeNotifierProvider(create: (context) => LocationProvider()),
         ChangeNotifierProxyProvider<AuthService, SettingsProvider>(

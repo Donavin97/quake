@@ -14,6 +14,7 @@ class PermissionScreen extends StatelessWidget {
     final notificationService = context.read<NotificationService>();
 
     await locationProvider.requestPermission();
+    await notificationService.init();
     await notificationService.requestPermissions();
 
     if (locationProvider.isPermissionGranted &&

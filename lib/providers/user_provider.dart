@@ -36,7 +36,7 @@ class UserProvider with ChangeNotifier {
     final user = _auth.currentUser;
     if (user != null) {
       final userDoc = _firestore.collection('users').doc(user.uid);
-      await userDoc.update({'setupComplete': true});
+      await userDoc.set({'setupComplete': true}, SetOptions(merge: true));
       _isSetupComplete = true;
       notifyListeners();
     }

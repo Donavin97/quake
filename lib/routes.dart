@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:provider/provider.dart';
 
 import 'models/earthquake.dart';
+import 'notification_service.dart';
 import 'providers/user_provider.dart';
 import 'screens/auth_screen.dart';
 import 'screens/detail_screen.dart';
@@ -12,8 +14,9 @@ import 'screens/setup_screen.dart';
 
 class AppRouter {
   final UserProvider userProvider;
+  final NotificationService notificationService;
 
-  AppRouter(this.userProvider);
+  AppRouter(this.userProvider, this.notificationService);
 
   GoRouter get router => GoRouter(
         initialLocation: '/',
@@ -71,7 +74,10 @@ class AppRouter {
           ),
           GoRoute(
             path: '/permission',
-            builder: (context, state) => const PermissionScreen(),
+            builder: (context, state) => Provider<NotificationService>.value(
+              value: notificationService,
+              child: const PermissionScreen(),
+            ),
           ),
         ],
       );
