@@ -17,11 +17,31 @@ class _AuthScreenState extends State<AuthScreen> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   bool _isLogin = true;
-  String? _errorMessage;
+
+  Future<void> _submit() async {
+    if (_formKey.currentState!.validate()) {
+      final authService = Provider.of<AuthService>(context, listen: false);
+      final email = _emailController.text;
+      final password = _passwordController.text;
+      try {
+        if (_isLogin) {
+          await authService.signInWithEmailAndPassword(email, password);
+        } else {
+          await authService.createUserWithEmailAndPassword(email, password);
+        }
+        if (mounted) context.go('/permission');
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(e.toString())),
+          );
+        }
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
-    final authService = Provider.of<AuthService>(context, listen: false);
     final themeProvider = Provider.of<ThemeProvider>(context);
 
     return Scaffold(
@@ -67,43 +87,14 @@ class _AuthScreenState extends State<AuthScreen> {
                 },
               ),
               const SizedBox(height: 20),
-              if (_errorMessage != null)
-                Text(
-                  _errorMessage!,
-                  style: const TextStyle(color: Colors.red),
-                ),
-              const SizedBox(height: 20),
               ElevatedButton(
-                onPressed: () async {
-                  if (_formKey.currentState!.validate()) {
-                    final router = GoRouter.of(context);
-                    final email = _emailController.text;
-                    final password = _passwordController.text;
-                    try {
-                      if (_isLogin) {
-                        await authService.signInWithEmailAndPassword(
-                            email, password);
-                      } else {
-                        await authService.createUserWithEmailAndPassword(
-                            email, password);
-                      }
-                      router.go('/');
-                    } catch (e) {
-                      if (mounted) {
-                        setState(() {
-                          _errorMessage = e.toString();
-                        });
-                      }
-                    }
-                  }
-                },
+                onPressed: _submit,
                 child: Text(_isLogin ? 'Login' : 'Sign Up'),
               ),
               TextButton(
                 onPressed: () {
                   setState(() {
                     _isLogin = !_isLogin;
-                    _errorMessage = null;
                   });
                 },
                 child: Text(_isLogin
@@ -113,15 +104,15 @@ class _AuthScreenState extends State<AuthScreen> {
               const SizedBox(height: 20),
               ElevatedButton.icon(
                 onPressed: () async {
-                  final router = GoRouter.of(context);
+                  final authService = Provider.of<AuthService>(context, listen: false);
                   try {
                     await authService.signInWithGoogle();
-                    router.go('/');
+                    if (mounted) context.go('/permission');
                   } catch (e) {
                     if (mounted) {
-                      setState(() {
-                        _errorMessage = e.toString();
-                      });
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text(e.toString())),
+                      );
                     }
                   }
                 },

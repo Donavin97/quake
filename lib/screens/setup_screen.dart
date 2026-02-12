@@ -1,7 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
-
-import '../providers/user_provider.dart';
+import 'package:go_router/go_router.dart';
 
 class SetupScreen extends StatelessWidget {
   const SetupScreen({super.key});
@@ -9,23 +7,30 @@ class SetupScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Setup'),
-      ),
       body: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const Text('Welcome to QuakeTrack!'),
-            const SizedBox(height: 20),
-            ElevatedButton(
-              onPressed: () {
-                Provider.of<UserProvider>(context, listen: false)
-                    .completeSetup();
-              },
-              child: const Text('Complete Setup'),
-            ),
-          ],
+        child: Padding(
+          padding: const EdgeInsets.all(24.0),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Text(
+                'Welcome to QuakeTrack',
+                style: Theme.of(context).textTheme.headlineMedium,
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 16),
+              Text(
+                'Your real-time earthquake monitoring companion.',
+                style: Theme.of(context).textTheme.titleMedium,
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 48),
+              ElevatedButton(
+                onPressed: () => context.go('/disclaimer'),
+                child: const Text('Get Started'),
+              ),
+            ],
+          ),
         ),
       ),
     );

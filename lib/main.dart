@@ -41,43 +41,30 @@ class MyApp extends StatefulWidget {
 }
 
 class _MyAppState extends State<MyApp> {
-  late final AuthService authService;
   late final GoRouter router;
-  late final DisclaimerProvider disclaimerProvider;
-  late final LocationProvider locationProvider;
   late final UserProvider userProvider;
 
   @override
   void initState() {
     super.initState();
-    disclaimerProvider = DisclaimerProvider();
-    authService = AuthService();
-    locationProvider = LocationProvider();
     userProvider = UserProvider();
-
-    router = AppRouter(
-      disclaimerProvider,
-      authService,
-      locationProvider,
-      widget.notificationService,
-      userProvider,
-    ).router;
+    router = AppRouter(userProvider).router;
   }
 
   @override
   Widget build(BuildContext context) {
     return MultiProvider(
       providers: [
-        Provider<AuthService>.value(value: authService),
+        Provider<AuthService>.value(value: AuthService()),
         Provider<NotificationService>.value(
           value: widget.notificationService,
         ),
-        ChangeNotifierProvider.value(value: locationProvider),
+        ChangeNotifierProvider(create: (context) => LocationProvider()),
         ChangeNotifierProxyProvider<AuthService, SettingsProvider>(
           create: (context) => SettingsProvider(),
           update: (context, auth, settings) => settings!..setAuthService(auth),
         ),
-        ChangeNotifierProvider.value(value: disclaimerProvider),
+        ChangeNotifierProvider(create: (context) => DisclaimerProvider()),
         ChangeNotifierProvider(create: (context) => ThemeProvider()),
         ChangeNotifierProvider.value(value: userProvider),
         ChangeNotifierProxyProvider<SettingsProvider, EarthquakeProvider>(

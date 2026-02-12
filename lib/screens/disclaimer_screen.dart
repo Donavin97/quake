@@ -1,7 +1,9 @@
-
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:provider/provider.dart';
+
+import '../providers/disclaimer_provider.dart';
+import '../services/auth_service.dart';
 
 class DisclaimerScreen extends StatelessWidget {
   const DisclaimerScreen({super.key});
@@ -23,11 +25,17 @@ class DisclaimerScreen extends StatelessWidget {
             ),
             const SizedBox(height: 24),
             ElevatedButton(
-              onPressed: () async {
-                final prefs = await SharedPreferences.getInstance();
-                await prefs.setBool('disclaimer_accepted', true);
-                if (!context.mounted) return;
-                context.go('/');
+              onPressed: () {
+                Provider.of<DisclaimerProvider>(context, listen: false)
+                    .acceptDisclaimer();
+
+                final authService =
+                    Provider.of<AuthService>(context, listen: false);
+                if (authService.currentUser != null) {
+                  context.go('/permission');
+                } else {
+                  context.go('/auth');
+                }
               },
               child: const Text('Accept'),
             ),

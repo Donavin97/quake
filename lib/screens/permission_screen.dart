@@ -4,43 +4,25 @@ import 'package:provider/provider.dart';
 
 import '../providers/location_provider.dart';
 import '../notification_service.dart';
+import '../providers/user_provider.dart';
 
-class PermissionScreen extends StatefulWidget {
+class PermissionScreen extends StatelessWidget {
   const PermissionScreen({super.key});
 
-  @override
-  State<PermissionScreen> createState() => _PermissionScreenState();
-}
-
-class _PermissionScreenState extends State<PermissionScreen> {
-  Future<void> _requestPermissions() async {
+  Future<void> _requestPermissions(BuildContext context) async {
     final locationProvider = context.read<LocationProvider>();
     final notificationService = context.read<NotificationService>();
 
     await locationProvider.requestPermission();
     await notificationService.requestPermissions();
 
-    _checkPermissions();
-  }
-
-  void _checkPermissions() {
-    final locationProvider = context.read<LocationProvider>();
-    final notificationService = context.read<NotificationService>();
-
     if (locationProvider.isPermissionGranted &&
         notificationService.isPermissionGranted) {
-      if (mounted) {
+      if (context.mounted) {
+        context.read<UserProvider>().completeSetup();
         context.go('/');
       }
     }
-  }
-
-  @override
-  void initState() {
-    super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _checkPermissions();
-    });
   }
 
   @override
@@ -62,7 +44,7 @@ class _PermissionScreenState extends State<PermissionScreen> {
               ),
               const SizedBox(height: 30),
               ElevatedButton(
-                onPressed: _requestPermissions,
+                onPressed: () => _requestPermissions(context),
                 child: const Text('Grant Permissions'),
               ),
             ],
