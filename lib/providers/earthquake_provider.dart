@@ -57,7 +57,6 @@ class EarthquakeProvider with ChangeNotifier {
       _earthquakes = await _usgsService.getRecentEarthquakes(
         timeWindow: _settingsProvider.timeWindow,
         minMagnitude: _settingsProvider.minMagnitude,
-        radius: _settingsProvider.radius,
         position: _lastPosition,
       );
       if (_lastPosition != null) {

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../models/time_window.dart';
 import '../providers/settings_provider.dart';
+import 'notification_settings_screen.dart';
 
 class SettingsScreen extends StatelessWidget {
   const SettingsScreen({super.key});
@@ -19,20 +20,6 @@ class SettingsScreen extends StatelessWidget {
             return Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  'Minimum Magnitude: ${settings.minMagnitude.toStringAsFixed(1)}',
-                  style: Theme.of(context).textTheme.titleLarge,
-                ),
-                Slider(
-                  value: settings.minMagnitude,
-                  max: 10,
-                  divisions: 100,
-                  label: settings.minMagnitude.toStringAsFixed(1),
-                  onChanged: (value) {
-                    settings.setMinMagnitude(value);
-                  },
-                ),
-                const SizedBox(height: 24),
                 Text(
                   'Time Window',
                   style: Theme.of(context).textTheme.titleLarge,
@@ -62,20 +49,26 @@ class SettingsScreen extends StatelessWidget {
                   },
                 ),
                 const SizedBox(height: 24),
-                Text(
-                  'Notification Radius (km): ${settings.radius.toStringAsFixed(0)}',
-                  style: Theme.of(context).textTheme.titleLarge,
-                ),
-                Slider(
-                  value: settings.radius,
-                  max: 1000,
-                  divisions: 100,
-                  label: settings.radius.toStringAsFixed(0),
+                SwitchListTile(
+                  title: const Text('Enable Notifications'),
+                  value: settings.notificationsEnabled,
                   onChanged: (value) {
-                    settings.setRadius(value);
+                    settings.setNotificationsEnabled(value);
                   },
                 ),
                 const SizedBox(height: 24),
+                ElevatedButton(
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) =>
+                            const NotificationSettingsScreen(),
+                      ),
+                    );
+                  },
+                  child: const Text('Notification Settings'),
+                ),
               ],
             );
           },
