@@ -25,7 +25,7 @@ class AppRouter {
 
   GoRouter get router {
     return GoRouter(
-      initialLocation: '/splash',
+      initialLocation: '/disclaimer',
       refreshListenable: Listenable.merge([
         disclaimerProvider,
         authService,
@@ -38,12 +38,9 @@ class AppRouter {
         final permissionsGranted = locationProvider.isPermissionGranted &&
             notificationService.isPermissionGranted;
 
-        final onSplash = state.matchedLocation == '/splash';
         final onDisclaimer = state.matchedLocation == '/disclaimer';
         final onAuth = state.matchedLocation == '/auth';
         final onPermission = state.matchedLocation == '/permission';
-
-        if (onSplash) return null;
 
         if (!disclaimerAccepted) {
           return onDisclaimer ? null : '/disclaimer';
@@ -82,10 +79,6 @@ class AppRouter {
                 },
               ),
             ]),
-        GoRoute(
-          path: '/splash',
-          builder: (BuildContext context, GoRouterState state) {
-            return const SplashScreen();
           },
         ),
         GoRoute(
