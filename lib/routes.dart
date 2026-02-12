@@ -22,7 +22,7 @@ class AppRouter {
 
   GoRouter get router {
     return GoRouter(
-      initialLocation: '/',
+      initialLocation: '/disclaimer',
       refreshListenable: Listenable.merge([
         disclaimerProvider,
         authService,
