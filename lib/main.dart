@@ -8,6 +8,7 @@ import 'package:provider/provider.dart';
 
 import 'firebase_options.dart';
 import 'notification_service.dart';
+import 'providers/disclaimer_provider.dart';
 import 'providers/earthquake_provider.dart';
 import 'providers/location_provider.dart';
 import 'providers/settings_provider.dart';
@@ -42,16 +43,21 @@ class _MyAppState extends State<MyApp> {
   late final AuthService authService;
   late final GoRouter router;
   late final LocationProvider locationProvider;
+  late final SettingsProvider settingsProvider;
+  late final DisclaimerProvider disclaimerProvider;
 
   @override
   void initState() {
     super.initState();
     authService = AuthService();
     locationProvider = LocationProvider();
+    settingsProvider = SettingsProvider();
+    disclaimerProvider = DisclaimerProvider();
     router = AppRouter(
       authService,
       locationProvider,
       widget.notificationService,
+      disclaimerProvider,
     ).router;
 
     // Chain the initialization
@@ -71,10 +77,11 @@ class _MyAppState extends State<MyApp> {
           value: widget.notificationService,
         ),
         ChangeNotifierProvider.value(value: locationProvider),
+        ChangeNotifierProvider.value(value: settingsProvider),
+        ChangeNotifierProvider.value(value: disclaimerProvider),
         ChangeNotifierProvider(create: (context) => ThemeProvider()),
-        ChangeNotifierProvider(create: (context) => SettingsProvider()),
         ChangeNotifierProvider(
-          create: (context) => EarthquakeProvider()..fetchEarthquakes(),
+          create: (context) => EarthquakeProvider(settingsProvider)..fetchEarthquakes(),
         ),
       ],
       child: Consumer<ThemeProvider>(

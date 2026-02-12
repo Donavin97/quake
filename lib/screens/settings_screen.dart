@@ -29,7 +29,7 @@ class SettingsScreen extends StatelessWidget {
                   divisions: 100,
                   label: settings.minMagnitude.toStringAsFixed(1),
                   onChanged: (value) {
-                    settings.updateSettings(minMagnitude: value);
+                    settings.setMinMagnitude(value);
                   },
                 ),
                 const SizedBox(height: 24),
@@ -58,7 +58,7 @@ class SettingsScreen extends StatelessWidget {
                   ],
                   selected: {settings.timeWindow},
                   onSelectionChanged: (newSelection) {
-                    settings.updateSettings(timeWindow: newSelection.first);
+                    settings.setTimeWindow(newSelection.first);
                   },
                 ),
                 const SizedBox(height: 24),
@@ -72,7 +72,7 @@ class SettingsScreen extends StatelessWidget {
                   divisions: 100,
                   label: settings.radius.toStringAsFixed(0),
                   onChanged: (value) {
-                    settings.updateSettings(radius: value);
+                    settings.setRadius(value);
                   },
                 ),
                 const SizedBox(height: 24),

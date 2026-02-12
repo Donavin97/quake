@@ -40,7 +40,6 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     final authService = Provider.of<AuthService>(context, listen: false);
-    final locationProvider = Provider.of<LocationProvider>(context, listen: false);
 
     return Scaffold(
       appBar: AppBar(
@@ -81,10 +80,6 @@ class _HomeScreenState extends State<HomeScreen> {
               );
               return;
             }
-          }
-          if (_currentIndex == 2 && index != 2) {
-            Provider.of<EarthquakeProvider>(context, listen: false)
-                .fetchEarthquakes(position: locationProvider.currentPosition);
           }
           setState(() {
             _currentIndex = index;

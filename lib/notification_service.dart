@@ -1,7 +1,10 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:rxdart/rxdart.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+
+const String channelId = 'earthquake_channel';
+const String channelName = 'Earthquake Notifications';
+const String channelDescription = 'Notifications for new earthquakes';
 
 class NotificationService extends ChangeNotifier {
   final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin =
@@ -16,39 +19,75 @@ class NotificationService extends ChangeNotifier {
     const AndroidInitializationSettings initializationSettingsAndroid =
         AndroidInitializationSettings('ic_launcher');
 
-    const InitializationSettings initializationSettings =
-        InitializationSettings(android: initializationSettingsAndroid);
+    final DarwinInitializationSettings initializationSettingsIOS =
+        DarwinInitializationSettings(
+      onDidReceiveLocalNotification: onDidReceiveLocalNotification,
+    );
+
+    final InitializationSettings initializationSettings = InitializationSettings(
+      android: initializationSettingsAndroid,
+      iOS: initializationSettingsIOS,
+    );
 
     await flutterLocalNotificationsPlugin.initialize(initializationSettings,
         onDidReceiveNotificationResponse: (NotificationResponse response) {
       onNotificationClick.add(response.payload);
     });
-    await checkPermission();
+    await _checkPermission();
   }
 
-  Future<void> checkPermission() async {
-    final prefs = await SharedPreferences.getInstance();
-    if (prefs.getBool('notification_permission_granted') ?? false) {
-      _isPermissionGranted = true;
-      notifyListeners();
+  Future<void> _checkPermission() async {
+    if (defaultTargetPlatform == TargetPlatform.android) {
+      final AndroidFlutterLocalNotificationsPlugin? androidImplementation =
+          flutterLocalNotificationsPlugin.resolvePlatformSpecificImplementation<
+              AndroidFlutterLocalNotificationsPlugin>();
+      if (androidImplementation != null) {
+        final bool? result =
+            await androidImplementation.requestNotificationsPermission();
+        _isPermissionGranted = result ?? false;
+      }
+    } else if (defaultTargetPlatform == TargetPlatform.iOS) {
+      final IOSFlutterLocalNotificationsPlugin? iosImplementation =
+          flutterLocalNotificationsPlugin.resolvePlatformSpecificImplementation<
+              IOSFlutterLocalNotificationsPlugin>();
+      if (iosImplementation != null) {
+        final bool? result = await iosImplementation.requestPermissions();
+        _isPermissionGranted = result ?? false;
+      }
     }
+    notifyListeners();
   }
 
   Future<void> requestPermissions() async {
-    final bool? result = await flutterLocalNotificationsPlugin
-        .resolvePlatformSpecificImplementation<
-            AndroidFlutterLocalNotificationsPlugin>()
-        ?.requestNotificationsPermission();
-    _isPermissionGranted = result ?? false;
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool('notification_permission_granted', _isPermissionGranted);
+    if (defaultTargetPlatform == TargetPlatform.android) {
+      final AndroidFlutterLocalNotificationsPlugin? androidImplementation =
+          flutterLocalNotificationsPlugin.resolvePlatformSpecificImplementation<
+              AndroidFlutterLocalNotificationsPlugin>();
+      if (androidImplementation != null) {
+        final bool? result =
+            await androidImplementation.requestNotificationsPermission();
+        _isPermissionGranted = result ?? false;
+      }
+    } else if (defaultTargetPlatform == TargetPlatform.iOS) {
+      final IOSFlutterLocalNotificationsPlugin? iosImplementation =
+          flutterLocalNotificationsPlugin.resolvePlatformSpecificImplementation<
+              IOSFlutterLocalNotificationsPlugin>();
+      if (iosImplementation != null) {
+        final bool? result = await iosImplementation.requestPermissions(
+          alert: true,
+          badge: true,
+          sound: true,
+        );
+        _isPermissionGranted = result ?? false;
+      }
+    }
     notifyListeners();
   }
 
   Future<void> showNotification(String title, String body, String payload) async {
     const AndroidNotificationDetails androidPlatformChannelSpecifics =
-        AndroidNotificationDetails('your channel id', 'your channel name',
-            channelDescription: 'your channel description',
+        AndroidNotificationDetails(channelId, channelName,
+            channelDescription: channelDescription,
             importance: Importance.max,
             priority: Priority.high,
             showWhen: false);
@@ -56,5 +95,11 @@ class NotificationService extends ChangeNotifier {
         NotificationDetails(android: androidPlatformChannelSpecifics);
     await flutterLocalNotificationsPlugin
         .show(0, title, body, platformChannelSpecifics, payload: payload);
+  }
+
+  void onDidReceiveLocalNotification(
+      int id, String? title, String? body, String? payload) {
+    // display a dialog with the notification details, tap ok to go to another page
+    onNotificationClick.add(payload);
   }
 }

@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
 import 'models/earthquake.dart';
+import 'providers/disclaimer_provider.dart';
 import 'providers/location_provider.dart';
 import 'screens/auth_screen.dart';
 import 'screens/detail_screen.dart';
@@ -17,8 +17,10 @@ class AppRouter {
   final AuthService authService;
   final LocationProvider locationProvider;
   final NotificationService notificationService;
+  final DisclaimerProvider disclaimerProvider;
 
-  AppRouter(this.authService, this.locationProvider, this.notificationService);
+  AppRouter(this.authService, this.locationProvider, this.notificationService,
+      this.disclaimerProvider);
 
   GoRouter get router {
     return GoRouter(
@@ -27,11 +29,10 @@ class AppRouter {
         authService,
         locationProvider,
         notificationService,
+        disclaimerProvider,
       ]),
-      redirect: (BuildContext context, GoRouterState state) async {
-        final prefs = await SharedPreferences.getInstance();
-        final disclaimerAccepted =
-            prefs.getBool('disclaimer_accepted') ?? false;
+      redirect: (BuildContext context, GoRouterState state) {
+        final disclaimerAccepted = disclaimerProvider.disclaimerAccepted;
         final loggedIn = authService.currentUser != null;
         final permissionsGranted = locationProvider.isPermissionGranted &&
             notificationService.isPermissionGranted;
@@ -40,6 +41,8 @@ class AppRouter {
         final onDisclaimer = state.matchedLocation == '/disclaimer';
         final onAuth = state.matchedLocation == '/auth';
         final onPermission = state.matchedLocation == '/permission';
+
+        if (onSplash) return null;
 
         if (!disclaimerAccepted) {
           return onDisclaimer ? null : '/disclaimer';
@@ -53,7 +56,7 @@ class AppRouter {
           return onPermission ? null : '/permission';
         }
 
-        if (onSplash || onDisclaimer || onAuth || onPermission) {
+        if (onDisclaimer || onAuth || onPermission) {
           return '/';
         }
 

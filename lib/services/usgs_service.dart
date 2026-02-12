@@ -13,17 +13,26 @@ class UsgsService {
   }) async {
     final now = DateTime.now();
     final startTime = _getStartTime(now, timeWindow);
-    final endTime = now.toUtc().toIso8601String();
 
-    String url =
-        'https://earthquake.usgs.gov/fdsnws/event/1/query?format=geojson&starttime=$startTime&endtime=$endTime&minmagnitude=$minMagnitude';
+    final queryParameters = {
+      'format': 'geojson',
+      'starttime': startTime,
+      'endtime': now.toUtc().toIso8601String(),
+      'minmagnitude': minMagnitude.toString(),
+    };
 
     if (position != null && radius > 0.0) {
-      url += '&latitude=${position.latitude}&longitude=${position.longitude}&maxradiuskm=$radius';
+      queryParameters.addAll({
+        'latitude': position.latitude.toString(),
+        'longitude': position.longitude.toString(),
+        'maxradiuskm': radius.toString(),
+      });
     }
 
+    final uri = Uri.https('earthquake.usgs.gov', '/fdsnws/event/1/query', queryParameters);
+
     try {
-      final response = await http.get(Uri.parse(url));
+      final response = await http.get(uri);
 
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
@@ -33,8 +42,7 @@ class UsgsService {
         throw Exception('Failed to load earthquakes');
       }
     } catch (e) {
-      // Return mock data if fetching fails
-      return _getMockEarthquakes();
+      throw Exception('Failed to load earthquakes: $e');
     }
   }
 
@@ -47,34 +55,5 @@ class UsgsService {
       case TimeWindow.month:
         return now.subtract(const Duration(days: 30)).toUtc().toIso8601String();
     }
-  }
-
-  List<Earthquake> _getMockEarthquakes() {
-    return [
-      Earthquake(
-        id: 'mock1',
-        place: 'San Francisco, California',
-        time: DateTime.now(),
-        magnitude: 4.5,
-        latitude: 37.7749,
-        longitude: -122.4194,
-      ),
-      Earthquake(
-        id: 'mock2',
-        place: 'Tokyo, Japan',
-        time: DateTime.now().subtract(const Duration(hours: 2)),
-        magnitude: 5.2,
-        latitude: 35.6895,
-        longitude: 139.6917,
-      ),
-      Earthquake(
-        id: 'mock3',
-        place: 'Santiago, Chile',
-        time: DateTime.now().subtract(const Duration(hours: 5)),
-        magnitude: 6.1,
-        latitude: -33.4489,
-        longitude: -70.6693,
-      ),
-    ];
   }
 }

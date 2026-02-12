@@ -1,19 +1,21 @@
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+
 import '../models/earthquake.dart';
 import '../models/sort_criterion.dart';
-import '../models/time_window.dart';
 import '../services/usgs_service.dart';
+import 'settings_provider.dart';
 
 class EarthquakeProvider with ChangeNotifier {
   final UsgsService _usgsService = UsgsService();
+  final SettingsProvider _settingsProvider;
 
   List<Earthquake> _earthquakes = [];
   bool _isLoading = false;
   String? _error;
   DateTime? _lastUpdated;
   SortCriterion _sortCriterion = SortCriterion.date;
+  Position? _lastPosition;
 
   List<Earthquake> get earthquakes => _earthquakes;
   bool get isLoading => _isLoading;
@@ -21,30 +23,48 @@ class EarthquakeProvider with ChangeNotifier {
   DateTime? get lastUpdated => _lastUpdated;
   SortCriterion get sortCriterion => _sortCriterion;
 
-  EarthquakeProvider();
+  EarthquakeProvider(this._settingsProvider) {
+    _settingsProvider.addListener(fetchEarthquakes);
+  }
+
+  @override
+  void dispose() {
+    _settingsProvider.removeListener(fetchEarthquakes);
+    super.dispose();
+  }
 
   Future<void> fetchEarthquakes({Position? position}) async {
+    if (position != null) {
+      if (_lastPosition != null) {
+        final distance = Geolocator.distanceBetween(
+          _lastPosition!.latitude,
+          _lastPosition!.longitude,
+          position.latitude,
+          position.longitude,
+        );
+        if (distance < 10000) { // 10 kilometers
+          return;
+        }
+      }
+      _lastPosition = position;
+    }
+
     _isLoading = true;
     _error = null;
     notifyListeners();
 
     try {
-      final prefs = await SharedPreferences.getInstance();
-      final timeWindowIndex = prefs.getInt('timeWindow') ?? 0;
-      final timeWindow = TimeWindow.values[timeWindowIndex];
-      final minMagnitude = prefs.getDouble('minMagnitude') ?? 0.0;
-      final radius = prefs.getDouble('radius') ?? 1000.0;
       _earthquakes = await _usgsService.getRecentEarthquakes(
-        timeWindow: timeWindow,
-        minMagnitude: minMagnitude,
-        radius: radius,
-        position: position,
+        timeWindow: _settingsProvider.timeWindow,
+        minMagnitude: _settingsProvider.minMagnitude,
+        radius: _settingsProvider.radius,
+        position: _lastPosition,
       );
-      if (position != null) {
+      if (_lastPosition != null) {
         for (final earthquake in _earthquakes) {
           final distance = Geolocator.distanceBetween(
-            position.latitude,
-            position.longitude,
+            _lastPosition!.latitude,
+            _lastPosition!.longitude,
             earthquake.latitude,
             earthquake.longitude,
           );
