@@ -66,12 +66,6 @@ class SettingsScreen extends StatelessWidget {
                   },
                 ),
                 const SizedBox(height: 24),
-                SwitchListTile(
-                  title: const Text('Enable Notifications'),
-                  value: settings.notificationsEnabled,
-                  onChanged: (value) => settings.setNotificationsEnabled(value),
-                ),
-                const SizedBox(height: 24),
                 ElevatedButton(
                   onPressed: () {
                     Navigator.push(

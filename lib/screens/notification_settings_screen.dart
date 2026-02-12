@@ -19,6 +19,12 @@ class NotificationSettingsScreen extends StatelessWidget {
             return Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                SwitchListTile(
+                  title: const Text('Enable Notifications'),
+                  value: settings.notificationsEnabled,
+                  onChanged: (value) => settings.setNotificationsEnabled(value),
+                ),
+                const SizedBox(height: 24),
                 Text(
                   'Minimum Magnitude: ${settings.minMagnitude.toStringAsFixed(1)}',
                   style: Theme.of(context).textTheme.titleLarge,
