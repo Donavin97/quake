@@ -43,8 +43,9 @@ class MyApp extends StatefulWidget {
 class _MyAppState extends State<MyApp> {
   late final AuthService authService;
   late final GoRouter router;
-  late final LocationProvider locationProvider;
   late final DisclaimerProvider disclaimerProvider;
+  late final LocationProvider locationProvider;
+  late final UserProvider userProvider;
 
   @override
   void initState() {
@@ -52,19 +53,15 @@ class _MyAppState extends State<MyApp> {
     disclaimerProvider = DisclaimerProvider();
     authService = AuthService();
     locationProvider = LocationProvider();
+    userProvider = UserProvider();
+
     router = AppRouter(
       disclaimerProvider,
       authService,
       locationProvider,
       widget.notificationService,
+      userProvider,
     ).router;
-
-    // Chain the initialization
-    _initApp();
-  }
-
-  Future<void> _initApp() async {
-    await locationProvider.checkPermission();
   }
 
   @override
@@ -82,10 +79,12 @@ class _MyAppState extends State<MyApp> {
         ),
         ChangeNotifierProvider.value(value: disclaimerProvider),
         ChangeNotifierProvider(create: (context) => ThemeProvider()),
-        ChangeNotifierProvider(create: (context) => UserProvider()),
+        ChangeNotifierProvider.value(value: userProvider),
         ChangeNotifierProxyProvider<SettingsProvider, EarthquakeProvider>(
-          create: (context) => EarthquakeProvider(context.read<SettingsProvider>())..fetchEarthquakes(),
-          update: (context, settings, previous) => previous!..updateSettings(settings),
+          create: (context) =>
+              EarthquakeProvider(context.read<SettingsProvider>())..fetchEarthquakes(),
+          update: (context, settings, previous) =>
+              previous!..updateSettings(settings),
         ),
       ],
       child: Consumer<ThemeProvider>(

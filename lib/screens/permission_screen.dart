@@ -1,4 +1,3 @@
-
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
@@ -19,11 +18,7 @@ class _PermissionScreenState extends State<PermissionScreen> {
     final notificationService = context.read<NotificationService>();
 
     await locationProvider.requestPermission();
-
-    if (locationProvider.isPermissionGranted) {
-      await notificationService.init();
-      await notificationService.requestPermissions();
-    }
+    await notificationService.requestPermissions();
 
     _checkPermissions();
   }
@@ -34,9 +29,18 @@ class _PermissionScreenState extends State<PermissionScreen> {
 
     if (locationProvider.isPermissionGranted &&
         notificationService.isPermissionGranted) {
-      if (!context.mounted) return;
-      context.go('/');
+      if (mounted) {
+        context.go('/');
+      }
     }
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _checkPermissions();
+    });
   }
 
   @override

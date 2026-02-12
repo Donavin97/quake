@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'package:provider/provider.dart';
 
 import 'models/earthquake.dart';
 import 'providers/disclaimer_provider.dart';
@@ -20,8 +19,10 @@ class AppRouter {
   final AuthService authService;
   final LocationProvider locationProvider;
   final NotificationService notificationService;
+  final UserProvider userProvider;
 
-  AppRouter(this.disclaimerProvider, this.authService, this.locationProvider, this.notificationService);
+  AppRouter(this.disclaimerProvider, this.authService, this.locationProvider,
+      this.notificationService, this.userProvider);
 
   GoRouter get router {
     return GoRouter(
@@ -31,27 +32,34 @@ class AppRouter {
         authService,
         locationProvider,
         notificationService,
+        userProvider,
       ]),
       redirect: (BuildContext context, GoRouterState state) {
+        final isSetupComplete = userProvider.isSetupComplete;
         final disclaimerAccepted = disclaimerProvider.disclaimerAccepted;
         final loggedIn = authService.currentUser != null;
-        final permissionsGranted = locationProvider.isPermissionGranted && notificationService.isPermissionGranted;
-        final userProvider = Provider.of<UserProvider>(context, listen: false);
-        final isSetupComplete = userProvider.isSetupComplete;
+        final permissionsGranted = locationProvider.isPermissionGranted &&
+            notificationService.isPermissionGranted;
 
+        final onSetup = state.matchedLocation == '/setup';
         final onDisclaimer = state.matchedLocation == '/disclaimer';
         final onAuth = state.matchedLocation == '/auth';
         final onPermission = state.matchedLocation == '/permission';
-        final onSetup = state.matchedLocation == '/setup';
+
+        if (!isSetupComplete) {
+          return onSetup ? null : '/setup';
+        }
 
         if (!disclaimerAccepted) {
           return onDisclaimer ? null : '/disclaimer';
-        } else if (!loggedIn) {
+        }
+
+        if (!loggedIn) {
           return onAuth ? null : '/auth';
-        } else if (!permissionsGranted) {
+        }
+
+        if (!permissionsGranted) {
           return onPermission ? null : '/permission';
-        } else if (!isSetupComplete) {
-          return onSetup ? null : '/setup';
         }
 
         if (onDisclaimer || onAuth || onPermission || onSetup) {
