@@ -11,6 +11,11 @@ service cloud.firestore {
       allow read, write: if request.auth.uid == userId;
     }
 
+    // Users can only read and write their own data
+    match /users/{userId} {
+      allow read, write: if request.auth.uid == userId;
+    }
+
     // Metadata is read-only for authenticated users.
     match /metadata/{doc} {
       allow read: if request.auth != null;

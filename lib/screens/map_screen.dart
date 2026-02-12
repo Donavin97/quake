@@ -101,6 +101,7 @@ class _MapScreenState extends State<MapScreen> {
       children: [
         TileLayer(
           urlTemplate: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+          userAgentPackageName: 'com.liebgott.quaketrack',
         ),
         MarkerLayer(
           markers: _markers,
