@@ -21,10 +21,63 @@ class AppRouter {
   final NotificationService notificationService;
   final UserProvider userProvider;
 
-  AppRouter(this.disclaimerProvider, this.authService, this.locationProvider,
-      this.notificationService, this.userProvider);
+  GoRouter? _router;
 
-  GoRouter get router {
+  AppRouter(
+    this.disclaimerProvider,
+    this.authService,
+    this.locationProvider,
+    this.notificationService,
+    this.userProvider,
+  );
+
+  GoRouter get router => _router ??= _createRouter();
+
+  // Private method to create the GoRouter instance
+  GoRouter _createRouter() {
+    // Route guards are functions that check a condition and return a redirect path if needed.
+    final routeGuards = [
+      // 1. Check if setup is complete
+      (GoRouterState state) {
+        if (!userProvider.isSetupComplete && state.matchedLocation != '/setup') {
+          return '/setup';
+        }
+        return null;
+      },
+      // 2. Check if the disclaimer is accepted
+      (GoRouterState state) {
+        if (userProvider.isSetupComplete &&
+            !disclaimerProvider.disclaimerAccepted &&
+            state.matchedLocation != '/disclaimer') {
+          return '/disclaimer';
+        }
+        return null;
+      },
+      // 3. Check if the user is logged in
+      (GoRouterState state) {
+        if (userProvider.isSetupComplete &&
+            disclaimerProvider.disclaimerAccepted &&
+            authService.currentUser == null &&
+            state.matchedLocation != '/auth') {
+          return '/auth';
+        }
+        return null;
+      },
+      // 4. Check if permissions are granted
+      (GoRouterState state) {
+        final permissionsGranted = locationProvider.isPermissionGranted &&
+            notificationService.isPermissionGranted;
+        if (userProvider.isSetupComplete &&
+            disclaimerProvider.disclaimerAccepted &&
+            authService.currentUser != null &&
+            !permissionsGranted &&
+            state.matchedLocation != '/permission') {
+          return '/permission';
+        }
+        return null;
+      },
+    ];
+
     return GoRouter(
       initialLocation: '/',
       refreshListenable: Listenable.merge([
@@ -35,82 +88,61 @@ class AppRouter {
         userProvider,
       ]),
       redirect: (BuildContext context, GoRouterState state) {
-        final isSetupComplete = userProvider.isSetupComplete;
-        final disclaimerAccepted = disclaimerProvider.disclaimerAccepted;
-        final loggedIn = authService.currentUser != null;
-        final permissionsGranted = locationProvider.isPermissionGranted &&
-            notificationService.isPermissionGranted;
-
-        final onSetup = state.matchedLocation == '/setup';
-        final onDisclaimer = state.matchedLocation == '/disclaimer';
-        final onAuth = state.matchedLocation == '/auth';
-        final onPermission = state.matchedLocation == '/permission';
-
-        if (!isSetupComplete) {
-          return onSetup ? null : '/setup';
+        // Sequentially check all route guards.
+        for (final guard in routeGuards) {
+          final redirectPath = guard(state);
+          if (redirectPath != null) {
+            return redirectPath;
+          }
         }
 
-        if (!disclaimerAccepted) {
-          return onDisclaimer ? null : '/disclaimer';
-        }
+        // If all checks pass and the user is on a setup-related screen, redirect to home.
+        final onSetupScreen = ['/setup', '/disclaimer', '/auth', '/permission']
+            .contains(state.matchedLocation);
 
-        if (!loggedIn) {
-          return onAuth ? null : '/auth';
-        }
-
-        if (!permissionsGranted) {
-          return onPermission ? null : '/permission';
-        }
-
-        if (onDisclaimer || onAuth || onPermission || onSetup) {
+        if (userProvider.isSetupComplete &&
+            disclaimerProvider.disclaimerAccepted &&
+            authService.currentUser != null &&
+            locationProvider.isPermissionGranted &&
+            notificationService.isPermissionGranted &&
+            onSetupScreen) {
           return '/';
         }
 
         return null;
       },
-      routes: <RouteBase>[
+      routes: [
         GoRoute(
           path: '/',
-          builder: (BuildContext context, GoRouterState state) {
-            return const HomeScreen();
-          },
-          routes: <RouteBase>[
+          builder: (context, state) => const HomeScreen(),
+          routes: [
             GoRoute(
               path: 'details',
-              builder: (BuildContext context, GoRouterState state) {
+              builder: (context, state) {
                 final earthquake = state.extra as Earthquake?;
                 if (earthquake != null) {
                   return DetailScreen(earthquake: earthquake);
-                } else {
-                  return const Text('Error: Earthquake data not found');
                 }
+                return const Text('Error: Earthquake data not found');
               },
             ),
           ],
         ),
         GoRoute(
+          path: '/setup',
+          builder: (context, state) => const SetupScreen(),
+        ),
+        GoRoute(
           path: '/disclaimer',
-          builder: (BuildContext context, GoRouterState state) {
-            return const DisclaimerScreen();
-          },
+          builder: (context, state) => const DisclaimerScreen(),
         ),
         GoRoute(
           path: '/auth',
-          builder: (BuildContext context, GoRouterState state) {
-            return const AuthScreen();
-          },
+          builder: (context, state) => const AuthScreen(),
         ),
         GoRoute(
           path: '/permission',
-          builder: (BuildContext context, GoRouterState state) {
-            return const PermissionScreen();
-          },
-        ),
-        GoRoute(
-          path: '/setup',
-          builder: (BuildContext context, GoRouterState state) {
-            return const SetupScreen();
-          },
+          builder: (context, state) => const PermissionScreen(),
         ),
       ],
     );
