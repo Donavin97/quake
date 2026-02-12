@@ -49,15 +49,15 @@ class _MyAppState extends State<MyApp> {
   @override
   void initState() {
     super.initState();
+    disclaimerProvider = DisclaimerProvider();
     authService = AuthService();
     locationProvider = LocationProvider();
     settingsProvider = SettingsProvider();
-    disclaimerProvider = DisclaimerProvider();
     router = AppRouter(
+      disclaimerProvider,
       authService,
       locationProvider,
       widget.notificationService,
-      disclaimerProvider,
     ).router;
 
     // Chain the initialization

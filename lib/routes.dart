@@ -14,22 +14,23 @@ import 'screens/splash_screen.dart';
 import 'services/services.dart';
 
 class AppRouter {
+  final DisclaimerProvider disclaimerProvider;
   final AuthService authService;
   final LocationProvider locationProvider;
   final NotificationService notificationService;
-  final DisclaimerProvider disclaimerProvider;
 
-  AppRouter(this.authService, this.locationProvider, this.notificationService,
-      this.disclaimerProvider);
+
+  AppRouter(this.disclaimerProvider, this.authService, this.locationProvider, this.notificationService);
+
 
   GoRouter get router {
     return GoRouter(
       initialLocation: '/splash',
       refreshListenable: Listenable.merge([
+        disclaimerProvider,
         authService,
         locationProvider,
         notificationService,
-        disclaimerProvider,
       ]),
       redirect: (BuildContext context, GoRouterState state) {
         final disclaimerAccepted = disclaimerProvider.disclaimerAccepted;
