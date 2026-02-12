@@ -1,8 +1,10 @@
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:go_router/go_router.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:provider/provider.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../providers/earthquake_provider.dart';
 import '../providers/location_provider.dart';
@@ -102,6 +104,31 @@ class _MapScreenState extends State<MapScreen> {
         ),
         MarkerLayer(
           markers: _markers,
+        ),
+        RichText(
+          text: TextSpan(
+            children: [
+              const TextSpan(
+                text: '© ',
+                style: TextStyle(color: Colors.black),
+              ),
+              TextSpan(
+                text: 'OpenStreetMap',
+                style: const TextStyle(
+                  color: Colors.blue,
+                  decoration: TextDecoration.underline,
+                ),
+                recognizer: TapGestureRecognizer()
+                  ..onTap = () {
+                    launchUrl(Uri.parse('https://www.openstreetmap.org/copyright'));
+                  },
+              ),
+              const TextSpan(
+                text: ' contributors',
+                style: TextStyle(color: Colors.black),
+              ),
+            ],
+          ),
         ),
       ],
     );
