@@ -1,3 +1,5 @@
+ // ignore_for_file: avoid_redundant_argument_values
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../models/time_window.dart';
@@ -49,12 +51,25 @@ class SettingsScreen extends StatelessWidget {
                   },
                 ),
                 const SizedBox(height: 24),
+                Text(
+                  'Notification Radius (km)',
+                  style: Theme.of(context).textTheme.titleLarge,
+                ),
+                Slider(
+                  value: settings.radius,
+                  min: 0,
+                  max: 1000,
+                  divisions: 100,
+                  label: settings.radius.round().toString(),
+                  onChanged: (value) {
+                    settings.setRadius(value);
+                  },
+                ),
+                const SizedBox(height: 24),
                 SwitchListTile(
                   title: const Text('Enable Notifications'),
                   value: settings.notificationsEnabled,
-                  onChanged: (value) {
-                    settings.setNotificationsEnabled(value);
-                  },
+                  onChanged: (value) => settings.setNotificationsEnabled(value),
                 ),
                 const SizedBox(height: 24),
                 ElevatedButton(

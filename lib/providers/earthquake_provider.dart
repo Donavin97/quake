@@ -8,7 +8,7 @@ import 'settings_provider.dart';
 
 class EarthquakeProvider with ChangeNotifier {
   final UsgsService _usgsService = UsgsService();
-  final SettingsProvider _settingsProvider;
+  SettingsProvider _settingsProvider;
 
   List<Earthquake> _earthquakes = [];
   bool _isLoading = false;
@@ -23,14 +23,11 @@ class EarthquakeProvider with ChangeNotifier {
   DateTime? get lastUpdated => _lastUpdated;
   SortCriterion get sortCriterion => _sortCriterion;
 
-  EarthquakeProvider(this._settingsProvider) {
-    _settingsProvider.addListener(fetchEarthquakes);
-  }
+  EarthquakeProvider(this._settingsProvider);
 
-  @override
-  void dispose() {
-    _settingsProvider.removeListener(fetchEarthquakes);
-    super.dispose();
+  void updateSettings(SettingsProvider newSettings) {
+    _settingsProvider = newSettings;
+    fetchEarthquakes();
   }
 
   Future<void> fetchEarthquakes({Position? position}) async {
@@ -54,13 +51,13 @@ class EarthquakeProvider with ChangeNotifier {
     notifyListeners();
 
     try {
-      _earthquakes = await _usgsService.getRecentEarthquakes(
+      final allEarthquakes = await _usgsService.getRecentEarthquakes(
         timeWindow: _settingsProvider.timeWindow,
         minMagnitude: _settingsProvider.minMagnitude,
-        position: _lastPosition,
       );
+
       if (_lastPosition != null) {
-        for (final earthquake in _earthquakes) {
+        for (final earthquake in allEarthquakes) {
           final distance = Geolocator.distanceBetween(
             _lastPosition!.latitude,
             _lastPosition!.longitude,
@@ -69,7 +66,18 @@ class EarthquakeProvider with ChangeNotifier {
           );
           earthquake.distance = distance / 1000; // Convert to kilometers
         }
+
+        if (_settingsProvider.radius > 0) {
+          _earthquakes = allEarthquakes
+              .where((eq) => eq.distance != null && eq.distance! <= _settingsProvider.radius)
+              .toList();
+        } else {
+          _earthquakes = allEarthquakes;
+        }
+      } else {
+        _earthquakes = allEarthquakes;
       }
+
       _sort();
       _lastUpdated = DateTime.now();
     } catch (e) {

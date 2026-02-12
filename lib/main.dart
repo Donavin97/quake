@@ -13,6 +13,7 @@ import 'providers/earthquake_provider.dart';
 import 'providers/location_provider.dart';
 import 'providers/settings_provider.dart';
 import 'providers/theme_provider.dart';
+import 'providers/user_provider.dart';
 import 'routes.dart';
 import 'services/services.dart';
 import 'theme.dart';
@@ -43,7 +44,6 @@ class _MyAppState extends State<MyApp> {
   late final AuthService authService;
   late final GoRouter router;
   late final LocationProvider locationProvider;
-  late final SettingsProvider settingsProvider;
   late final DisclaimerProvider disclaimerProvider;
 
   @override
@@ -52,7 +52,6 @@ class _MyAppState extends State<MyApp> {
     disclaimerProvider = DisclaimerProvider();
     authService = AuthService();
     locationProvider = LocationProvider();
-    settingsProvider = SettingsProvider();
     router = AppRouter(
       disclaimerProvider,
       authService,
@@ -77,11 +76,16 @@ class _MyAppState extends State<MyApp> {
           value: widget.notificationService,
         ),
         ChangeNotifierProvider.value(value: locationProvider),
-        ChangeNotifierProvider.value(value: settingsProvider),
+        ChangeNotifierProxyProvider<AuthService, SettingsProvider>(
+          create: (context) => SettingsProvider(),
+          update: (context, auth, settings) => settings!..setAuthService(auth),
+        ),
         ChangeNotifierProvider.value(value: disclaimerProvider),
         ChangeNotifierProvider(create: (context) => ThemeProvider()),
-        ChangeNotifierProvider(
-          create: (context) => EarthquakeProvider(settingsProvider)..fetchEarthquakes(),
+        ChangeNotifierProvider(create: (context) => UserProvider()),
+        ChangeNotifierProxyProvider<SettingsProvider, EarthquakeProvider>(
+          create: (context) => EarthquakeProvider(context.read<SettingsProvider>())..fetchEarthquakes(),
+          update: (context, settings, previous) => previous!..updateSettings(settings),
         ),
       ],
       child: Consumer<ThemeProvider>(

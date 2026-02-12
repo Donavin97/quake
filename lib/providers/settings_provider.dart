@@ -1,16 +1,24 @@
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/time_window.dart';
+import '../services/auth_service.dart';
+import '../services/firestore_service.dart';
+import '../services/location_service.dart';
 
 class SettingsProvider with ChangeNotifier {
   late SharedPreferences _prefs;
   final FirebaseMessaging _firebaseMessaging = FirebaseMessaging.instance;
+  final FirestoreService _firestoreService = FirestoreService();
+  final LocationService _locationService = LocationService();
+  AuthService? _authService;
 
   TimeWindow _timeWindow = TimeWindow.day;
   double _minMagnitude = 0.0;
   bool _notificationsEnabled = true;
+  double _radius = 0.0;
 
   TimeWindow get timeWindow => _timeWindow;
 
@@ -18,8 +26,14 @@ class SettingsProvider with ChangeNotifier {
 
   bool get notificationsEnabled => _notificationsEnabled;
 
+  double get radius => _radius;
+
   SettingsProvider() {
     _loadPreferences();
+  }
+
+  void setAuthService(AuthService authService) {
+    _authService = authService;
   }
 
   Future<void> _loadPreferences() async {
@@ -27,6 +41,7 @@ class SettingsProvider with ChangeNotifier {
     _timeWindow = TimeWindow.values[_prefs.getInt('timeWindow') ?? 0];
     _minMagnitude = _prefs.getDouble('minMagnitude') ?? 0.0;
     _notificationsEnabled = _prefs.getBool('notificationsEnabled') ?? true;
+    _radius = _prefs.getDouble('radius') ?? 0.0;
     await _updateTopicSubscriptions();
     notifyListeners();
   }
@@ -58,6 +73,30 @@ class SettingsProvider with ChangeNotifier {
     _notificationsEnabled = value;
     await _prefs.setBool('notificationsEnabled', value);
     await _updateTopicSubscriptions();
+    notifyListeners();
+  }
+
+  Future<void> setRadius(double value) async {
+    final user = _authService?.currentUser;
+    _radius = value;
+    await _prefs.setDouble('radius', value);
+
+    if (user != null) {
+      Position? position;
+      if (value > 0) {
+        try {
+          position = await _locationService.getCurrentPosition();
+        } catch (e) {
+          // Handle location errors
+        }
+      }
+      await _firestoreService.saveUserPreferences(
+        user.uid,
+        {'radius': value},
+        position: position,
+      );
+    }
+
     notifyListeners();
   }
 
