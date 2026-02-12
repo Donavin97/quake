@@ -23,19 +23,20 @@ class _AuthScreenState extends State<AuthScreen> {
       final authService = Provider.of<AuthService>(context, listen: false);
       final email = _emailController.text;
       final password = _passwordController.text;
+      final router = GoRouter.of(context);
+      final messenger = ScaffoldMessenger.of(context);
+
       try {
         if (_isLogin) {
           await authService.signInWithEmailAndPassword(email, password);
         } else {
           await authService.createUserWithEmailAndPassword(email, password);
         }
-        if (mounted) context.go('/permission');
+        router.go('/permission');
       } catch (e) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(e.toString())),
-          );
-        }
+        messenger.showSnackBar(
+          SnackBar(content: Text(e.toString())),
+        );
       }
     }
   }
@@ -105,15 +106,15 @@ class _AuthScreenState extends State<AuthScreen> {
               ElevatedButton.icon(
                 onPressed: () async {
                   final authService = Provider.of<AuthService>(context, listen: false);
+                  final router = GoRouter.of(context);
+                  final messenger = ScaffoldMessenger.of(context);
                   try {
                     await authService.signInWithGoogle();
-                    if (mounted) context.go('/permission');
+                    router.go('/permission');
                   } catch (e) {
-                    if (mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text(e.toString())),
-                      );
-                    }
+                    messenger.showSnackBar(
+                      SnackBar(content: Text(e.toString())),
+                    );
                   }
                 },
                 icon: const Icon(Icons.login),
