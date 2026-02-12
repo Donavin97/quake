@@ -97,38 +97,41 @@ class _MapScreenState extends State<MapScreen> {
       options: MapOptions(
         initialCenter: LatLng(currentPosition.latitude, currentPosition.longitude),
         initialZoom: 1,
+        attributionBuilder: (_) {
+          return RichText(
+            text: TextSpan(
+              children: [
+                const TextSpan(
+                  text: '© ',
+                  style: TextStyle(color: Colors.black),
+                ),
+                TextSpan(
+                  text: 'OpenStreetMap',
+                  style: const TextStyle(
+                    color: Colors.blue,
+                    decoration: TextDecoration.underline,
+                  ),
+                  recognizer: TapGestureRecognizer()
+                    ..onTap = () {
+                      launchUrl(Uri.parse('https://www.openstreetmap.org/copyright'));
+                    },
+                ),
+                const TextSpan(
+                  text: ' contributors',
+                  style: TextStyle(color: Colors.black),
+                ),
+              ],
+            ),
+          );
+        },
       ),
       children: [
         TileLayer(
           urlTemplate: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+          subdomains: const ['a', 'b', 'c'],
         ),
         MarkerLayer(
           markers: _markers,
-        ),
-        RichText(
-          text: TextSpan(
-            children: [
-              const TextSpan(
-                text: '© ',
-                style: TextStyle(color: Colors.black),
-              ),
-              TextSpan(
-                text: 'OpenStreetMap',
-                style: const TextStyle(
-                  color: Colors.blue,
-                  decoration: TextDecoration.underline,
-                ),
-                recognizer: TapGestureRecognizer()
-                  ..onTap = () {
-                    launchUrl(Uri.parse('https://www.openstreetmap.org/copyright'));
-                  },
-              ),
-              const TextSpan(
-                text: ' contributors',
-                style: TextStyle(color: Colors.black),
-              ),
-            ],
-          ),
         ),
       ],
     );

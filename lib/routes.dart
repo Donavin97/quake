@@ -22,7 +22,7 @@ class AppRouter {
 
   GoRouter get router {
     return GoRouter(
-      initialLocation: '/disclaimer',
+      initialLocation: '/',
       refreshListenable: Listenable.merge([
         disclaimerProvider,
         authService,
@@ -40,13 +40,9 @@ class AppRouter {
 
         if (!disclaimerAccepted) {
           return onDisclaimer ? null : '/disclaimer';
-        }
-
-        if (!loggedIn) {
+        } else if (!loggedIn) {
           return onAuth ? null : '/auth';
-        }
-
-        if (!permissionsGranted) {
+        } else if (!permissionsGranted) {
           return onPermission ? null : '/permission';
         }
 
