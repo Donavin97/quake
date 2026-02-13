@@ -1,4 +1,4 @@
- // ignore_for_file: avoid_redundant_argument_values
+// ignore_for_file: avoid_redundant_argument_values
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -64,6 +64,29 @@ class SettingsScreen extends StatelessWidget {
                   onChanged: (value) {
                     settings.setRadius(value);
                   },
+                ),
+                const SizedBox(height: 24),
+                Text(
+                  'Earthquake Data Provider',
+                  style: Theme.of(context).textTheme.titleLarge,
+                ),
+                DropdownButton<String>(
+                  value: settings.earthquakeProvider,
+                  onChanged: (value) {
+                    if (value != null) {
+                      settings.setEarthquakeProvider(value);
+                    }
+                  },
+                  items: const [
+                    DropdownMenuItem(
+                      value: 'usgs',
+                      child: Text('USGS'),
+                    ),
+                    DropdownMenuItem(
+                      value: 'emsc',
+                      child: Text('EMSC'),
+                    ),
+                  ],
                 ),
                 const SizedBox(height: 24),
                 ElevatedButton(

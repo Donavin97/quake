@@ -51,8 +51,6 @@ class _HomeScreenState extends State<HomeScreen> {
             final router = GoRouter.of(context);
             if (value == 'profile') {
               router.go('/profile');
-            } else if (value == 'settings') {
-              router.go('/settings');
             } else if (value == 'signOut') {
               await authService.signOut();
               router.go('/auth');
@@ -62,10 +60,6 @@ class _HomeScreenState extends State<HomeScreen> {
             const PopupMenuItem<String>(
               value: 'profile',
               child: Text('Profile'),
-            ),
-            const PopupMenuItem<String>(
-              value: 'settings',
-              child: Text('Settings'),
             ),
             const PopupMenuItem<String>(
               value: 'signOut',
@@ -98,7 +92,7 @@ class _HomeScreenState extends State<HomeScreen> {
         currentIndex: _currentIndex,
         onTap: (index) async {
           if (index == 2) {
-            if (authService.currentUser == null) {
+            if (authse.currentUser == null) {
               await showDialog(
                 context: context,
                 builder: (context) => AlertDialog(

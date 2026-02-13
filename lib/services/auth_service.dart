@@ -121,7 +121,34 @@ class AuthService with ChangeNotifier {
 
   Future<void> deleteUser() async {
     try {
-      await currentUser?.delete();
+      final user = _auth.currentUser;
+      if (user != null) {
+        final uid = user.uid;
+
+        // Delete user's preferences
+        await _firestore
+            .collection('users')
+            .doc(uid)
+            .collection('preferences')
+            .doc('settings')
+            .delete();
+
+        // Delete user document from 'users' collection
+        await _firestore.collection('users').doc(uid).delete();
+
+        // Delete user's felt reports
+        final feltReports = await _firestore
+            .collection('felt_reports')
+            .where('userId', isEqualTo: uid)
+            .get();
+        final batch = _firestore.batch();
+        for (final doc in feltReports.docs) {
+          batch.delete(doc.reference);
+        }
+        await batch.commit();
+
+        await user.delete();
+      }
     } catch (e) {
       rethrow;
     }
