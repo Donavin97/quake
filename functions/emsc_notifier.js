@@ -9,7 +9,7 @@ exports.emscNotifier = functions.pubsub
   .schedule('every 5 minutes')
   .onRun(async (context) => {
     const response = await axios.get(
-      'https://www.emsc-csem.org/service/fdsnws/event/1/query?format=json&limit=10'
+      'https://www.seismicportal.eu/fdsnws/event/1/query?format=json&limit=10'
     );
     const earthquakes = response.data.features;
 

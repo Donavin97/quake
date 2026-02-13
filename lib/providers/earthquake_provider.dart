@@ -1,4 +1,3 @@
-
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 
@@ -54,14 +53,22 @@ class EarthquakeProvider with ChangeNotifier {
     notifyListeners();
 
     try {
-      List<Earthquake> allEarthquakes;
+      List<Earthquake> allEarthquakes = [];
       if (_settingsProvider.earthquakeProvider == 'usgs') {
         allEarthquakes = await _usgsService.getRecentEarthquakes(
           timeWindow: _settingsProvider.timeWindow,
           minMagnitude: _settingsProvider.minMagnitude,
         );
-      } else {
+      } else if (_settingsProvider.earthquakeProvider == 'emsc') {
         allEarthquakes = await _emscService.fetchEarthquakes();
+      } else {
+        final usgsEarthquakes = await _usgsService.getRecentEarthquakes(
+          timeWindow: _settingsProvider.timeWindow,
+          minMagnitude: _settingsProvider.minMagnitude,
+        );
+        final emscEarthquakes = await _emscService.fetchEarthquakes();
+        allEarthquakes.addAll(usgsEarthquakes);
+        allEarthquakes.addAll(emscEarthquakes);
       }
 
       if (_lastPosition != null) {

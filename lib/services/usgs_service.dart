@@ -4,7 +4,7 @@ import '../models/earthquake.dart';
 import '../models/time_window.dart';
 
 class UsgsService {
-  Future<List<Earthquake>> getRecentEarthquakes({
+  Future<List<UsgsEarthquake>> getRecentEarthquakes({
     TimeWindow timeWindow = TimeWindow.day,
     double minMagnitude = 0.0,
   }) async {
@@ -26,7 +26,7 @@ class UsgsService {
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
         final features = data['features'] as List;
-        return features.map((feature) => Earthquake.fromJson(feature)).toList();
+        return features.map((feature) => UsgsEarthquake.fromJson(feature)).toList();
       } else {
         throw Exception('Failed to load earthquakes');
       }

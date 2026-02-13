@@ -31,6 +31,7 @@ class EarthquakeListItem extends StatelessWidget {
         ),
         title: Text(earthquake.place),
         subtitle: Text(subtitle.toString()),
+        trailing: Text(earthquake.source.toString().split('.').last.toUpperCase()),
         onTap: onTap,
       ),
     );
