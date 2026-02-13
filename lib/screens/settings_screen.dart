@@ -112,6 +112,26 @@ class SettingsScreen extends StatelessWidget {
                     settings.setRadius(value);
                   },
                 ),
+                const SizedBox(height: 24),
+                Text(
+                  'Earthquake Provider',
+                  style: Theme.of(context).textTheme.titleLarge,
+                ),
+                DropdownButton<String>(
+                  value: settings.earthquakeProvider,
+                  onChanged: (String? newValue) {
+                    if (newValue != null) {
+                      settings.setEarthquakeProvider(newValue);
+                    }
+                  },
+                  items: <String>['usgs', 'emsc', 'both']
+                      .map<DropdownMenuItem<String>>((String value) {
+                    return DropdownMenuItem<String>(
+                      value: value,
+                      child: Text(value.toUpperCase()),
+                    );
+                  }).toList(),
+                ),
               ],
             );
           },
