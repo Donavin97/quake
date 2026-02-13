@@ -92,7 +92,7 @@ class _HomeScreenState extends State<HomeScreen> {
         currentIndex: _currentIndex,
         onTap: (index) async {
           if (index == 2) {
-            if (authse.currentUser == null) {
+            if (authService.currentUser == null) {
               await showDialog(
                 context: context,
                 builder: (context) => AlertDialog(
