@@ -3,7 +3,6 @@ import 'dart:async';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
 import 'firebase_options.dart';
@@ -28,46 +27,32 @@ void main() async {
   }, (error, stack) => FirebaseCrashlytics.instance.recordError(error, stack));
 }
 
-class MyApp extends StatefulWidget {
+class MyApp extends StatelessWidget {
   const MyApp({super.key});
-
-  @override
-  State<MyApp> createState() => _MyAppState();
-}
-
-class _MyAppState extends State<MyApp> {
-  late final GoRouter router;
-  late final UserProvider userProvider;
-  late final NotificationService notificationService;
-  late final AuthService authService;
-
-  @override
-  void initState() {
-    super.initState();
-    userProvider = UserProvider();
-    notificationService = NotificationService();
-    authService = AuthService();
-    router = AppRouter(userProvider, notificationService).router;
-    notificationService.initialize();
-  }
 
   @override
   Widget build(BuildContext context) {
     return MultiProvider(
       providers: [
-        Provider<AuthService>.value(
-          value: authService,
+        Provider<AuthService>(
+          create: (_) => AuthService(),
         ),
-        Provider<NotificationService>.value(
-          value: notificationService,
+        Provider<NotificationService>(
+          create: (_) => NotificationService()..initialize(),
         ),
-        ChangeNotifierProvider(create: (context) => LocationProvider()),
+        ChangeNotifierProvider(
+          create: (context) => UserProvider(),
+        ),
+        ChangeNotifierProvider(
+          create: (context) => LocationProvider(),
+        ),
         ChangeNotifierProxyProvider<AuthService, SettingsProvider>(
           create: (context) => SettingsProvider(),
           update: (context, auth, settings) => settings!..setAuthService(auth),
         ),
-        ChangeNotifierProvider(create: (context) => DisclaimerProvider()),
-        ChangeNotifierProvider.value(value: userProvider),
+        ChangeNotifierProvider(
+          create: (context) => DisclaimerProvider(),
+        ),
         ChangeNotifierProxyProvider2<SettingsProvider, LocationProvider,
             EarthquakeProvider>(
           create: (context) => EarthquakeProvider(
@@ -78,14 +63,22 @@ class _MyAppState extends State<MyApp> {
               previous!..updateSettings(settings),
         ),
       ],
-      child: Consumer<SettingsProvider>(
-        builder: (context, settingsProvider, child) {
-          return MaterialApp.router(
-            routerConfig: router,
-            title: 'QuakeTrack',
-            theme: AppTheme.lightTheme,
-            darkTheme: AppTheme.darkTheme,
-            themeMode: settingsProvider.themeMode,
+      child: Builder(
+        builder: (context) {
+          final userProvider = Provider.of<UserProvider>(context);
+          final notificationService = Provider.of<NotificationService>(context);
+          final router = AppRouter(userProvider, notificationService).router;
+
+          return Consumer<SettingsProvider>(
+            builder: (context, settingsProvider, child) {
+              return MaterialApp.router(
+                routerConfig: router,
+                title: 'QuakeTrack',
+                theme: AppTheme.lightTheme,
+                darkTheme: AppTheme.darkTheme,
+                themeMode: settingsProvider.themeMode,
+              );
+            },
           );
         },
       ),
