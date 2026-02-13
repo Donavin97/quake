@@ -1,7 +1,8 @@
-const earthquakeNotifier = require('./earthquake_notifier');
-const emscNotifier = require('./emsc_notifier');
-const usgsNotifier = require('./usgs_notifier');
+import admin from 'firebase-admin';
+import { earthquakeNotifier } from './earthquake_notifier.js';
+import { emscNotifier } from './emsc_notifier.js';
+import { usgsNotifier } from './usgs_notifier.js';
 
-exports.earthquakeNotifier = earthquakeNotifier.earthquakeNotifier;
-exports.emscNotifier = emscNotifier.emscNotifier;
-exports.usgsNotifier = usgsNotifier.usgsNotifier;
+admin.initializeApp();
+
+export { earthquakeNotifier, emscNotifier, usgsNotifier };

@@ -1,10 +1,8 @@
-const functions = require('firebase-functions');
-const admin = require('firebase-admin');
-const geohash = require('ngeohash');
+import functions from 'firebase-functions';
+import admin from 'firebase-admin';
+import geohash from 'ngeohash';
 
-admin.initializeApp();
-
-exports.earthquakeNotifier = functions.firestore
+export const earthquakeNotifier = functions.firestore
   .document('earthquakes/{earthquakeId}')
   .onCreate(async (snap, context) => {
     const earthquake = snap.data();

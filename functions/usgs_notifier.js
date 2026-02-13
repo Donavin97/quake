@@ -1,12 +1,10 @@
-const functions = require('firebase-functions');
-const admin = require('firebase-admin');
-const axios = require('axios');
+import functions from 'firebase-functions';
+import admin from 'firebase-admin';
+import axios from 'axios';
 
-// We can assume admin is already initialized
-
-exports.usgsNotifier = functions.pubsub
+export const usgsNotifier = functions.pubsub
   .schedule('every 5 minutes')
-  .onRun(async (context) => {
+  .onRun(async () => {
     const response = await axios.get(
       'https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/all_hour.geojson'
     );

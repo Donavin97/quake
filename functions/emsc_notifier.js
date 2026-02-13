@@ -1,12 +1,10 @@
-const functions = require('firebase-functions');
-const admin = require('firebase-admin');
-const axios = require('axios');
+import functions from 'firebase-functions';
+import admin from 'firebase-admin';
+import axios from 'axios';
 
-// We can assume admin is already initialized
-
-exports.emscNotifier = functions.pubsub
+export const emscNotifier = functions.pubsub
   .schedule('every 5 minutes')
-  .onRun(async (context) => {
+  .onRun(async () => {
     const response = await axios.get(
       'https://www.seismicportal.eu/fdsnws/event/1/query?format=json&limit=10'
     );
