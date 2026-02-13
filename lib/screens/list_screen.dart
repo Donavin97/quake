@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
@@ -51,9 +50,6 @@ class ListScreen extends StatelessWidget {
                 final earthquake = earthquakeProvider.earthquakes[index];
                 return EarthquakeListItem(
                   earthquake: earthquake,
-                  onTap: () {
-                    context.go('/details/${earthquake.id}');
-                  },
                 );
               },
             ),
