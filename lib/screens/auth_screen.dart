@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
 import '../providers/theme_provider.dart';
+import '../providers/user_provider.dart';
 import '../services/auth_service.dart';
 
 class AuthScreen extends StatefulWidget {
@@ -20,25 +21,33 @@ class _AuthScreenState extends State<AuthScreen> {
   bool _passwordVisible = false;
 
   Future<void> _submit() async {
-    if (_formKey.currentState!.validate()) {
-      final authService = Provider.of<AuthService>(context, listen: false);
-      final email = _emailController.text;
-      final password = _passwordController.text;
-      final router = GoRouter.of(context);
-      final messenger = ScaffoldMessenger.of(context);
+    if (!_formKey.currentState!.validate()) {
+      return;
+    }
 
-      try {
-        if (_isLogin) {
-          await authService.signInWithEmailAndPassword(email, password);
-        } else {
-          await authService.createUserWithEmailAndPassword(email, password);
-        }
-        router.go('/permission');
-      } catch (e) {
-        messenger.showSnackBar(
-          SnackBar(content: Text(e.toString())),
-        );
+    final authService = Provider.of<AuthService>(context, listen: false);
+    final userProvider = Provider.of<UserProvider>(context, listen: false);
+    final messenger = ScaffoldMessenger.of(context);
+    final router = GoRouter.of(context);
+    final email = _emailController.text;
+    final password = _passwordController.text;
+
+    try {
+      if (_isLogin) {
+        await authService.signInWithEmailAndPassword(email, password);
+      } else {
+        await authService.createUserWithEmailAndPassword(email, password);
       }
+
+      if (!mounted) return;
+
+      userProvider.completeSetup();
+      router.go('/');
+    } catch (e) {
+      if (!mounted) return;
+      messenger.showSnackBar(
+        SnackBar(content: Text(e.toString())),
+      );
     }
   }
 
@@ -118,13 +127,20 @@ class _AuthScreenState extends State<AuthScreen> {
               const SizedBox(height: 20),
               ElevatedButton.icon(
                 onPressed: () async {
-                  final authService = Provider.of<AuthService>(context, listen: false);
-                  final router = GoRouter.of(context);
+                  final authService = context.read<AuthService>();
+                  final userProvider = context.read<UserProvider>();
                   final messenger = ScaffoldMessenger.of(context);
+                  final router = GoRouter.of(context);
+
                   try {
                     await authService.signInWithGoogle();
-                    router.go('/permission');
+
+                    if (!mounted) return;
+
+                    userProvider.completeSetup();
+                    router.go('/');
                   } catch (e) {
+                    if (!mounted) return;
                     messenger.showSnackBar(
                       SnackBar(content: Text(e.toString())),
                     );

@@ -4,7 +4,6 @@ import 'package:provider/provider.dart';
 
 import '../providers/location_provider.dart';
 import '../services/services.dart';
-import '../providers/user_provider.dart';
 
 class PermissionScreen extends StatelessWidget {
   const PermissionScreen({super.key});
@@ -16,11 +15,8 @@ class PermissionScreen extends StatelessWidget {
     await locationProvider.requestPermission();
     await notificationService.initialize();
 
-    if (locationProvider.isPermissionGranted) {
-      if (context.mounted) {
-        context.read<UserProvider>().completeSetup();
-        context.go('/');
-      }
+    if (context.mounted) {
+      context.go('/auth');
     }
   }
 
@@ -44,7 +40,7 @@ class PermissionScreen extends StatelessWidget {
               const SizedBox(height: 30),
               ElevatedButton(
                 onPressed: () => _requestPermissions(context),
-                child: const Text('Grant Permissions'),
+                child: const Text('Grant Permissions and Continue'),
               ),
             ],
           ),

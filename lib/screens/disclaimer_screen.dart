@@ -27,7 +27,7 @@ class DisclaimerScreen extends StatelessWidget {
               onPressed: () {
                 Provider.of<DisclaimerProvider>(context, listen: false)
                     .acceptDisclaimer();
-                context.go('/auth');
+                context.go('/permission');
               },
               child: const Text('Accept and Continue'),
             ),
