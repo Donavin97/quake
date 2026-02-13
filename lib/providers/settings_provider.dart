@@ -20,7 +20,7 @@ class SettingsProvider with ChangeNotifier {
   double _minMagnitude = 0.0;
   bool _notificationsEnabled = true;
   double _radius = 0.0;
-  String _earthquakeProvider = 'usgs'; // Add this line
+  String _earthquakeProvider = 'usgs';
 
   ThemeMode get themeMode => _themeMode;
   TimeWindow get timeWindow => _timeWindow;
@@ -31,7 +31,7 @@ class SettingsProvider with ChangeNotifier {
 
   double get radius => _radius;
 
-  String get earthquakeProvider => _earthquakeProvider; // Add this line
+  String get earthquakeProvider => _earthquakeProvider;
 
   SettingsProvider() {
     _loadPreferences();
@@ -48,7 +48,7 @@ class SettingsProvider with ChangeNotifier {
     _minMagnitude = _prefs.getDouble('minMagnitude') ?? 0.0;
     _notificationsEnabled = _prefs.getBool('notificationsEnabled') ?? true;
     _radius = _prefs.getDouble('radius') ?? 0.0;
-    _earthquakeProvider = _prefs.getString('earthquakeProvider') ?? 'usgs'; // Add this line
+    _earthquakeProvider = _prefs.getString('earthquakeProvider') ?? 'usgs';
     await _updateTopicSubscriptions();
     notifyListeners();
   }
@@ -113,7 +113,7 @@ class SettingsProvider with ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> setEarthquakeProvider(String value) async { // Add this method
+  Future<void> setEarthquakeProvider(String value) async {
     _earthquakeProvider = value;
     await _prefs.setString('earthquakeProvider', value);
     notifyListeners();

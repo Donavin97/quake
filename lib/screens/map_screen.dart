@@ -1,5 +1,8 @@
+import 'dart:convert';
+
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:go_router/go_router.dart';
 import 'package:latlong2/latlong.dart';
@@ -19,6 +22,8 @@ class MapScreen extends StatefulWidget {
 class _MapScreenState extends State<MapScreen> {
   List<Marker> _markers = [];
   late EarthquakeProvider _earthquakeProvider;
+  List<Polygon> _plates = [];
+  List<Polyline> _faults = [];
 
   @override
   void initState() {
@@ -26,12 +31,55 @@ class _MapScreenState extends State<MapScreen> {
     _earthquakeProvider = Provider.of<EarthquakeProvider>(context, listen: false);
     _earthquakeProvider.addListener(_updateMarkers);
     _updateMarkers(); // Initial update
+    _loadGeoJson();
   }
 
   @override
   void dispose() {
     _earthquakeProvider.removeListener(_updateMarkers);
     super.dispose();
+  }
+
+  Future<void> _loadGeoJson() async {
+    final platesString = await rootBundle.loadString('assets/plates.json');
+    final platesJson = json.decode(platesString);
+    final platesFeatures = platesJson['features'] as List;
+
+    final faultsString = await rootBundle.loadString('assets/faults.json');
+    final faultsJson = json.decode(faultsString);
+    final faultsFeatures = faultsJson['features'] as List;
+
+    if (!mounted) return;
+
+    setState(() {
+      _plates = platesFeatures.map((feature) {
+        final coordinates = feature['geometry']['coordinates'] as List;
+        final points = coordinates[0].map<LatLng>((coords) {
+          return LatLng(coords[1], coords[0]);
+        }).toList();
+        return Polygon(
+          points: points,
+          color: Colors.red.withAlpha((255 * 0.2).round()),
+          borderColor: Colors.red,
+          borderStrokeWidth: 1,
+        );
+      }).toList();
+
+      _faults = faultsFeatures.map((feature) {
+        final geometry = feature['geometry'];
+        if (geometry['type'] == 'LineString') {
+          final coordinates = geometry['coordinates'] as List;
+          final points = coordinates.map<LatLng>((coords) {
+            return LatLng(coords[1], coords[0]);
+          }).toList();
+          return Polyline(
+            points: points,
+            color: Colors.orange,
+          );
+        }
+        return null;
+      }).where((p) => p != null).cast<Polyline>().toList();
+    });
   }
 
   void _updateMarkers() {
@@ -103,6 +151,8 @@ class _MapScreenState extends State<MapScreen> {
           urlTemplate: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
           userAgentPackageName: 'com.liebgott.quaketrack',
         ),
+        PolygonLayer(polygons: _plates),
+        PolylineLayer(polylines: _faults),
         MarkerLayer(
           markers: _markers,
         ),
