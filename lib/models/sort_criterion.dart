@@ -1,1 +1,5 @@
-enum SortCriterion { date, magnitude, distance }
+enum SortCriterion {
+  magnitude,
+  distance,
+  date,
+}

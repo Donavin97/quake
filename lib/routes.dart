@@ -10,6 +10,7 @@ import 'screens/detail_screen.dart';
 import 'screens/disclaimer_screen.dart';
 import 'screens/home_screen.dart';
 import 'screens/permission_screen.dart';
+import 'screens/profile_screen.dart';
 import 'screens/setup_screen.dart';
 
 class AppRouter {
@@ -57,6 +58,10 @@ class AppRouter {
                     return const Text('Error: Earthquake data not found');
                   }
                 },
+              ),
+              GoRoute(
+                path: 'profile',
+                builder: (context, state) => const ProfileScreen(),
               ),
             ],
           ),

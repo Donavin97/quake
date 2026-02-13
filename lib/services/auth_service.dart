@@ -103,5 +103,29 @@ class AuthService with ChangeNotifier {
     }
   }
 
+  Future<void> updateEmail(String newEmail) async {
+    try {
+      await currentUser?.updateEmail(newEmail);
+    } catch (e) {
+      rethrow;
+    }
+  }
+
+  Future<void> updatePassword(String newPassword) async {
+    try {
+      await currentUser?.updatePassword(newPassword);
+    } catch (e) {
+      rethrow;
+    }
+  }
+
+  Future<void> deleteUser() async {
+    try {
+      await currentUser?.delete();
+    } catch (e) {
+      rethrow;
+    }
+  }
+
   Stream<User?> get authStateChanges => _auth.authStateChanges();
 }

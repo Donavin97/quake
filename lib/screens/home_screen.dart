@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
+import '../models/sort_criterion.dart';
 import '../providers/earthquake_provider.dart';
 import '../providers/location_provider.dart';
 import '../services/services.dart';
@@ -32,7 +33,8 @@ class _HomeScreenState extends State<HomeScreen> {
     final earthquakeProvider = Provider.of<EarthquakeProvider>(context, listen: false);
     locationProvider.determinePosition().then((_) {
       if (locationProvider.currentPosition != null) {
-        earthquakeProvider.fetchEarthquakes(position: locationProvider.currentPosition);
+        earthquakeProvider.fetchEarthquakes(
+            position: locationProvider.currentPosition);
       }
     });
   }
@@ -40,19 +42,55 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     final authService = Provider.of<AuthService>(context, listen: false);
+    final earthquakeProvider = Provider.of<EarthquakeProvider>(context);
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('QuakeTrack'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.exit_to_app),
-            onPressed: () async {
-              final router = GoRouter.of(context);
+        leading: PopupMenuButton<String>(
+          onSelected: (value) async {
+            final router = GoRouter.of(context);
+            if (value == 'profile') {
+              router.go('/profile');
+            } else if (value == 'settings') {
+              router.go('/settings');
+            } else if (value == 'signOut') {
               await authService.signOut();
               router.go('/auth');
-            },
-          ),
+            }
+          },
+          itemBuilder: (BuildContext context) => <PopupMenuEntry<String>>[
+            const PopupMenuItem<String>(
+              value: 'profile',
+              child: Text('Profile'),
+            ),
+            const PopupMenuItem<String>(
+              value: 'settings',
+              child: Text('Settings'),
+            ),
+            const PopupMenuItem<String>(
+              value: 'signOut',
+              child: Text('Sign Out'),
+            ),
+          ],
+        ),
+        title: const Text('QuakeTrack'),
+        actions: [
+          if (_currentIndex == 1)
+            DropdownButton<SortCriterion>(
+              value: earthquakeProvider.sortCriterion,
+              onChanged: (value) {
+                if (value != null) {
+                  earthquakeProvider.setSortCriterion(value);
+                }
+              },
+              items: SortCriterion.values.map((criterion) {
+                return DropdownMenuItem(
+                  value: criterion,
+                  child: Text(criterion.name[0].toUpperCase() +
+                      criterion.name.substring(1)),
+                );
+              }).toList(),
+            ),
         ],
       ),
       body: _screens[_currentIndex],
