@@ -9,7 +9,7 @@ exports.usgsNotifier = functions.pubsub
   .schedule('every 5 minutes')
   .onRun(async () => {
     const response = await axios.get(
-      'https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/all_hour.geojson'
+      'https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/all_month.geojson'
     );
     const earthquakes = response.data.features;
 
@@ -40,7 +40,7 @@ exports.usgsNotifier = functions.pubsub
 
 exports.emscNotifier = functions.pubsub.schedule('every 5 minutes').onRun(async (context) => {
   try {
-    const response = await axios.get('https://www.seismicportal.eu/fdsnws/event/1/query?format=json&limit=100');
+    const response = await axios.get('https://www.seismicportal.eu/fdsnws/event/1/query?format=json&limit=500&nodata=404');
     const earthquakes = response.data.features;
 
     const batch = admin.firestore().batch();

@@ -5,7 +5,6 @@ import 'package:provider/provider.dart';
 
 import '../models/sort_criterion.dart';
 import '../providers/earthquake_provider.dart';
-import '../providers/location_provider.dart';
 import '../widgets/earthquake_list_item.dart';
 
 class ListScreen extends StatelessWidget {
@@ -14,7 +13,6 @@ class ListScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final earthquakeProvider = Provider.of<EarthquakeProvider>(context);
-    final locationProvider = Provider.of<LocationProvider>(context);
 
     return Scaffold(
       body: Column(
@@ -47,22 +45,17 @@ class ListScreen extends StatelessWidget {
               ),
             ),
           Expanded(
-            child: RefreshIndicator(
-              onRefresh: () => earthquakeProvider.fetchEarthquakes(
-                position: locationProvider.currentPosition,
-              ),
-              child: ListView.builder(
-                itemCount: earthquakeProvider.earthquakes.length,
-                itemBuilder: (context, index) {
-                  final earthquake = earthquakeProvider.earthquakes[index];
-                  return EarthquakeListItem(
-                    earthquake: earthquake,
-                    onTap: () {
-                      context.go('/details/${earthquake.id}');
-                    },
-                  );
-                },
-              ),
+            child: ListView.builder(
+              itemCount: earthquakeProvider.earthquakes.length,
+              itemBuilder: (context, index) {
+                final earthquake = earthquakeProvider.earthquakes[index];
+                return EarthquakeListItem(
+                  earthquake: earthquake,
+                  onTap: () {
+                    context.go('/details/${earthquake.id}');
+                  },
+                );
+              },
             ),
           ),
         ],

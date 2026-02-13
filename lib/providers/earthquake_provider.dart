@@ -1,7 +1,6 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:geolocator/geolocator.dart';
 import 'package:rxdart/rxdart.dart';
 
 import '../models/earthquake.dart';
@@ -17,14 +16,11 @@ class EarthquakeProvider with ChangeNotifier {
   StreamSubscription<List<Earthquake>>? _earthquakeSubscription;
 
   List<Earthquake> _earthquakes = [];
-  bool _isLoading = false;
   String? _error;
   DateTime? _lastUpdated;
   SortCriterion _sortCriterion = SortCriterion.date;
-  Position? _lastPosition;
 
   List<Earthquake> get earthquakes => _earthquakes;
-  bool get isLoading => _isLoading;
   String? get error => _error;
   DateTime? get lastUpdated => _lastUpdated;
   SortCriterion get sortCriterion => _sortCriterion;
@@ -39,13 +35,13 @@ class EarthquakeProvider with ChangeNotifier {
     Stream<List<Earthquake>>? stream;
 
     if (_settingsProvider.earthquakeProvider == 'usgs') {
-      stream = _usgsService.getEarthquakesStream();
+      stream = _usgsService.getEarthquakesStream(_settingsProvider);
     } else if (_settingsProvider.earthquakeProvider == 'emsc') {
-      stream = _emscService.getEarthquakesStream();
+      stream = _emscService.getEarthquakesStream(_settingsProvider);
     } else if (_settingsProvider.earthquakeProvider == 'both') {
       stream = Rx.combineLatest2(
-        _usgsService.getEarthquakesStream(),
-        _emscService.getEarthquakesStream(),
+        _usgsService.getEarthquakesStream(_settingsProvider),
+        _emscService.getEarthquakesStream(_settingsProvider),
         (usgs, emsc) => usgs + emsc,
       );
     }
@@ -60,75 +56,12 @@ class EarthquakeProvider with ChangeNotifier {
         _error = error.toString();
         notifyListeners();
       });
-    } else {
-        fetchEarthquakes();
     }
   }
 
   void updateSettings(SettingsProvider newSettings) {
     _settingsProvider = newSettings;
     _init();
-  }
-
-  Future<void> fetchEarthquakes({Position? position}) async {
-    if (position != null) {
-      if (_lastPosition != null) {
-        final distance = Geolocator.distanceBetween(
-          _lastPosition!.latitude,
-          _lastPosition!.longitude,
-          position.latitude,
-          position.longitude,
-        );
-        if (distance < 10000) { // 10 kilometers
-          return;
-        }
-      }
-      _lastPosition = position;
-    }
-
-    _isLoading = true;
-    _error = null;
-    notifyListeners();
-
-    try {
-      List<Earthquake> earthquakes = [];
-      if (_settingsProvider.earthquakeProvider == 'usgs') {
-        earthquakes = await _usgsService.getRecentEarthquakes();
-      } else if (_settingsProvider.earthquakeProvider == 'emsc') {
-        earthquakes = await _emscService.fetchEarthquakes();
-      } else if (_settingsProvider.earthquakeProvider == 'both') {
-        final usgs = await _usgsService.getRecentEarthquakes();
-        final emsc = await _emscService.fetchEarthquakes();
-        earthquakes = usgs + emsc;
-      }
-      _earthquakes = earthquakes;
-
-      if (_lastPosition != null) {
-        for (final earthquake in _earthquakes) {
-          final distance = Geolocator.distanceBetween(
-            _lastPosition!.latitude,
-            _lastPosition!.longitude,
-            earthquake.latitude,
-            earthquake.longitude,
-          );
-          earthquake.distance = distance / 1000; // Convert to kilometers
-        }
-
-        if (_settingsProvider.radius > 0) {
-          _earthquakes = _earthquakes
-              .where((eq) => eq.distance != null && eq.distance! <= _settingsProvider.radius)
-              .toList();
-        }
-      }
-
-      _sort();
-      _lastUpdated = DateTime.now();
-    } catch (e) {
-      _error = e.toString();
-    } finally {
-      _isLoading = false;
-      notifyListeners();
-    }
   }
 
   void setSortCriterion(SortCriterion criterion) {

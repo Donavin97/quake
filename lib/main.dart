@@ -81,13 +81,6 @@ class _MyAppState extends State<MyApp> {
             theme: AppTheme.lightTheme,
             darkTheme: AppTheme.darkTheme,
             themeMode: themeProvider.themeMode,
-            builder: (context, child) {
-              // Fetch earthquakes after the first frame is built
-              WidgetsBinding.instance.addPostFrameCallback((_) {
-                context.read<EarthquakeProvider>().fetchEarthquakes();
-              });
-              return child!;
-            },
           );
         },
       ),

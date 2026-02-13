@@ -30,13 +30,7 @@ class _HomeScreenState extends State<HomeScreen> {
   void initState() {
     super.initState();
     final locationProvider = Provider.of<LocationProvider>(context, listen: false);
-    final earthquakeProvider = Provider.of<EarthquakeProvider>(context, listen: false);
-    locationProvider.determinePosition().then((_) {
-      if (locationProvider.currentPosition != null) {
-        earthquakeProvider.fetchEarthquakes(
-            position: locationProvider.currentPosition);
-      }
-    });
+    locationProvider.determinePosition();
   }
 
   @override
