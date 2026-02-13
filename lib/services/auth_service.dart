@@ -105,7 +105,7 @@ class AuthService with ChangeNotifier {
 
   Future<void> updateEmail(String newEmail) async {
     try {
-      await currentUser?.updateEmail(newEmail);
+      await currentUser?.verifyBeforeUpdateEmail(newEmail);
     } catch (e) {
       rethrow;
     }
