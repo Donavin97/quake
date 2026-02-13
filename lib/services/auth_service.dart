@@ -33,16 +33,6 @@ class AuthService with ChangeNotifier {
     }
   }
 
-  Future<User?> signInAnonymously() async {
-    try {
-      final UserCredential userCredential = await _auth.signInAnonymously();
-      return userCredential.user;
-    } catch (e) {
-      // Failed to sign in anonymously
-      return null;
-    }
-  }
-
   Future<User?> signInWithEmailAndPassword(
       String email, String password) async {
     try {

@@ -3,7 +3,6 @@ import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
 import '../providers/disclaimer_provider.dart';
-import '../services/auth_service.dart';
 
 class DisclaimerScreen extends StatelessWidget {
   const DisclaimerScreen({super.key});
@@ -28,16 +27,9 @@ class DisclaimerScreen extends StatelessWidget {
               onPressed: () {
                 Provider.of<DisclaimerProvider>(context, listen: false)
                     .acceptDisclaimer();
-
-                final authService =
-                    Provider.of<AuthService>(context, listen: false);
-                if (authService.currentUser != null) {
-                  context.go('/permission');
-                } else {
-                  context.go('/auth');
-                }
+                context.go('/auth');
               },
-              child: const Text('Accept'),
+              child: const Text('Accept and Continue'),
             ),
           ],
         ),
