@@ -1,3 +1,5 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+
 enum EarthquakeSource {
   usgs,
   emsc,
@@ -23,6 +25,19 @@ class Earthquake {
     required this.source,
     this.distance,
   });
+
+  factory Earthquake.fromFirestore(DocumentSnapshot doc) {
+    Map<String, dynamic> data = doc.data() as Map<String, dynamic>;
+    return Earthquake(
+      id: doc.id,
+      magnitude: data['magnitude']?.toDouble() ?? 0.0,
+      place: data['place'] ?? 'Unknown',
+      time: (data['time'] as Timestamp).toDate(),
+      latitude: data['latitude']?.toDouble() ?? 0.0,
+      longitude: data['longitude']?.toDouble() ?? 0.0,
+      source: EarthquakeSource.values.firstWhere((e) => e.toString() == 'EarthquakeSource.' + data['source']),
+    );
+  }
 }
 
 class UsgsEarthquake extends Earthquake {

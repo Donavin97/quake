@@ -1,36 +1,19 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import '../models/earthquake.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 class EmscService {
-  static const String _baseUrl =
-      'https://www.seismicportal.eu/fdsnws/event/1/query';
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
-  Future<List<EmscEarthquake>> fetchEarthquakes({
-    double? latitude,
-    double? longitude,
-    double? maxRadius, // in degrees
-    String? startTime,
-    int? limit,
-  }) async {
-    final queryParameters = {
-      'format': 'json',
-      if (latitude != null) 'lat': latitude.toString(),
-      if (longitude != null) 'lon': longitude.toString(),
-      if (maxRadius != null) 'maxradius': maxRadius.toString(),
-      if (startTime != null) 'start': startTime,
-      if (limit != null) 'limit': limit.toString(),
-    };
+  Stream<List<Earthquake>> getEarthquakesStream() {
+    return _firestore.collection('earthquakes').snapshots().map((snapshot) {
+      return snapshot.docs.map((doc) => Earthquake.fromFirestore(doc)).toList();
+    });
+  }
 
-    final uri = Uri.parse(_baseUrl).replace(queryParameters: queryParameters);
-    final response = await http.get(uri);
-
-    if (response.statusCode == 200) {
-      final data = json.decode(response.body);
-      final features = data['features'] as List;
-      return features.map((e) => EmscEarthquake.fromJson(e)).toList();
-    } else {
-      throw Exception('Failed to load earthquakes');
-    }
+  Future<List<Earthquake>> fetchEarthquakes() async {
+    final snapshot = await _firestore.collection('earthquakes').get();
+    return snapshot.docs.map((doc) => Earthquake.fromFirestore(doc)).toList();
   }
 }
