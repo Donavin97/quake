@@ -13,7 +13,7 @@ class UsgsService {
     });
   }
 
-  Future<List<UsgsEarthquake>> getRecentEarthquakes({
+  Future<List<Earthquake>> getRecentEarthquakes({
     TimeWindow timeWindow = TimeWindow.day,
     double minMagnitude = 0.0,
   }) async {

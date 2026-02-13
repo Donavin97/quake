@@ -91,6 +91,18 @@ class EarthquakeProvider with ChangeNotifier {
     notifyListeners();
 
     try {
+      List<Earthquake> earthquakes = [];
+      if (_settingsProvider.earthquakeProvider == 'usgs') {
+        earthquakes = await _usgsService.getRecentEarthquakes();
+      } else if (_settingsProvider.earthquakeProvider == 'emsc') {
+        earthquakes = await _emscService.fetchEarthquakes();
+      } else if (_settingsProvider.earthquakeProvider == 'both') {
+        final usgs = await _usgsService.getRecentEarthquakes();
+        final emsc = await _emscService.fetchEarthquakes();
+        earthquakes = usgs + emsc;
+      }
+      _earthquakes = earthquakes;
+
       if (_lastPosition != null) {
         for (final earthquake in _earthquakes) {
           final distance = Geolocator.distanceBetween(

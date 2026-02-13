@@ -86,6 +86,10 @@ class SettingsScreen extends StatelessWidget {
                       value: 'emsc',
                       child: Text('EMSC'),
                     ),
+                    DropdownMenuItem(
+                      value: 'both',
+                      child: Text('Both'),
+                    ),
                   ],
                 ),
                 const SizedBox(height: 24),
