@@ -83,11 +83,22 @@ exports.earthquakeNotifier = functions.firestore
     const payload = {
       notification: {
         title: 'New Earthquake Alert!',
-        body: `Magnitude ${earthquake.magnitude} earthquake near ${earthquake.place}`,
-        sound: 'default',
+        body: `Magnitude ${earthquake.magnitude} (${earthquake.source}) near ${earthquake.place}`,
       },
       data: {
         earthquakeId: context.params.earthquakeId,
+      },
+      android: {
+        notification: {
+          sound: 'earthquake',
+        },
+      },
+      apns: {
+        payload: {
+          aps: {
+            sound: 'earthquake.wav',
+          },
+        },
       },
     };
 

@@ -37,7 +37,7 @@ class Earthquake {
       time: (data['time'] as Timestamp).toDate(),
       latitude: data['latitude']?.toDouble() ?? 0.0,
       longitude: data['longitude']?.toDouble() ?? 0.0,
-      source: EarthquakeSource.values.firstWhere((e) => e.toString().toLowerCase() == 'EarthquakeSource.${data['source']}'.toLowerCase()),
+      source: EarthquakeSource.values.byName((data['source'] as String).toLowerCase()),
       provider: data['source'] ?? 'usgs',
     );
   }
