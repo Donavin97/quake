@@ -28,6 +28,7 @@ class DetailScreenState extends State<DetailScreen> {
   @override
   void initState() {
     super.initState();
+    print('Earthquake ID: ${widget.earthquakeId}');
     _fetchEarthquake();
   }
 
