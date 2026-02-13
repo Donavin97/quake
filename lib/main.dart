@@ -39,12 +39,14 @@ class _MyAppState extends State<MyApp> {
   late final GoRouter router;
   late final UserProvider userProvider;
   late final NotificationService notificationService;
+  late final AuthService authService;
 
   @override
   void initState() {
     super.initState();
     userProvider = UserProvider();
     notificationService = NotificationService();
+    authService = AuthService();
     router = AppRouter(userProvider, notificationService).router;
     notificationService.initialize();
   }
@@ -53,8 +55,8 @@ class _MyAppState extends State<MyApp> {
   Widget build(BuildContext context) {
     return MultiProvider(
       providers: [
-        Provider<AuthService>(
-          create: (_) => AuthService(),
+        Provider<AuthService>.value(
+          value: authService,
         ),
         Provider<NotificationService>.value(
           value: notificationService,
