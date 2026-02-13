@@ -11,15 +11,16 @@ import '../services/felt_report_service.dart';
 import 'felt_reports_map.dart';
 
 class DetailScreen extends StatefulWidget {
-  final Earthquake earthquake;
+  final String earthquakeId;
 
-  const DetailScreen({super.key, required this.earthquake});
+  const DetailScreen({super.key, required this.earthquakeId});
 
   @override
   State<DetailScreen> createState() => DetailScreenState();
 }
 
 class DetailScreenState extends State<DetailScreen> {
+  Earthquake? _earthquake;
   double? distance;
   bool _isReporting = false;
   final FeltReportService _feltReportService = FeltReportService();
@@ -27,18 +28,47 @@ class DetailScreenState extends State<DetailScreen> {
   @override
   void initState() {
     super.initState();
-    _calculateDistance();
+    _fetchEarthquake();
+  }
+
+  Future<void> _fetchEarthquake() async {
+    try {
+      final doc = await FirebaseFirestore.instance
+          .collection('earthquakes')
+          .doc(widget.earthquakeId)
+          .get();
+      if (doc.exists) {
+        if (!mounted) return;
+        setState(() {
+          _earthquake = Earthquake.fromFirestore(doc);
+        });
+        _calculateDistance();
+      } else {
+        // Handle case where earthquake is not found
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Earthquake not found.')),
+        );
+      }
+    } catch (e) {
+      debugPrint('Error fetching earthquake: $e');
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Error fetching earthquake details.')),
+      );
+    }
   }
 
   Future<void> _calculateDistance() async {
+    if (_earthquake == null) return;
     try {
       final position = await Geolocator.getCurrentPosition();
       if (!mounted) return;
       final calculatedDistance = Geolocator.distanceBetween(
         position.latitude,
         position.longitude,
-        widget.earthquake.latitude,
-        widget.earthquake.longitude,
+        _earthquake!.latitude,
+        _earthquake!.longitude,
       );
       setState(() {
         distance = calculatedDistance / 1000; // Convert to km
@@ -49,7 +79,7 @@ class DetailScreenState extends State<DetailScreen> {
   }
 
   Future<void> _reportFelt() async {
-    if (_isReporting) return;
+    if (_isReporting || _earthquake == null) return;
 
     setState(() {
       _isReporting = true;
@@ -71,7 +101,7 @@ class DetailScreenState extends State<DetailScreen> {
       if (!mounted) return;
 
       final report = FeltReport(
-        earthquakeId: widget.earthquake.id,
+        earthquakeId: _earthquake!.id,
         userId: user.uid,
         timestamp: Timestamp.now(),
         location: GeoPoint(position.latitude, position.longitude),
@@ -99,16 +129,27 @@ class DetailScreenState extends State<DetailScreen> {
   }
 
   void _navigateToFeltReportsMap() {
+    if (_earthquake == null) return;
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => FeltReportsMap(earthquake: widget.earthquake),
+        builder: (context) => FeltReportsMap(earthquake: _earthquake!),
       ),
     );
   }
 
   @override
   Widget build(BuildContext context) {
+    if (_earthquake == null) {
+      return Scaffold(
+        appBar: AppBar(
+          title: const Text('Earthquake Details'),
+        ),
+        body: const Center(
+          child: CircularProgressIndicator(),
+        ),
+      );
+    }
     return Scaffold(
       appBar: AppBar(
         title: const Text('Earthquake Details'),
@@ -119,16 +160,16 @@ class DetailScreenState extends State<DetailScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              widget.earthquake.place,
+              _earthquake!.place,
               style: Theme.of(context).textTheme.headlineSmall,
             ),
             const SizedBox(height: 8),
-            Text('Magnitude: ${widget.earthquake.magnitude.toStringAsFixed(2)}'),
+            Text('Magnitude: ${_earthquake!.magnitude.toStringAsFixed(2)}'),
             const SizedBox(height: 8),
-            Text('Time: ${DateFormat.yMMMd().add_jms().format(widget.earthquake.time)}'),
+            Text('Time: ${DateFormat.yMMMd().add_jms().format(_earthquake!.time)}'),
             const SizedBox(height: 8),
             Text(
-              'Coordinates: (${widget.earthquake.latitude.toStringAsFixed(2)}, ${widget.earthquake.longitude.toStringAsFixed(2)})',
+              'Coordinates: (${_earthquake!.latitude.toStringAsFixed(2)}, ${_earthquake!.longitude.toStringAsFixed(2)})',
             ),
             if (distance != null)
               Padding(

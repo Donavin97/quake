@@ -27,7 +27,7 @@ class Earthquake {
   });
 
   factory Earthquake.fromFirestore(DocumentSnapshot doc) {
-    Map<String, dynamic> data = doc.data() as Map<String, dynamic>;
+    final Map<String, dynamic> data = doc.data() as Map<String, dynamic>;
     return Earthquake(
       id: doc.id,
       magnitude: data['magnitude']?.toDouble() ?? 0.0,
@@ -35,7 +35,7 @@ class Earthquake {
       time: (data['time'] as Timestamp).toDate(),
       latitude: data['latitude']?.toDouble() ?? 0.0,
       longitude: data['longitude']?.toDouble() ?? 0.0,
-      source: EarthquakeSource.values.firstWhere((e) => e.toString() == 'EarthquakeSource.' + data['source']),
+      source: EarthquakeSource.values.firstWhere((e) => e.toString() == 'EarthquakeSource.${data['source']}'),
     );
   }
 }

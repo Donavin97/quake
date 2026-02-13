@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
-import 'models/earthquake.dart';
 import 'notification_service.dart';
 import 'providers/user_provider.dart';
 import 'screens/auth_screen.dart';
@@ -49,13 +48,13 @@ class AppRouter {
             builder: (context, state) => const HomeScreen(),
             routes: [
               GoRoute(
-                path: 'details',
+                path: 'details/:id',
                 builder: (context, state) {
-                  final earthquake = state.extra as Earthquake?;
-                  if (earthquake != null) {
-                    return DetailScreen(earthquake: earthquake);
+                  final earthquakeId = state.pathParameters['id'];
+                  if (earthquakeId != null) {
+                    return DetailScreen(earthquakeId: earthquakeId);
                   } else {
-                    return const Text('Error: Earthquake data not found');
+                    return const Text('Error: Earthquake ID not found');
                   }
                 },
               ),

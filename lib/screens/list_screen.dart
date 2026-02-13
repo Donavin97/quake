@@ -58,7 +58,7 @@ class ListScreen extends StatelessWidget {
                   return EarthquakeListItem(
                     earthquake: earthquake,
                     onTap: () {
-                      context.go('/details', extra: earthquake);
+                      context.go('/details/${earthquake.id}');
                     },
                   );
                 },

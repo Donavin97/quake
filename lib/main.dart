@@ -68,7 +68,7 @@ class _MyAppState extends State<MyApp> {
         ChangeNotifierProvider.value(value: userProvider),
         ChangeNotifierProxyProvider<SettingsProvider, EarthquakeProvider>(
           create: (context) =>
-              EarthquakeProvider(context.read<SettingsProvider>())..fetchEarthquakes(),
+              EarthquakeProvider(context.read<SettingsProvider>()),
           update: (context, settings, previous) =>
               previous!..updateSettings(settings),
         ),
@@ -81,6 +81,13 @@ class _MyAppState extends State<MyApp> {
             theme: AppTheme.lightTheme,
             darkTheme: AppTheme.darkTheme,
             themeMode: themeProvider.themeMode,
+            builder: (context, child) {
+              // Fetch earthquakes after the first frame is built
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                context.read<EarthquakeProvider>().fetchEarthquakes();
+              });
+              return child!;
+            },
           );
         },
       ),
