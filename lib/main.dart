@@ -10,6 +10,7 @@ import 'providers/disclaimer_provider.dart';
 import 'providers/earthquake_provider.dart';
 import 'providers/location_provider.dart';
 import 'providers/settings_provider.dart';
+import 'providers/theme_provider.dart';
 import 'providers/user_provider.dart';
 import 'routes.dart';
 import 'services/services.dart';
@@ -52,6 +53,9 @@ class MyApp extends StatelessWidget {
         ),
         ChangeNotifierProvider(
           create: (context) => DisclaimerProvider(),
+        ),
+        ChangeNotifierProvider(
+          create: (context) => ThemeProvider(),
         ),
         ChangeNotifierProxyProvider2<SettingsProvider, LocationProvider,
             EarthquakeProvider>(

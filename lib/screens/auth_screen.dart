@@ -42,7 +42,7 @@ class _AuthScreenState extends State<AuthScreen> {
       if (!mounted) return;
 
       userProvider.completeSetup();
-      router.go('/');
+      router.go('/permission');
     } catch (e) {
       if (!mounted) return;
       messenger.showSnackBar(
@@ -138,7 +138,7 @@ class _AuthScreenState extends State<AuthScreen> {
                     if (!mounted) return;
 
                     userProvider.completeSetup();
-                    router.go('/');
+                    router.go('/permission');
                   } catch (e) {
                     if (!mounted) return;
                     messenger.showSnackBar(

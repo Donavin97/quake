@@ -16,7 +16,7 @@ class PermissionScreen extends StatelessWidget {
     await notificationService.initialize();
 
     if (context.mounted) {
-      context.go('/auth');
+      context.go('/');
     }
   }
 
