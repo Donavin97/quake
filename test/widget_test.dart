@@ -3,7 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:mockito/annotations.dart';
 import 'package:mockito/mockito.dart';
 import 'package:quaketrack/main.dart';
-import 'package:quaketrack/notification_service.dart';
+import 'package:quaketrack/services/services.dart';
 
 import 'widget_test.mocks.dart';
 
@@ -14,7 +14,7 @@ void main() {
     final mockNotificationService = MockNotificationService();
 
     // When the init method is called, do nothing
-    when(mockNotificationService.init()).thenAnswer((_) async => {});
+    when(mockNotificationService.initialize()).thenAnswer((_) async => {});
 
     // Build our app and trigger a frame.
     await tester.pumpWidget(const MyApp());

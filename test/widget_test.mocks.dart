@@ -3,14 +3,10 @@
 // Do not manually edit this file.
 
 // ignore_for_file: no_leading_underscores_for_library_prefixes
-import 'dart:async' as _i5;
-import 'dart:ui' as _i6;
+import 'dart:async' as _i3;
 
-import 'package:flutter_local_notifications/flutter_local_notifications.dart'
-    as _i2;
 import 'package:mockito/mockito.dart' as _i1;
-import 'package:quaketrack/notification_service.dart' as _i4;
-import 'package:rxdart/rxdart.dart' as _i3;
+import 'package:quaketrack/services/notification_service.dart' as _i2;
 
 // ignore_for_file: type=lint
 // ignore_for_file: avoid_redundant_argument_values
@@ -27,140 +23,22 @@ import 'package:rxdart/rxdart.dart' as _i3;
 // ignore_for_file: subtype_of_sealed_class
 // ignore_for_file: invalid_use_of_internal_member
 
-class _FakeFlutterLocalNotificationsPlugin_0 extends _i1.SmartFake
-    implements _i2.FlutterLocalNotificationsPlugin {
-  _FakeFlutterLocalNotificationsPlugin_0(
-    Object parent,
-    Invocation parentInvocation,
-  ) : super(
-          parent,
-          parentInvocation,
-        );
-}
-
-class _FakeBehaviorSubject_1<T> extends _i1.SmartFake
-    implements _i3.BehaviorSubject<T> {
-  _FakeBehaviorSubject_1(
-    Object parent,
-    Invocation parentInvocation,
-  ) : super(
-          parent,
-          parentInvocation,
-        );
-}
-
 /// A class which mocks [NotificationService].
 ///
 /// See the documentation for Mockito's code generation for more information.
 class MockNotificationService extends _i1.Mock
-    implements _i4.NotificationService {
+    implements _i2.NotificationService {
   MockNotificationService() {
     _i1.throwOnMissingStub(this);
   }
 
   @override
-  _i2.FlutterLocalNotificationsPlugin get flutterLocalNotificationsPlugin =>
-      (super.noSuchMethod(
-        Invocation.getter(#flutterLocalNotificationsPlugin),
-        returnValue: _FakeFlutterLocalNotificationsPlugin_0(
-          this,
-          Invocation.getter(#flutterLocalNotificationsPlugin),
-        ),
-      ) as _i2.FlutterLocalNotificationsPlugin);
-
-  @override
-  _i3.BehaviorSubject<String?> get onNotificationClick => (super.noSuchMethod(
-        Invocation.getter(#onNotificationClick),
-        returnValue: _FakeBehaviorSubject_1<String?>(
-          this,
-          Invocation.getter(#onNotificationClick),
-        ),
-      ) as _i3.BehaviorSubject<String?>);
-
-  @override
-  bool get isPermissionGranted => (super.noSuchMethod(
-        Invocation.getter(#isPermissionGranted),
-        returnValue: false,
-      ) as bool);
-
-  @override
-  bool get hasListeners => (super.noSuchMethod(
-        Invocation.getter(#hasListeners),
-        returnValue: false,
-      ) as bool);
-
-  @override
-  _i5.Future<void> init() => (super.noSuchMethod(
+  _i3.Future<void> initialize() => (super.noSuchMethod(
         Invocation.method(
-          #init,
+          #initialize,
           [],
         ),
-        returnValue: _i5.Future<void>.value(),
-        returnValueForMissingStub: _i5.Future<void>.value(),
-      ) as _i5.Future<void>);
-
-  @override
-  _i5.Future<void> requestPermissions() => (super.noSuchMethod(
-        Invocation.method(
-          #requestPermissions,
-          [],
-        ),
-        returnValue: _i5.Future<void>.value(),
-        returnValueForMissingStub: _i5.Future<void>.value(),
-      ) as _i5.Future<void>);
-
-  @override
-  _i5.Future<void> showNotification(
-    String? title,
-    String? body,
-    String? payload,
-  ) =>
-      (super.noSuchMethod(
-        Invocation.method(
-          #showNotification,
-          [
-            title,
-            body,
-            payload,
-          ],
-        ),
-        returnValue: _i5.Future<void>.value(),
-        returnValueForMissingStub: _i5.Future<void>.value(),
-      ) as _i5.Future<void>);
-
-  @override
-  void addListener(_i6.VoidCallback? listener) => super.noSuchMethod(
-        Invocation.method(
-          #addListener,
-          [listener],
-        ),
-        returnValueForMissingStub: null,
-      );
-
-  @override
-  void removeListener(_i6.VoidCallback? listener) => super.noSuchMethod(
-        Invocation.method(
-          #removeListener,
-          [listener],
-        ),
-        returnValueForMissingStub: null,
-      );
-
-  @override
-  void dispose() => super.noSuchMethod(
-        Invocation.method(
-          #dispose,
-          [],
-        ),
-        returnValueForMissingStub: null,
-      );
-
-  @override
-  void notifyListeners() => super.noSuchMethod(
-        Invocation.method(
-          #notifyListeners,
-          [],
-        ),
-        returnValueForMissingStub: null,
-      );
+        returnValue: _i3.Future<void>.value(),
+        returnValueForMissingStub: _i3.Future<void>.value(),
+      ) as _i3.Future<void>);
 }

@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
-import 'notification_service.dart';
 import 'providers/user_provider.dart';
 import 'screens/auth_screen.dart';
 import 'screens/detail_screen.dart';
@@ -11,6 +10,7 @@ import 'screens/home_screen.dart';
 import 'screens/permission_screen.dart';
 import 'screens/profile_screen.dart';
 import 'screens/setup_screen.dart';
+import 'services/services.dart';
 
 class AppRouter {
   final UserProvider userProvider;

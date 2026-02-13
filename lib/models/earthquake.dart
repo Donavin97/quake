@@ -13,6 +13,7 @@ class Earthquake {
   final double latitude;
   final double longitude;
   final EarthquakeSource source;
+  final String provider;
   double? distance;
 
   Earthquake({
@@ -23,6 +24,7 @@ class Earthquake {
     required this.latitude,
     required this.longitude,
     required this.source,
+    required this.provider,
     this.distance,
   });
 
@@ -36,6 +38,7 @@ class Earthquake {
       latitude: data['latitude']?.toDouble() ?? 0.0,
       longitude: data['longitude']?.toDouble() ?? 0.0,
       source: EarthquakeSource.values.firstWhere((e) => e.toString().toLowerCase() == 'EarthquakeSource.${data['source']}'.toLowerCase()),
+      provider: data['provider'] ?? 'usgs',
     );
   }
 }

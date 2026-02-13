@@ -15,12 +15,14 @@ class SettingsProvider with ChangeNotifier {
   final LocationService _locationService = LocationService();
   AuthService? _authService;
 
+  ThemeMode _themeMode = ThemeMode.system;
   TimeWindow _timeWindow = TimeWindow.day;
   double _minMagnitude = 0.0;
   bool _notificationsEnabled = true;
   double _radius = 0.0;
   String _earthquakeProvider = 'usgs'; // Add this line
 
+  ThemeMode get themeMode => _themeMode;
   TimeWindow get timeWindow => _timeWindow;
 
   double get minMagnitude => _minMagnitude;
@@ -41,12 +43,19 @@ class SettingsProvider with ChangeNotifier {
 
   Future<void> _loadPreferences() async {
     _prefs = await SharedPreferences.getInstance();
+    _themeMode = ThemeMode.values[_prefs.getInt('themeMode') ?? 0];
     _timeWindow = TimeWindow.values[_prefs.getInt('timeWindow') ?? 0];
     _minMagnitude = _prefs.getDouble('minMagnitude') ?? 0.0;
     _notificationsEnabled = _prefs.getBool('notificationsEnabled') ?? true;
     _radius = _prefs.getDouble('radius') ?? 0.0;
     _earthquakeProvider = _prefs.getString('earthquakeProvider') ?? 'usgs'; // Add this line
     await _updateTopicSubscriptions();
+    notifyListeners();
+  }
+
+  Future<void> setThemeMode(ThemeMode value) async {
+    _themeMode = value;
+    await _prefs.setInt('themeMode', value.index);
     notifyListeners();
   }
 

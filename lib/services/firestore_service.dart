@@ -1,8 +1,16 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:geolocator/geolocator.dart';
 
+import '../models/earthquake.dart';
+
 class FirestoreService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+
+  Stream<List<Earthquake>> getEarthquakes() {
+    return _firestore.collection('earthquakes').snapshots().map((snapshot) {
+      return snapshot.docs.map((doc) => Earthquake.fromFirestore(doc)).toList();
+    });
+  }
 
   Future<void> saveUserPreferences(String userId, Map<String, dynamic> preferences, {Position? position}) async {
     if (position != null) {

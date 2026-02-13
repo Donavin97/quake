@@ -1,19 +1,21 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:rxdart/rxdart.dart';
+import 'package:geolocator/geolocator.dart';
 
 import '../models/earthquake.dart';
 import '../models/sort_criterion.dart';
-import '../services/usgs_service.dart';
-import '../services/emsc_service.dart';
+import '../models/time_window.dart';
+import '../services/firestore_service.dart';
+import 'location_provider.dart';
 import 'settings_provider.dart';
 
 class EarthquakeProvider with ChangeNotifier {
-  final UsgsService _usgsService = UsgsService();
-  final EmscService _emscService = EmscService();
+  final FirestoreService _firestoreService = FirestoreService();
+  final LocationProvider _locationProvider;
   late SettingsProvider _settingsProvider;
   StreamSubscription<List<Earthquake>>? _earthquakeSubscription;
+  StreamSubscription<Position>? _locationSubscription;
 
   List<Earthquake> _earthquakes = [];
   String? _error;
@@ -25,37 +27,78 @@ class EarthquakeProvider with ChangeNotifier {
   DateTime? get lastUpdated => _lastUpdated;
   SortCriterion get sortCriterion => _sortCriterion;
 
-  EarthquakeProvider(this._settingsProvider) {
+  EarthquakeProvider(this._settingsProvider, this._locationProvider) {
     _init();
   }
 
   void _init() {
     _earthquakeSubscription?.cancel();
+    _locationSubscription?.cancel();
 
-    Stream<List<Earthquake>>? stream;
+    final Stream<List<Earthquake>> stream = _firestoreService.getEarthquakes();
 
-    if (_settingsProvider.earthquakeProvider == 'usgs') {
-      stream = _usgsService.getEarthquakesStream(_settingsProvider);
-    } else if (_settingsProvider.earthquakeProvider == 'emsc') {
-      stream = _emscService.getEarthquakesStream(_settingsProvider);
-    } else if (_settingsProvider.earthquakeProvider == 'both') {
-      stream = Rx.combineLatest2(
-        _usgsService.getEarthquakesStream(_settingsProvider),
-        _emscService.getEarthquakesStream(_settingsProvider),
-        (usgs, emsc) => usgs + emsc,
-      );
-    }
+    _earthquakeSubscription = stream.listen((earthquakes) {
+      _earthquakes = earthquakes.where((earthquake) {
+        final timeWindow = _settingsProvider.timeWindow;
+        final minMagnitude = _settingsProvider.minMagnitude;
+        final earthquakeProvider = _settingsProvider.earthquakeProvider;
+        final now = DateTime.now();
 
-    if (stream != null) {
-      _earthquakeSubscription = stream.listen((earthquakes) {
-        _earthquakes = earthquakes;
-        _sort();
-        _lastUpdated = DateTime.now();
-        notifyListeners();
-      }, onError: (error) {
-        _error = error.toString();
-        notifyListeners();
-      });
+        // Time window filter
+        if (timeWindow == TimeWindow.day &&
+            now.difference(earthquake.time).inDays > 1) {
+          return false;
+        }
+        if (timeWindow == TimeWindow.week &&
+            now.difference(earthquake.time).inDays > 7) {
+          return false;
+        }
+        if (timeWindow == TimeWindow.month &&
+            now.difference(earthquake.time).inDays > 30) {
+          return false;
+        }
+
+        // Minimum magnitude filter
+        if (earthquake.magnitude < minMagnitude) {
+          return false;
+        }
+
+        // Earthquake provider filter
+        if (earthquakeProvider != 'both' &&
+            earthquake.provider != earthquakeProvider) {
+          return false;
+        }
+
+        return true;
+      }).toList();
+
+      _updateDistances();
+      _sort();
+      _lastUpdated = DateTime.now();
+      notifyListeners();
+    }, onError: (error) {
+      _error = error.toString();
+      notifyListeners();
+    });
+
+    _locationSubscription = _locationProvider.locationStream.listen((position) {
+      _updateDistances();
+      _sort();
+      notifyListeners();
+    });
+  }
+
+  void _updateDistances() {
+    final position = _locationProvider.currentPosition;
+    if (position != null) {
+      for (final earthquake in _earthquakes) {
+        earthquake.distance = Geolocator.distanceBetween(
+          position.latitude,
+          position.longitude,
+          earthquake.latitude,
+          earthquake.longitude,
+        );
+      }
     }
   }
 
@@ -93,7 +136,8 @@ class EarthquakeProvider with ChangeNotifier {
           break;
       }
       if (comparison == 0) {
-        return b.time.compareTo(a.time);      } else {
+        return b.time.compareTo(a.time);
+      } else {
         return comparison;
       }
     });
@@ -102,6 +146,7 @@ class EarthquakeProvider with ChangeNotifier {
   @override
   void dispose() {
     _earthquakeSubscription?.cancel();
+    _locationSubscription?.cancel();
     super.dispose();
   }
 }

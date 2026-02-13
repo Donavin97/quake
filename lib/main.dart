@@ -7,12 +7,10 @@ import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
 import 'firebase_options.dart';
-import 'notification_service.dart';
 import 'providers/disclaimer_provider.dart';
 import 'providers/earthquake_provider.dart';
 import 'providers/location_provider.dart';
 import 'providers/settings_provider.dart';
-import 'providers/theme_provider.dart';
 import 'providers/user_provider.dart';
 import 'routes.dart';
 import 'services/services.dart';
@@ -48,13 +46,16 @@ class _MyAppState extends State<MyApp> {
     userProvider = UserProvider();
     notificationService = NotificationService();
     router = AppRouter(userProvider, notificationService).router;
+    notificationService.initialize();
   }
 
   @override
   Widget build(BuildContext context) {
     return MultiProvider(
       providers: [
-        Provider<AuthService>.value(value: AuthService()),
+        Provider<AuthService>(
+          create: (_) => AuthService(),
+        ),
         Provider<NotificationService>.value(
           value: notificationService,
         ),
@@ -64,23 +65,25 @@ class _MyAppState extends State<MyApp> {
           update: (context, auth, settings) => settings!..setAuthService(auth),
         ),
         ChangeNotifierProvider(create: (context) => DisclaimerProvider()),
-        ChangeNotifierProvider(create: (context) => ThemeProvider()),
         ChangeNotifierProvider.value(value: userProvider),
-        ChangeNotifierProxyProvider<SettingsProvider, EarthquakeProvider>(
-          create: (context) =>
-              EarthquakeProvider(context.read<SettingsProvider>()),
-          update: (context, settings, previous) =>
+        ChangeNotifierProxyProvider2<SettingsProvider, LocationProvider,
+            EarthquakeProvider>(
+          create: (context) => EarthquakeProvider(
+            context.read<SettingsProvider>(),
+            context.read<LocationProvider>(),
+          ),
+          update: (context, settings, location, previous) =>
               previous!..updateSettings(settings),
         ),
       ],
-      child: Consumer<ThemeProvider>(
-        builder: (context, themeProvider, child) {
+      child: Consumer<SettingsProvider>(
+        builder: (context, settingsProvider, child) {
           return MaterialApp.router(
             routerConfig: router,
             title: 'QuakeTrack',
             theme: AppTheme.lightTheme,
             darkTheme: AppTheme.darkTheme,
-            themeMode: themeProvider.themeMode,
+            themeMode: settingsProvider.themeMode,
           );
         },
       ),
