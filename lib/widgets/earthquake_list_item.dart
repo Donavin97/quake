@@ -18,7 +18,7 @@ class EarthquakeListItem extends StatelessWidget {
     final subtitle =
         StringBuffer(DateFormat.yMMMd().add_jms().format(earthquake.time));
     if (earthquake.distance != null) {
-      subtitle.write(' - ${earthquake.distance?.toStringAsFixed(1)} km away');
+      subtitle.write(' - ${earthquake.distance?.toStringAsFixed(2) / 1000} km away');
     }
 
     return Card(
