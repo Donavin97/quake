@@ -4,11 +4,11 @@ const axios = require('axios');
 
 // We can assume admin is already initialized
 
-exports.emscNotifier = functions.pubsub
+exports.usgsNotifier = functions.pubsub
   .schedule('every 5 minutes')
   .onRun(async (context) => {
     const response = await axios.get(
-      'https://www.seismicportal.eu/fdsnws/event/1/query?format=json&limit=10'
+      'https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/all_hour.geojson'
     );
     const earthquakes = response.data.features;
 
@@ -24,7 +24,7 @@ exports.emscNotifier = functions.pubsub
         time: new admin.firestore.Timestamp(Math.floor(time / 1000), 0),
         latitude: latitude,
         longitude: longitude,
-        source: 'EMSC',
+        source: 'USGS',
       };
 
       // Check if the earthquake already exists in Firestore
