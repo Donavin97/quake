@@ -63,7 +63,7 @@ class _FeltReportsMapState extends State<FeltReportsMap> {
               children: [
                 TileLayer(
                   urlTemplate: 'https://{s}.tile.openstreetmap.fr/hot/{z}/{x}/{y}.png',
-                  userAgentPackageName: 'com.example.quaketrack',
+                  userAgentPackageName: 'com.liebgott.quaketrack',
                 ),
                 CircleLayer(
                   circles: [
