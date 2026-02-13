@@ -1,5 +1,4 @@
 import 'dart:convert';
-import 'package:http/http.dart' as http;
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/earthquake.dart';
 import '../models/time_window.dart';
@@ -8,7 +7,7 @@ class UsgsService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
   Stream<List<Earthquake>> getEarthquakesStream() {
-    return _firestore.collection('earthquakes').where('source', isEqualTo: 'usgs').snapshots().map((snapshot) {
+    return _firestore.collection('earthquakes').where('source', isEqualTo: 'USGS').snapshots().map((snapshot) {
       return snapshot.docs.map((doc) => Earthquake.fromFirestore(doc)).toList();
     });
   }
