@@ -95,7 +95,7 @@ class _MapScreenState extends State<MapScreen> {
           point: latlong.LatLng(earthquake.latitude, earthquake.longitude),
           child: GestureDetector(
             onTap: () {
-              context.go('/details', extra: earthquake);
+              context.go('/details/${earthquake.id}', extra: earthquake);
             },
             child: Tooltip(
               message: 'Magnitude: ${earthquake.magnitude}',
