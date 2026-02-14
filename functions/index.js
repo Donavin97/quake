@@ -3,25 +3,17 @@ const admin = require('firebase-admin');
 const axios = require('axios');
 const geohash = require('ngeohash');
 
-admin.initializeApp({
-    databaseURL: "https://quakewatch-89047796-c7f3c-default-rtdb.firebaseio.com"
-});
+admin.initializeApp();
 
 const sendNotification = async (earthquake) => {
   const payload = {
-    notification: {
-      title: 'New Earthquake Alert!',
-      body: `Magnitude ${earthquake.magnitude.toFixed(1)} (${earthquake.source}) near ${earthquake.place}`
-    },
     data: {
+      title: 'New Earthquake Alert!',
+      body: `Magnitude ${earthquake.magnitude.toFixed(1)} (${earthquake.source}) near ${earthquake.place}`,
       earthquake: JSON.stringify(earthquake),
-      mapUrl: `https://www.google.com/maps/search/?api=1&query=${earthquake.latitude},${earthquake.longitude}`
-    },
-    android: {
-      notification: {
-        sound: 'earthquake',
-      },
-    },
+      mapUrl: `https://www.google.com/maps/search/?api=1&query=${earthquake.latitude},${earthquake.longitude}`,
+      sound: 'earthquake'
+    }
   };
 
   try {
@@ -55,7 +47,7 @@ const sendNotification = async (earthquake) => {
     const CHUNK_SIZE = 5;
     for (let i = 0; i < topicList.length; i += CHUNK_SIZE) {
         const chunk = topicList.slice(i, i + CHUNK_SIZE);
-        const condition = chunk.map(topic => `'${topic}' in topics`).join(' || ');
+        const condition = chunk.map(topic => `\'${topic}\' in topics`).join(' || ');
         
         const message = {
             ...payload,
