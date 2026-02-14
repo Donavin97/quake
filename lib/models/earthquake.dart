@@ -1,19 +1,42 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:hive/hive.dart';
 
+part 'earthquake.g.dart';
+
+@HiveType(typeId: 1)
 enum EarthquakeSource {
+  @HiveField(0)
   usgs,
+  @HiveField(1)
   emsc,
 }
 
-class Earthquake {
+@HiveType(typeId: 0)
+class Earthquake extends HiveObject {
+  @HiveField(0)
   final String id;
+
+  @HiveField(1)
   final double magnitude;
+
+  @HiveField(2)
   final String place;
+
+  @HiveField(3)
   final DateTime time;
+
+  @HiveField(4)
   final double latitude;
+
+  @HiveField(5)
   final double longitude;
+
+  @HiveField(6)
   final EarthquakeSource source;
+
+  @HiveField(7)
   final String provider;
+
+  @HiveField(8)
   double? distance;
 
   Earthquake({
@@ -28,17 +51,29 @@ class Earthquake {
     this.distance,
   });
 
-  factory Earthquake.fromFirestore(DocumentSnapshot doc) {
-    final Map<String, dynamic> data = doc.data() as Map<String, dynamic>;
+  factory Earthquake.fromUsgsJson(Map<String, dynamic> json) {
     return Earthquake(
-      id: doc.id,
-      magnitude: data['magnitude']?.toDouble() ?? 0.0,
-      place: data['place'] ?? 'Unknown',
-      time: (data['time'] as Timestamp).toDate(),
-      latitude: data['latitude']?.toDouble() ?? 0.0,
-      longitude: data['longitude']?.toDouble() ?? 0.0,
-      source: EarthquakeSource.values.byName((data['source'] as String).toLowerCase()),
-      provider: data['source'] ?? 'usgs',
+      id: json['id'],
+      magnitude: json['properties']['mag']?.toDouble() ?? 0.0,
+      place: json['properties']['place'] ?? 'Unknown',
+      time: DateTime.fromMillisecondsSinceEpoch(json['properties']['time']),
+      latitude: json['geometry']['coordinates'][1]?.toDouble() ?? 0.0,
+      longitude: json['geometry']['coordinates'][0]?.toDouble() ?? 0.0,
+      source: EarthquakeSource.usgs,
+      provider: 'USGS',
+    );
+  }
+
+  factory Earthquake.fromEmscJson(Map<String, dynamic> json) {
+    return Earthquake(
+      id: json['id'],
+      magnitude: json['properties']['mag']?.toDouble() ?? 0.0,
+      place: json['properties']['flynn_region'] ?? 'Unknown',
+      time: DateTime.parse(json['properties']['time']),
+      latitude: json['geometry']['coordinates'][1]?.toDouble() ?? 0.0,
+      longitude: json['geometry']['coordinates'][0]?.toDouble() ?? 0.0,
+      source: EarthquakeSource.emsc,
+      provider: 'EMSC',
     );
   }
 }

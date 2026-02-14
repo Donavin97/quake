@@ -5,7 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:go_router/go_router.dart';
-import 'package:latlong2/latlong.dart';
+import 'package:latlong2/latlong.dart' as latlong;
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -24,6 +24,7 @@ class _MapScreenState extends State<MapScreen> {
   late EarthquakeProvider _earthquakeProvider;
   List<Polygon> _plates = [];
   List<Polyline> _faults = [];
+  final MapController _mapController = MapController();
 
   @override
   void initState() {
@@ -54,8 +55,8 @@ class _MapScreenState extends State<MapScreen> {
     setState(() {
       _plates = platesFeatures.map((feature) {
         final coordinates = feature['geometry']['coordinates'] as List;
-        final points = coordinates[0].map<LatLng>((coords) {
-          return LatLng(coords[1], coords[0]);
+        final points = coordinates[0].map<latlong.LatLng>((coords) {
+          return latlong.LatLng(coords[1], coords[0]);
         }).toList();
         return Polygon(
           points: points,
@@ -69,8 +70,8 @@ class _MapScreenState extends State<MapScreen> {
         final geometry = feature['geometry'];
         if (geometry['type'] == 'LineString') {
           final coordinates = geometry['coordinates'] as List;
-          final points = coordinates.map<LatLng>((coords) {
-            return LatLng(coords[1], coords[0]);
+          final points = coordinates.map<latlong.LatLng>((coords) {
+            return latlong.LatLng(coords[1], coords[0]);
           }).toList();
           return Polyline(
             points: points,
@@ -91,7 +92,7 @@ class _MapScreenState extends State<MapScreen> {
         return Marker(
           width: 80.0,
           height: 80.0,
-          point: LatLng(earthquake.latitude, earthquake.longitude),
+          point: latlong.LatLng(earthquake.latitude, earthquake.longitude),
           child: GestureDetector(
             onTap: () {
               context.go('/details', extra: earthquake);
@@ -135,15 +136,19 @@ class _MapScreenState extends State<MapScreen> {
     final locationProvider = Provider.of<LocationProvider>(context);
     final currentPosition = locationProvider.currentPosition;
 
-    if (currentPosition == null) {
+    latlong.LatLng initialCenter;
+    if (currentPosition != null) {
+      initialCenter = latlong.LatLng(currentPosition.latitude, currentPosition.longitude);
+    } else {
       return const Center(
         child: CircularProgressIndicator(),
       );
     }
 
     return FlutterMap(
+      mapController: _mapController,
       options: MapOptions(
-        initialCenter: LatLng(currentPosition.latitude, currentPosition.longitude),
+        initialCenter: initialCenter,
         initialZoom: 1,
       ),
       children: [

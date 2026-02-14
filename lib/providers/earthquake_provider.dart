@@ -2,25 +2,26 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:hive/hive.dart';
 
 import '../models/earthquake.dart';
 import '../models/sort_criterion.dart';
 import '../models/time_window.dart';
-import '../services/firestore_service.dart';
+import '../services/api_service.dart';
 import 'location_provider.dart';
 import 'settings_provider.dart';
 
 class EarthquakeProvider with ChangeNotifier {
-  final FirestoreService _firestoreService = FirestoreService();
+  final ApiService _apiService = ApiService();
   final LocationProvider _locationProvider;
   late SettingsProvider _settingsProvider;
-  StreamSubscription<List<Earthquake>>? _earthquakeSubscription;
   StreamSubscription<Position>? _locationSubscription;
 
   List<Earthquake> _earthquakes = [];
   String? _error;
   DateTime? _lastUpdated;
   SortCriterion _sortCriterion = SortCriterion.date;
+  late Box<Earthquake> _earthquakeBox;
 
   List<Earthquake> get earthquakes => _earthquakes;
   String? get error => _error;
@@ -28,64 +29,77 @@ class EarthquakeProvider with ChangeNotifier {
   SortCriterion get sortCriterion => _sortCriterion;
 
   EarthquakeProvider(this._settingsProvider, this._locationProvider) {
+    _earthquakeBox = Hive.box<Earthquake>('earthquakes');
     _init();
   }
 
-  void _init() {
-    _earthquakeSubscription?.cancel();
+  void _init() async {
     _locationSubscription?.cancel();
 
-    final Stream<List<Earthquake>> stream = _firestoreService.getEarthquakes();
+    // Load initial data from Hive
+    _earthquakes = _earthquakeBox.values.toList();
+    _updateDistances();
+    _sort();
+    notifyListeners();
 
-    _earthquakeSubscription = stream.listen((earthquakes) {
-      _earthquakes = earthquakes.where((earthquake) {
-        final timeWindow = _settingsProvider.timeWindow;
-        final minMagnitude = _settingsProvider.minMagnitude;
-        final earthquakeProvider = _settingsProvider.earthquakeProvider;
-        final now = DateTime.now();
+    try {
+      final position = _locationProvider.currentPosition;
+      final allEarthquakes = await _apiService.fetchEarthquakes(
+        _settingsProvider.earthquakeProvider,
+        _settingsProvider.minMagnitude,
+        _settingsProvider.radius,
+        position?.latitude,
+        position?.longitude,
+      );
 
-        // Time window filter
-        if (timeWindow == TimeWindow.day &&
-            now.difference(earthquake.time).inDays > 1) {
-          return false;
-        }
-        if (timeWindow == TimeWindow.week &&
-            now.difference(earthquake.time).inDays > 7) {
-          return false;
-        }
-        if (timeWindow == TimeWindow.month &&
-            now.difference(earthquake.time).inDays > 30) {
-          return false;
-        }
+      _earthquakes = _filterEarthquakes(allEarthquakes);
 
-        // Minimum magnitude filter
-        if (earthquake.magnitude < minMagnitude) {
-          return false;
-        }
-
-        // Earthquake provider filter
-        if (earthquakeProvider != 'both' &&
-            earthquake.provider != earthquakeProvider) {
-          return false;
-        }
-
-        return true;
-      }).toList();
+      // Update Hive box
+      await _earthquakeBox.clear();
+      await _earthquakeBox.addAll(_earthquakes);
 
       _updateDistances();
       _sort();
       _lastUpdated = DateTime.now();
+      _error = null;
+    } catch (e) {
+      _error = e.toString();
+    } finally {
       notifyListeners();
-    }, onError: (error) {
-      _error = error.toString();
-      notifyListeners();
-    });
+    }
 
     _locationSubscription = _locationProvider.locationStream.listen((position) {
       _updateDistances();
       _sort();
       notifyListeners();
     });
+  }
+
+  void refresh() {
+    _init();
+  }
+
+  List<Earthquake> _filterEarthquakes(List<Earthquake> earthquakes) {
+    return earthquakes.where((earthquake) {
+      final timeWindow = _settingsProvider.timeWindow;
+      final now = DateTime.now();
+
+      // Time window filter
+      if (timeWindow == TimeWindow.day &&
+          now.difference(earthquake.time).inDays > 1) {
+        return false;
+      }
+      if (timeWindow == TimeWindow.week &&
+          now.difference(earthquake.time).inDays > 7) {
+        return false;
+      }
+      if (timeWindow == TimeWindow.month &&
+          now.difference(earthquake.time).inDays > 30) {
+        return false;
+      }
+
+      return true;
+    }).toList();
   }
 
   void _updateDistances() {
@@ -145,7 +159,6 @@ class EarthquakeProvider with ChangeNotifier {
 
   @override
   void dispose() {
-    _earthquakeSubscription?.cancel();
     _locationSubscription?.cancel();
     super.dispose();
   }

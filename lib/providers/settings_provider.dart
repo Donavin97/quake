@@ -1,19 +1,17 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/time_window.dart';
-import '../services/auth_service.dart';
-import '../services/firestore_service.dart';
 import '../services/location_service.dart';
+import '../services/user_service.dart';
 
 class SettingsProvider with ChangeNotifier {
-  late SharedPreferences _prefs;
-  final FirebaseMessaging _firebaseMessaging = FirebaseMessaging.instance;
-  final FirestoreService _firestoreService = FirestoreService();
+  final UserService _userService = UserService();
   final LocationService _locationService = LocationService();
-  AuthService? _authService;
+  final FirebaseMessaging _firebaseMessaging = FirebaseMessaging.instance;
+  final FirebaseAuth _auth = FirebaseAuth.instance;
 
   ThemeMode _themeMode = ThemeMode.system;
   TimeWindow _timeWindow = TimeWindow.day;
@@ -24,44 +22,69 @@ class SettingsProvider with ChangeNotifier {
 
   ThemeMode get themeMode => _themeMode;
   TimeWindow get timeWindow => _timeWindow;
-
   double get minMagnitude => _minMagnitude;
-
   bool get notificationsEnabled => _notificationsEnabled;
-
   double get radius => _radius;
-
   String get earthquakeProvider => _earthquakeProvider;
 
   SettingsProvider() {
     _loadPreferences();
-  }
-
-  void setAuthService(AuthService authService) {
-    _authService = authService;
+    _auth.userChanges().listen((user) {
+      if (user != null) {
+        _loadPreferences();
+      }
+    });
   }
 
   Future<void> _loadPreferences() async {
-    _prefs = await SharedPreferences.getInstance();
-    _themeMode = ThemeMode.values[_prefs.getInt('themeMode') ?? 0];
-    _timeWindow = TimeWindow.values[_prefs.getInt('timeWindow') ?? 0];
-    _minMagnitude = _prefs.getDouble('minMagnitude') ?? 0.0;
-    _notificationsEnabled = _prefs.getBool('notificationsEnabled') ?? true;
-    _radius = _prefs.getDouble('radius') ?? 0.0;
-    _earthquakeProvider = _prefs.getString('earthquakeProvider') ?? 'usgs';
+    final user = _auth.currentUser;
+    if (user != null) {
+      final preferences = await _userService.getUserPreferences(user.uid);
+      if (preferences != null) {
+        _themeMode = ThemeMode.values[preferences['themeMode'] ?? 0];
+        _timeWindow = TimeWindow.values[preferences['timeWindow'] ?? 0];
+        _minMagnitude = preferences['minMagnitude'] ?? 0.0;
+        _notificationsEnabled = preferences['notificationsEnabled'] ?? true;
+        _radius = preferences['radius'] ?? 0.0;
+        _earthquakeProvider = preferences['earthquakeProvider'] ?? 'usgs';
+      }
+    }
     await _updateTopicSubscriptions();
     notifyListeners();
   }
 
+  Future<void> _savePreferences() async {
+    final user = _auth.currentUser;
+    if (user != null) {
+      final preferences = {
+        'themeMode': _themeMode.index,
+        'timeWindow': _timeWindow.index,
+        'minMagnitude': _minMagnitude,
+        'notificationsEnabled': _notificationsEnabled,
+        'radius': _radius,
+        'earthquakeProvider': _earthquakeProvider,
+      };
+      Position? position;
+      if (_radius > 0) {
+        try {
+          position = await _locationService.getCurrentPosition();
+        } catch (e) {
+          // Handle location errors
+        }
+      }
+      await _userService.saveUserPreferences(user.uid, preferences, position: position);
+    }
+  }
+
   Future<void> setThemeMode(ThemeMode value) async {
     _themeMode = value;
-    await _prefs.setInt('themeMode', value.index);
+    await _savePreferences();
     notifyListeners();
   }
 
   Future<void> setTimeWindow(TimeWindow value) async {
     _timeWindow = value;
-    await _prefs.setInt('timeWindow', value.index);
+    await _savePreferences();
     notifyListeners();
   }
 
@@ -71,61 +94,40 @@ class SettingsProvider with ChangeNotifier {
 
     if (oldMagnitude != newMagnitude) {
       if (_notificationsEnabled) {
-        await _firebaseMessaging
-            .unsubscribeFromTopic('magnitude_$oldMagnitude');
+        await _firebaseMessaging.unsubscribeFromTopic('magnitude_$oldMagnitude');
         await _firebaseMessaging.subscribeToTopic('magnitude_$newMagnitude');
       }
     }
 
     _minMagnitude = value;
-    await _prefs.setDouble('minMagnitude', value);
+    await _savePreferences();
     notifyListeners();
   }
 
   Future<void> setNotificationsEnabled(bool value) async {
     _notificationsEnabled = value;
-    await _prefs.setBool('notificationsEnabled', value);
+    await _savePreferences();
     await _updateTopicSubscriptions();
     notifyListeners();
   }
 
   Future<void> setRadius(double value) async {
-    final user = _authService?.currentUser;
     _radius = value;
-    await _prefs.setDouble('radius', value);
-
-    if (user != null) {
-      Position? position;
-      if (value > 0) {
-        try {
-          position = await _locationService.getCurrentPosition();
-        } catch (e) {
-          // Handle location errors
-        }
-      }
-      await _firestoreService.saveUserPreferences(
-        user.uid,
-        {'radius': value},
-        position: position,
-      );
-    }
-
+    await _savePreferences();
     notifyListeners();
   }
 
   Future<void> setEarthquakeProvider(String value) async {
     _earthquakeProvider = value;
-    await _prefs.setString('earthquakeProvider', value);
+    await _savePreferences();
     notifyListeners();
   }
 
   Future<void> _updateTopicSubscriptions() async {
     if (_notificationsEnabled) {
-      await _firebaseMessaging
-          .subscribeToTopic('magnitude_${_minMagnitude.floor()}');
+      await _firebaseMessaging.subscribeToTopic('magnitude_${_minMagnitude.floor()}');
     } else {
-      await _firebaseMessaging
-          .unsubscribeFromTopic('magnitude_${_minMagnitude.floor()}');
+      await _firebaseMessaging.unsubscribeFromTopic('magnitude_${_minMagnitude.floor()}');
     }
   }
 }

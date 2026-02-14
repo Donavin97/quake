@@ -40,7 +40,7 @@ class DetailScreenState extends State<DetailScreen> {
       if (doc.exists) {
         if (!mounted) return;
         setState(() {
-          _earthquake = Earthquake.fromFirestore(doc);
+          _earthquake = Earthquake.fromUsgsJson(doc.data()!);
         });
         _calculateDistance();
       } else {

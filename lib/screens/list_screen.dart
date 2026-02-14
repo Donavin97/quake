@@ -6,9 +6,15 @@ import '../models/sort_criterion.dart';
 import '../providers/earthquake_provider.dart';
 import '../widgets/earthquake_list_item.dart';
 
-class ListScreen extends StatelessWidget {
-  const ListScreen({super.key});
+class ListScreen extends StatefulWidget {
+  final void Function(int) navigateTo;
+  const ListScreen({super.key, required this.navigateTo});
 
+  @override
+  State<ListScreen> createState() => _ListScreenState();
+}
+
+class _ListScreenState extends State<ListScreen> {
   @override
   Widget build(BuildContext context) {
     final earthquakeProvider = Provider.of<EarthquakeProvider>(context);
@@ -43,17 +49,31 @@ class ListScreen extends StatelessWidget {
                 ],
               ),
             ),
-          Expanded(
-            child: ListView.builder(
-              itemCount: earthquakeProvider.earthquakes.length,
-              itemBuilder: (context, index) {
-                final earthquake = earthquakeProvider.earthquakes[index];
-                return EarthquakeListItem(
-                  earthquake: earthquake,
-                );
-              },
+          if (earthquakeProvider.error != null)
+            Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Text('Could not fetch earthquakes. Please try again.'),
+                  ElevatedButton(
+                    onPressed: () => earthquakeProvider.refresh(),
+                    child: const Text('Retry'),
+                  ),
+                ],
+              ),
+            )
+          else
+            Expanded(
+              child: ListView.builder(
+                itemCount: earthquakeProvider.earthquakes.length,
+                itemBuilder: (context, index) {
+                  final earthquake = earthquakeProvider.earthquakes[index];
+                  return EarthquakeListItem(
+                    earthquake: earthquake,
+                  );
+                },
+              ),
             ),
-          ),
         ],
       ),
     );

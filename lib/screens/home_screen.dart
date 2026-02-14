@@ -20,11 +20,11 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   int _currentIndex = 0;
 
-  final List<Widget> _screens = [
-    const MapScreen(),
-    const ListScreen(),
-    const SettingsScreen(),
-  ];
+  void _navigateTo(int index) {
+    setState(() {
+      _currentIndex = index;
+    });
+  }
 
   @override
   void initState() {
@@ -37,6 +37,12 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget build(BuildContext context) {
     final authService = Provider.of<AuthService>(context, listen: false);
     final earthquakeProvider = Provider.of<EarthquakeProvider>(context);
+
+    final List<Widget> screens = [
+      const MapScreen(),
+      ListScreen(navigateTo: _navigateTo),
+      const SettingsScreen(),
+    ];
 
     return Scaffold(
       appBar: AppBar(
@@ -81,7 +87,7 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
         ],
       ),
-      body: _screens[_currentIndex],
+      body: screens[_currentIndex],
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: _currentIndex,
         onTap: (index) async {

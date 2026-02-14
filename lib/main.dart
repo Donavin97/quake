@@ -4,8 +4,10 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:hive_flutter/hive_flutter.dart';
 
 import 'firebase_options.dart';
+import 'models/earthquake.dart';
 import 'providers/disclaimer_provider.dart';
 import 'providers/earthquake_provider.dart';
 import 'providers/location_provider.dart';
@@ -22,6 +24,10 @@ void main() async {
     await Firebase.initializeApp(
       options: DefaultFirebaseOptions.currentPlatform,
     );
+    await Hive.initFlutter();
+    Hive.registerAdapter(EarthquakeAdapter());
+    Hive.registerAdapter(EarthquakeSourceAdapter());
+    await Hive.openBox<Earthquake>('earthquakes');
     await BackgroundService.initialize();
     FlutterError.onError = FirebaseCrashlytics.instance.recordFlutterError;
     runApp(const MyApp());
@@ -47,9 +53,8 @@ class MyApp extends StatelessWidget {
         ChangeNotifierProvider(
           create: (context) => LocationProvider(),
         ),
-        ChangeNotifierProxyProvider<AuthService, SettingsProvider>(
+        ChangeNotifierProvider(
           create: (context) => SettingsProvider(),
-          update: (context, auth, settings) => settings!..setAuthService(auth),
         ),
         ChangeNotifierProvider(
           create: (context) => DisclaimerProvider(),
