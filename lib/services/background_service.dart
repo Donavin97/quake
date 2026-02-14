@@ -6,6 +6,19 @@ class BackgroundService {
       FlutterLocalNotificationsPlugin();
 
   static Future<void> initialize() async {
+    // Create the Android Notification Channel
+    const AndroidNotificationChannel channel = AndroidNotificationChannel(
+      'main_channel', 
+      'Main Channel',
+      description: 'Main notification channel',
+      importance: Importance.max,
+    );
+
+    await _flutterLocalNotificationsPlugin
+        .resolvePlatformSpecificImplementation<
+            AndroidFlutterLocalNotificationsPlugin>()
+        ?.createNotificationChannel(channel);
+
     const AndroidInitializationSettings initializationSettingsAndroid =
         AndroidInitializationSettings('@mipmap/ic_launcher');
     const InitializationSettings initializationSettings = InitializationSettings(
@@ -19,8 +32,9 @@ class BackgroundService {
   static Future<void> showNotification(String title, String body) async {
     const AndroidNotificationDetails androidPlatformChannelSpecifics =
         AndroidNotificationDetails(
-      'main_channel',
-      'Main Channel',
+      'main_channel', 
+      'Main Channel', 
+      channelDescription: 'Main notification channel',
       importance: Importance.max,
       priority: Priority.high,
       showWhen: false,

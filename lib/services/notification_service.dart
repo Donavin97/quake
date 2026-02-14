@@ -12,7 +12,20 @@ class NotificationService {
 
   Future<void> initialize() async {
     await _firebaseMessaging.requestPermission();
-    await _firebaseMessaging.getToken();
+
+    // Create the Android Notification Channel
+    const AndroidNotificationChannel channel = AndroidNotificationChannel(
+      'earthquake_channel',
+      'Earthquake Notifications',
+      description: 'Notifications for new earthquakes',
+      importance: Importance.max,
+      sound: RawResourceAndroidNotificationSound('earthquake'),
+    );
+
+    await _flutterLocalNotificationsPlugin
+        .resolvePlatformSpecificImplementation<
+            AndroidFlutterLocalNotificationsPlugin>()
+        ?.createNotificationChannel(channel);
 
     const AndroidInitializationSettings initializationSettingsAndroid =
         AndroidInitializationSettings('@mipmap/ic_launcher');
@@ -33,53 +46,46 @@ class NotificationService {
     required double radius,
     required int magnitude,
   }) async {
-    // Unsubscribe from old geohash topics
+    await _unsubscribeFromAllTopics();
+
+    if (magnitude >= 0) {
+      await _firebaseMessaging.subscribeToTopic('minmag_$magnitude');
+      _currentMagnitude = magnitude;
+    }
+
+    final newGeohashTopics = _calculateGeohashTopics(latitude, longitude, radius);
+    for (final topic in newGeohashTopics) {
+      await _firebaseMessaging.subscribeToTopic(topic);
+    }
+    _currentGeohashTopics.clear();
+    _currentGeohashTopics.addAll(newGeohashTopics);
+  }
+
+  Future<void> _unsubscribeFromAllTopics() async {
     for (final topic in _currentGeohashTopics) {
       await _firebaseMessaging.unsubscribeFromTopic(topic);
     }
     _currentGeohashTopics.clear();
 
-    // Unsubscribe from old magnitude topics
-    if (_currentMagnitude != magnitude) {
-      for (int i = 0; i <= 10; i++) {
-        await _firebaseMessaging.unsubscribeFromTopic('minmag_$i');
-      }
-    }
-
-    if (magnitude >= 0) {
-      // Subscribe to new magnitude topics
-      for (int i = 0; i <= magnitude; i++) {
-        await _firebaseMessaging.subscribeToTopic('minmag_$i');
-      }
-      _currentMagnitude = magnitude;
-    }
-
-    if (radius > 0) {
-      // Subscribe to new geohash topics
-      final precision = _getGeohashPrecision(radius);
-      final geoHasher = GeoHasher();
-      final centerGeohash = geoHasher.encode(latitude, longitude, precision: precision);
-      final geohashes = geoHasher.neighbors(centerGeohash).values.toList()..add(centerGeohash);
-
-      for (final geohash in geohashes) {
-        await _firebaseMessaging.subscribeToTopic(geohash);
-        _currentGeohashTopics.add(geohash);
-      }
+    if (_currentMagnitude != -1) {
+      await _firebaseMessaging.unsubscribeFromTopic('minmag_$_currentMagnitude');
     }
   }
 
-  int _getGeohashPrecision(double radius) {
-    if (radius <= 0.07) return 6; // Up to 70m
-    if (radius <= 0.6) return 5; // Up to 600m
-    if (radius <= 2.4) return 4; // Up to 2.4km
-    if (radius <= 20) return 3; // Up to 20km
-    if (radius <= 78) return 2; // Up to 78km
-    return 1; // Up to 630km
+  Set<String> _calculateGeohashTopics(double latitude, double longitude, double radius) {
+    final geoHasher = GeoHasher();
+    final centerGeohash = geoHasher.encode(longitude, latitude, precision: 4);
+    final neighbors = geoHasher.neighbors(centerGeohash);
+
+    final topics = <String>{centerGeohash};
+    topics.addAll(neighbors.values);
+    return topics;
   }
 
   Future<void> _showLocalNotification(RemoteMessage message) async {
-    const AndroidNotificationDetails androidPlatformChannelSpecifics = AndroidNotificationDetails(
-      'earthquake_channel', 
+    const AndroidNotificationDetails androidPlatformChannelSpecifics =
+        AndroidNotificationDetails(
+      'earthquake_channel',
       'Earthquake Notifications',
       channelDescription: 'Notifications for new earthquakes',
       importance: Importance.max,
@@ -88,7 +94,7 @@ class NotificationService {
     );
 
     const NotificationDetails platformChannelSpecifics = NotificationDetails(
-        android: androidPlatformChannelSpecifics,
+      android: androidPlatformChannelSpecifics,
     );
     await _flutterLocalNotificationsPlugin.show(
       0,
@@ -102,5 +108,5 @@ class NotificationService {
 
 @pragma('vm:entry-point')
 Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
-  // Handle background messages
+  // Background message handling
 }

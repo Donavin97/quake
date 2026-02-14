@@ -11,7 +11,7 @@ const sendNotification = async (earthquake) => {
   const payload = {
     notification: {
       title: 'New Earthquake Alert!',
-      body: `Magnitude ${earthquake.magnitude} (${earthquake.source}) near ${earthquake.place}`,
+      body: `Magnitude ${earthquake.magnitude.toFixed(1)} (${earthquake.source}) near ${earthquake.place}`,
     },
     data: {
       earthquakeId: earthquake.id,
@@ -25,22 +25,27 @@ const sendNotification = async (earthquake) => {
 
   try {
     const magnitude = Math.floor(earthquake.magnitude);
+    if (magnitude < 0) {
+        console.log('Skipping notification for earthquake with negative magnitude:', earthquake.id);
+        return;
+    }
+
     const magTopics = [];
     for (let i = 0; i <= magnitude; i++) {
       magTopics.push(`'minmag_${i}' in topics`);
     }
 
     if (magTopics.length === 0) {
+      console.log('No magnitude topics to notify for earthquake:', earthquake.id);
       return;
     }
 
-    for (let precision = 1; precision <= 6; precision++) {
-      const earthquakeGeohash = geohash.encode(earthquake.latitude, earthquake.longitude, precision);
-      
-      // FCM condition can have max 5 topics. We use 1 for geohash, so 4 for magnitude.
-      const chunkSize = 4; 
-      for (let i = 0; i < magTopics.length; i += chunkSize) {
-        const chunk = magTopics.slice(i, i + chunkSize);
+    const GEOHASH_PRECISION = 4;
+    const earthquakeGeohash = geohash.encode(earthquake.latitude, earthquake.longitude, GEOHASH_PRECISION);
+
+    const CHUNK_SIZE = 4; 
+    for (let i = 0; i < magTopics.length; i += CHUNK_SIZE) {
+        const chunk = magTopics.slice(i, i + CHUNK_SIZE);
         const condition = `'${earthquakeGeohash}' in topics && (${chunk.join(' || ')})`;
         
         const message = {
@@ -49,12 +54,12 @@ const sendNotification = async (earthquake) => {
         };
 
         await admin.messaging().send(message);
-      }
+        console.log(`Notification sent for condition: ${condition}`);
     }
 
     console.log('Notifications sent successfully for earthquake:', earthquake.id);
   } catch (error) {
-    console.error('Error sending notifications:', error);
+    console.error('Error sending notifications for earthquake:', earthquake.id, error);
   }
 };
 
