@@ -9,6 +9,7 @@ class NotificationService {
 
   final Set<String> _currentGeohashTopics = {};
   int _currentMagnitude = -1;
+  bool _isSubscribedToGlobal = false;
 
   Future<void> initialize() async {
     await _firebaseMessaging.requestPermission();
@@ -53,12 +54,17 @@ class NotificationService {
       _currentMagnitude = magnitude;
     }
 
-    final newGeohashTopics = _calculateGeohashTopics(latitude, longitude, radius);
-    for (final topic in newGeohashTopics) {
-      await _firebaseMessaging.subscribeToTopic(topic);
+    if (radius == 0) {
+      await _firebaseMessaging.subscribeToTopic('global');
+      _isSubscribedToGlobal = true;
+    } else {
+      final newGeohashTopics = _calculateGeohashTopics(latitude, longitude, radius);
+      for (final topic in newGeohashTopics) {
+        await _firebaseMessaging.subscribeToTopic(topic);
+      }
+      _currentGeohashTopics.clear();
+      _currentGeohashTopics.addAll(newGeohashTopics);
     }
-    _currentGeohashTopics.clear();
-    _currentGeohashTopics.addAll(newGeohashTopics);
   }
 
   Future<void> _unsubscribeFromAllTopics() async {
@@ -69,6 +75,10 @@ class NotificationService {
 
     if (_currentMagnitude != -1) {
       await _firebaseMessaging.unsubscribeFromTopic('minmag_$_currentMagnitude');
+    }
+    if (_isSubscribedToGlobal) {
+      await _firebaseMessaging.unsubscribeFromTopic('global');
+      _isSubscribedToGlobal = false;
     }
   }
 

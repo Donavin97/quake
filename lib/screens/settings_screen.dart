@@ -4,13 +4,18 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../models/time_window.dart';
+import '../providers/location_provider.dart';
 import '../providers/settings_provider.dart';
+import '../services/notification_service.dart';
 
 class SettingsScreen extends StatelessWidget {
   const SettingsScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
+    final notificationService =
+        Provider.of<NotificationService>(context, listen: false);
+    final locationProvider = Provider.of<LocationProvider>(context, listen: false);
     return Scaffold(
       appBar: AppBar(
         title: const Text('Settings'),
@@ -80,10 +85,28 @@ class SettingsScreen extends StatelessWidget {
                 ),
                 const SizedBox(height: 24),
                 SwitchListTile(
-                  title: const Text('Enable Notifications'),
-                  value: settings.notificationsEnabled,
-                  onChanged: (value) => settings.setNotificationsEnabled(value),
-                ),
+                    title: const Text('Enable Notifications'),
+                    value: settings.notificationsEnabled,
+                    onChanged: (value) {
+                      settings.setNotificationsEnabled(value);
+                      if (value) {
+                        notificationService.updateSubscriptions(
+                          latitude:
+                              locationProvider.lastKnownPosition?.latitude ?? 0,
+                          longitude:
+                              locationProvider.lastKnownPosition?.longitude ?? 0,
+                          radius: settings.radius,
+                          magnitude: settings.minMagnitude,
+                        );
+                      } else {
+                        notificationService.updateSubscriptions(
+                          latitude: 0,
+                          longitude: 0,
+                          radius: -1,
+                          magnitude: -1,
+                        );
+                      }
+                    }),
                 if (settings.notificationsEnabled) ...[
                   const SizedBox(height: 24),
                   Text(
@@ -99,6 +122,16 @@ class SettingsScreen extends StatelessWidget {
                     onChanged: (value) {
                       settings.setMinMagnitude(value.round());
                     },
+                    onChangeEnd: (value) {
+                      notificationService.updateSubscriptions(
+                        latitude:
+                            locationProvider.lastKnownPosition?.latitude ?? 0,
+                        longitude:
+                            locationProvider.lastKnownPosition?.longitude ?? 0,
+                        radius: settings.radius,
+                        magnitude: value.round(),
+                      );
+                    },
                   ),
                   const SizedBox(height: 24),
                   Text(
@@ -112,6 +145,17 @@ class SettingsScreen extends StatelessWidget {
                     onChanged: (value) {
                       final radius = pow(1001, value) - 1;
                       settings.setRadius(radius.toDouble());
+                    },
+                    onChangeEnd: (value) {
+                      final radius = pow(1001, value) - 1;
+                      notificationService.updateSubscriptions(
+                        latitude:
+                            locationProvider.lastKnownPosition?.latitude ?? 0,
+                        longitude:
+                            locationProvider.lastKnownPosition?.longitude ?? 0,
+                        radius: radius.toDouble(),
+                        magnitude: settings.minMagnitude,
+                      );
                     },
                   ),
                 ],

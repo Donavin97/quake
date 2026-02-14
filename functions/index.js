@@ -43,10 +43,18 @@ const sendNotification = async (earthquake) => {
     const GEOHASH_PRECISION = 4;
     const earthquakeGeohash = geohash.encode(earthquake.latitude, earthquake.longitude, GEOHASH_PRECISION);
 
-    const CHUNK_SIZE = 4; 
+    // Target users subscribed to 'global' OR the earthquake's specific geohash.
+    const locationCondition = `('global' in topics || '${earthquakeGeohash}' in topics)`;
+
+    // FCM condition strings can have at most 5 topics.
+    // The locationCondition uses 2, leaving 3 for the magnitude topics.
+    const CHUNK_SIZE = 3;
     for (let i = 0; i < magTopics.length; i += CHUNK_SIZE) {
         const chunk = magTopics.slice(i, i + CHUNK_SIZE);
-        const condition = `'${earthquakeGeohash}' in topics && (${chunk.join(' || ')})`;
+        const magnitudeCondition = `(${chunk.join(' || ')})`;
+        
+        // Combine location and magnitude conditions.
+        const condition = `${locationCondition} && ${magnitudeCondition}`;
         
         const message = {
             ...payload,
