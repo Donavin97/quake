@@ -42,7 +42,7 @@ class EarthquakeListItem extends StatelessWidget {
         ],
       ),
       onTap: () {
-        context.go('/details/${earthquake.id}');
+        context.go('/details/${earthquake.id}', extra: earthquake);
       },
     );
   }
