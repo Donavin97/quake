@@ -83,35 +83,37 @@ class SettingsScreen extends StatelessWidget {
                   value: settings.notificationsEnabled,
                   onChanged: (value) => settings.setNotificationsEnabled(value),
                 ),
-                const SizedBox(height: 24),
-                Text(
-                  'Minimum Magnitude: ${settings.minMagnitude.toStringAsFixed(1)}',
-                  style: Theme.of(context).textTheme.titleLarge,
-                ),
-                Slider(
-                  value: settings.minMagnitude,
-                  max: 10,
-                  divisions: 100,
-                  label: settings.minMagnitude.toStringAsFixed(1),
-                  onChanged: (value) {
-                    settings.setMinMagnitude(value);
-                  },
-                ),
-                const SizedBox(height: 24),
-                Text(
-                  'Notification Radius (km)',
-                  style: Theme.of(context).textTheme.titleLarge,
-                ),
-                Slider(
-                  value: settings.radius,
-                  min: 0,
-                  max: 1000,
-                  divisions: 100,
-                  label: settings.radius.round().toString(),
-                  onChanged: (value) {
-                    settings.setRadius(value);
-                  },
-                ),
+                if (settings.notificationsEnabled) ...[
+                  const SizedBox(height: 24),
+                  Text(
+                    'Minimum Magnitude: ${settings.minMagnitude.toString()}',
+                    style: Theme.of(context).textTheme.titleLarge,
+                  ),
+                  Slider(
+                    value: settings.minMagnitude.toDouble(),
+                    max: 10,
+                    divisions: 10,
+                    label: settings.minMagnitude.toString(),
+                    onChanged: (value) {
+                      settings.setMinMagnitude(value.round());
+                    },
+                  ),
+                  const SizedBox(height: 24),
+                  Text(
+                    'Notification Radius (km)',
+                    style: Theme.of(context).textTheme.titleLarge,
+                  ),
+                  Slider(
+                    value: settings.radius,
+                    min: 0,
+                    max: 1000,
+                    divisions: 100,
+                    label: settings.radius.round().toString(),
+                    onChanged: (value) {
+                      settings.setRadius(value);
+                    },
+                  ),
+                ],
                 const SizedBox(height: 24),
                 Text(
                   'Earthquake Provider',

@@ -1,28 +1,28 @@
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 
 import '../models/time_window.dart';
 import '../services/location_service.dart';
+import '../services/notification_service.dart';
 import '../services/user_service.dart';
 
 class SettingsProvider with ChangeNotifier {
   final UserService _userService = UserService();
   final LocationService _locationService = LocationService();
-  final FirebaseMessaging _firebaseMessaging = FirebaseMessaging.instance;
+  final NotificationService _notificationService = NotificationService();
   final FirebaseAuth _auth = FirebaseAuth.instance;
 
   ThemeMode _themeMode = ThemeMode.system;
   TimeWindow _timeWindow = TimeWindow.day;
-  double _minMagnitude = 0.0;
+  int _minMagnitude = 0;
   bool _notificationsEnabled = true;
   double _radius = 0.0;
   String _earthquakeProvider = 'usgs';
 
   ThemeMode get themeMode => _themeMode;
   TimeWindow get timeWindow => _timeWindow;
-  double get minMagnitude => _minMagnitude;
+  int get minMagnitude => _minMagnitude;
   bool get notificationsEnabled => _notificationsEnabled;
   double get radius => _radius;
   String get earthquakeProvider => _earthquakeProvider;
@@ -43,13 +43,13 @@ class SettingsProvider with ChangeNotifier {
       if (preferences != null) {
         _themeMode = ThemeMode.values[preferences['themeMode'] ?? 0];
         _timeWindow = TimeWindow.values[preferences['timeWindow'] ?? 0];
-        _minMagnitude = preferences['minMagnitude'] ?? 0.0;
+        _minMagnitude = (preferences['minMagnitude'] as num? ?? 0).toInt();
         _notificationsEnabled = preferences['notificationsEnabled'] ?? true;
-        _radius = preferences['radius'] ?? 0.0;
+        _radius = (preferences['radius'] as num? ?? 0).toDouble();
         _earthquakeProvider = preferences['earthquakeProvider'] ?? 'usgs';
       }
     }
-    await _updateTopicSubscriptions();
+    await _updateSubscriptions();
     notifyListeners();
   }
 
@@ -88,32 +88,24 @@ class SettingsProvider with ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> setMinMagnitude(double value) async {
-    final oldMagnitude = _minMagnitude.floor();
-    final newMagnitude = value.floor();
-
-    if (oldMagnitude != newMagnitude) {
-      if (_notificationsEnabled) {
-        await _firebaseMessaging.unsubscribeFromTopic('magnitude_$oldMagnitude');
-        await _firebaseMessaging.subscribeToTopic('magnitude_$newMagnitude');
-      }
-    }
-
+  Future<void> setMinMagnitude(int value) async {
     _minMagnitude = value;
     await _savePreferences();
+    await _updateSubscriptions();
     notifyListeners();
   }
 
   Future<void> setNotificationsEnabled(bool value) async {
     _notificationsEnabled = value;
     await _savePreferences();
-    await _updateTopicSubscriptions();
+    await _updateSubscriptions();
     notifyListeners();
   }
 
   Future<void> setRadius(double value) async {
     _radius = value;
     await _savePreferences();
+    await _updateSubscriptions();
     notifyListeners();
   }
 
@@ -123,11 +115,31 @@ class SettingsProvider with ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> _updateTopicSubscriptions() async {
+  Future<void> _updateSubscriptions() async {
     if (_notificationsEnabled) {
-      await _firebaseMessaging.subscribeToTopic('magnitude_${_minMagnitude.floor()}');
+      Position? position;
+      try {
+        position = await _locationService.getCurrentPosition();
+      } catch (e) {
+        // Handle location errors where permission is denied
+        print('Could not get location: $e');
+      }
+      if (position != null) {
+        await _notificationService.updateSubscriptions(
+          latitude: position.latitude,
+          longitude: position.longitude,
+          radius: _radius,
+          magnitude: _minMagnitude,
+        );
+      }
     } else {
-      await _firebaseMessaging.unsubscribeFromTopic('magnitude_${_minMagnitude.floor()}');
+      // Unsubscribe from all topics
+      await _notificationService.updateSubscriptions(
+        latitude: 0,
+        longitude: 0,
+        radius: 0,
+        magnitude: -1, // Sentinel value to unsubscribe from all magnitude topics
+      );
     }
   }
 }

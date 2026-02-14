@@ -21,22 +21,32 @@ const sendNotification = async (earthquake) => {
         sound: 'earthquake',
       },
     },
-    apns: {
-      payload: {
-        aps: {
-          sound: 'earthquake.wav',
-        },
-      },
-    },
   };
 
   try {
-    // Send notification to the geohash topic
-    await admin.messaging().sendToTopic(earthquakeGeohash, payload);
+    const magnitude = Math.floor(earthquake.magnitude);
+    const magTopics = [];
+    for (let i = 0; i <= magnitude; i++) {
+      magTopics.push(`'minmag_${i}' in topics`);
+    }
 
-    // Send notification to the magnitude topic
-    const magnitudeTopic = `magnitude_${Math.floor(earthquake.magnitude)}`;
-    await admin.messaging().sendToTopic(magnitudeTopic, payload);
+    if (magTopics.length === 0) {
+      return;
+    }
+
+    // FCM condition can have max 5 topics. We use 1 for geohash, so 4 for magnitude.
+    const chunkSize = 4; 
+    for (let i = 0; i < magTopics.length; i += chunkSize) {
+      const chunk = magTopics.slice(i, i + chunkSize);
+      const condition = `'${earthquakeGeohash}' in topics && (${chunk.join(' || ')})`;
+      
+      const message = {
+          ...payload,
+          condition: condition,
+      };
+
+      await admin.messaging().send(message);
+    }
 
     console.log('Notifications sent successfully for earthquake:', earthquake.id);
   } catch (error) {

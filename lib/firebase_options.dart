@@ -55,7 +55,7 @@ class DefaultFirebaseOptions {
     messagingSenderId: '205624709309',
     projectId: 'quakewatch-89047796-c7f3c',
     storageBucket: 'quakewatch-89047796-c7f3c.appspot.com',
-    iosBundleId: 'com.example.myapp',
+    iosBundleId: 'com.liebgott.eqtrack',
   );
 
   static const FirebaseOptions macos = FirebaseOptions(
@@ -64,6 +64,6 @@ class DefaultFirebaseOptions {
     messagingSenderId: '205624709309',
     projectId: 'quakewatch-89047796-c7f3c',
     storageBucket: 'quakewatch-89047796-c7f3c.appspot.com',
-    iosBundleId: 'com.example.myapp',
+    iosBundleId: 'com.liebgott.eqtrack',
   );
 }
