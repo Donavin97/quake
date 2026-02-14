@@ -42,9 +42,9 @@ class MockNotificationService extends _i1.Mock
 
   @override
   _i3.Future<void> updateSubscriptions({
-    required double? latitude,
-    required double? longitude,
-    required double? radius,
+    double? latitude,
+    double? longitude,
+    double? radius,
     required int? magnitude,
   }) =>
       (super.noSuchMethod(

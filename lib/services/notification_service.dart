@@ -1,20 +1,22 @@
+import 'dart:convert';
+
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:dart_geohash/dart_geohash.dart';
+import 'package:get/get.dart';
+
+import '../models/earthquake.dart';
 
 class NotificationService {
   final FirebaseMessaging _firebaseMessaging = FirebaseMessaging.instance;
   final FlutterLocalNotificationsPlugin _flutterLocalNotificationsPlugin =
       FlutterLocalNotificationsPlugin();
 
-  final Set<String> _currentGeohashTopics = {};
-  int _currentMagnitude = -1;
-  bool _isSubscribedToGlobal = false;
+  final Set<String> _currentTopics = {};
 
   Future<void> initialize() async {
     await _firebaseMessaging.requestPermission();
 
-    // Create the Android Notification Channel
     const AndroidNotificationChannel channel = AndroidNotificationChannel(
       'earthquake_channel',
       'Earthquake Notifications',
@@ -33,63 +35,75 @@ class NotificationService {
     const InitializationSettings initializationSettings = InitializationSettings(
       android: initializationSettingsAndroid,
     );
-    await _flutterLocalNotificationsPlugin.initialize(initializationSettings);
+    await _flutterLocalNotificationsPlugin.initialize(
+      initializationSettings,
+      onDidReceiveNotificationResponse: (NotificationResponse response) async {
+        if (response.payload != null) {
+          final earthquake = Earthquake.fromJson(jsonDecode(response.payload!));
+          Get.toNamed('/detail', arguments: earthquake);
+        }
+      },
+    );
 
     FirebaseMessaging.onMessage.listen((RemoteMessage message) {
       _showLocalNotification(message);
     });
+
     FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
   }
 
   Future<void> updateSubscriptions({
-    required double latitude,
-    required double longitude,
-    required double radius,
+    double? latitude,
+    double? longitude,
+    double? radius,
     required int magnitude,
   }) async {
-    await _unsubscribeFromAllTopics();
+    final newTopics = <String>{};
 
-    if (magnitude >= 0) {
-      await _firebaseMessaging.subscribeToTopic('minmag_$magnitude');
-      _currentMagnitude = magnitude;
-    }
+    newTopics.add('minmag_$magnitude');
 
-    if (radius == 0) {
-      await _firebaseMessaging.subscribeToTopic('global');
-      _isSubscribedToGlobal = true;
+    if (radius != null && radius > 0 && latitude != null && longitude != null) {
+      newTopics.addAll(_calculateGeohashTopics(latitude, longitude, radius));
     } else {
-      final newGeohashTopics = _calculateGeohashTopics(latitude, longitude, radius);
-      for (final topic in newGeohashTopics) {
-        await _firebaseMessaging.subscribeToTopic(topic);
-      }
-      _currentGeohashTopics.clear();
-      _currentGeohashTopics.addAll(newGeohashTopics);
+      newTopics.add('global');
     }
-  }
 
-  Future<void> _unsubscribeFromAllTopics() async {
-    for (final topic in _currentGeohashTopics) {
+    final topicsToUnsubscribe = _currentTopics.difference(newTopics);
+    final topicsToSubscribe = newTopics.difference(_currentTopics);
+
+    for (final topic in topicsToUnsubscribe) {
       await _firebaseMessaging.unsubscribeFromTopic(topic);
     }
-    _currentGeohashTopics.clear();
 
-    if (_currentMagnitude != -1) {
-      await _firebaseMessaging.unsubscribeFromTopic('minmag_$_currentMagnitude');
+    for (final topic in topicsToSubscribe) {
+      await _firebaseMessaging.subscribeToTopic(topic);
     }
-    if (_isSubscribedToGlobal) {
-      await _firebaseMessaging.unsubscribeFromTopic('global');
-      _isSubscribedToGlobal = false;
-    }
+
+    _currentTopics.clear();
+    _currentTopics.addAll(newTopics);
   }
 
   Set<String> _calculateGeohashTopics(double latitude, double longitude, double radius) {
+    final int precision = _getGeohashPrecision(radius);
     final geoHasher = GeoHasher();
-    final centerGeohash = geoHasher.encode(longitude, latitude, precision: 4);
+    final centerGeohash = geoHasher.encode(longitude, latitude, precision: precision);
     final neighbors = geoHasher.neighbors(centerGeohash);
 
     final topics = <String>{centerGeohash};
-    topics.addAll(neighbors.values);
+    topics.addAll(neighbors.values.whereType<String>());
     return topics;
+  }
+
+  int _getGeohashPrecision(double radius) {
+    if (radius <= 0.1) return 9;
+    if (radius <= 0.5) return 8;
+    if (radius <= 2) return 7;
+    if (radius <= 10) return 6;
+    if (radius <= 40) return 5;
+    if (radius <= 150) return 4;
+    if (radius <= 600) return 3;
+    if (radius <= 2500) return 2;
+    return 1;
   }
 
   Future<void> _showLocalNotification(RemoteMessage message) async {
@@ -111,12 +125,14 @@ class NotificationService {
       message.notification?.title,
       message.notification?.body,
       platformChannelSpecifics,
-      payload: message.data['earthquakeId'],
+      payload: message.data['earthquake'],
     );
   }
 }
 
 @pragma('vm:entry-point')
 Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
-  // Background message handling
+  final notificationService = NotificationService();
+  await notificationService.initialize();
+  await notificationService._showLocalNotification(message);
 }

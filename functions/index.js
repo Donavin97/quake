@@ -11,10 +11,11 @@ const sendNotification = async (earthquake) => {
   const payload = {
     notification: {
       title: 'New Earthquake Alert!',
-      body: `Magnitude ${earthquake.magnitude.toFixed(1)} (${earthquake.source}) near ${earthquake.place}`,
+      body: `Magnitude ${earthquake.magnitude.toFixed(1)} (${earthquake.source}) near ${earthquake.place}`
     },
     data: {
-      earthquakeId: earthquake.id,
+      earthquake: JSON.stringify(earthquake),
+      mapUrl: `https://www.google.com/maps/search/?api=1&query=${earthquake.latitude},${earthquake.longitude}`
     },
     android: {
       notification: {
@@ -30,31 +31,31 @@ const sendNotification = async (earthquake) => {
         return;
     }
 
-    const magTopics = [];
+    const topics = new Set();
     for (let i = 0; i <= magnitude; i++) {
-      magTopics.push(`'minmag_${i}' in topics`);
+      topics.add(`minmag_${i}`);
     }
 
-    if (magTopics.length === 0) {
-      console.log('No magnitude topics to notify for earthquake:', earthquake.id);
+    // Add geohash topics for different precision levels
+    for (let precision = 1; precision <= 5; precision++) {
+      const geohashTopic = geohash.encode(earthquake.latitude, earthquake.longitude, precision);
+      topics.add(geohashTopic);
+    }
+    
+    topics.add('global');
+
+
+    if (topics.size === 0) {
+      console.log('No topics to notify for earthquake:', earthquake.id);
       return;
     }
-
-    const GEOHASH_PRECISION = 4;
-    const earthquakeGeohash = geohash.encode(earthquake.latitude, earthquake.longitude, GEOHASH_PRECISION);
-
-    // Target users subscribed to 'global' OR the earthquake's specific geohash.
-    const locationCondition = `('global' in topics || '${earthquakeGeohash}' in topics)`;
-
-    // FCM condition strings can have at most 5 topics.
-    // The locationCondition uses 2, leaving 3 for the magnitude topics.
-    const CHUNK_SIZE = 3;
-    for (let i = 0; i < magTopics.length; i += CHUNK_SIZE) {
-        const chunk = magTopics.slice(i, i + CHUNK_SIZE);
-        const magnitudeCondition = `(${chunk.join(' || ')})`;
-        
-        // Combine location and magnitude conditions.
-        const condition = `${locationCondition} && ${magnitudeCondition}`;
+    
+    const topicList = Array.from(topics);
+    // FCM allows sending to a maximum of 5 topics in a single request.
+    const CHUNK_SIZE = 5;
+    for (let i = 0; i < topicList.length; i += CHUNK_SIZE) {
+        const chunk = topicList.slice(i, i + CHUNK_SIZE);
+        const condition = chunk.map(topic => `'${topic}' in topics`).join(' || ');
         
         const message = {
             ...payload,
@@ -71,24 +72,43 @@ const sendNotification = async (earthquake) => {
   }
 };
 
-exports.usgsNotifier = functions.pubsub.schedule('every 5 minutes').onRun(async () => {
-  const lastTimestampRef = admin.database().ref('last_timestamps/usgs');
-  const lastTimestampSnapshot = await lastTimestampRef.once('value');
-  let lastTimestamp = lastTimestampSnapshot.val() || 0;
 
-  const response = await axios.get(
-    'https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/all_hour.geojson'
-  );
-  const earthquakes = response.data.features;
-  let maxTimestamp = lastTimestamp;
+const createEarthquakeNotifier = (source, apiUrl, dataTransformer) => {
+  return functions.pubsub.schedule('every 5 minutes').onRun(async () => {
+    const lastTimestampRef = admin.database().ref(`last_timestamps/${source}`);
+    const lastTimestampSnapshot = await lastTimestampRef.once('value');
+    let lastTimestamp = lastTimestampSnapshot.val() || 0;
 
-  for (const earthquake of earthquakes) {
-    const { properties, geometry, id } = earthquake;
-    const { mag, place, time } = properties;
-    const [longitude, latitude] = geometry.coordinates;
+    try {
+      const response = await axios.get(apiUrl);
+      const earthquakes = dataTransformer(response.data);
+      let maxTimestamp = lastTimestamp;
 
-    if (time > lastTimestamp) {
-      const earthquakeData = {
+      for (const earthquakeData of earthquakes) {
+        if (earthquakeData.time > lastTimestamp) {
+          await sendNotification(earthquakeData);
+          if (earthquakeData.time > maxTimestamp) {
+            maxTimestamp = earthquakeData.time;
+          }
+        }
+      }
+      await lastTimestampRef.set(maxTimestamp);
+    } catch (error) {
+      console.error(`Error fetching earthquake data from ${source}:`, error);
+    }
+  });
+};
+
+
+exports.usgsNotifier = createEarthquakeNotifier(
+  'usgs',
+  'https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/all_hour.geojson',
+  (data) => {
+    return data.features.map(earthquake => {
+      const { properties, geometry, id } = earthquake;
+      const { mag, place, time } = properties;
+      const [longitude, latitude] = geometry.coordinates;
+      return {
         id: id,
         magnitude: mag,
         place: place,
@@ -97,51 +117,28 @@ exports.usgsNotifier = functions.pubsub.schedule('every 5 minutes').onRun(async 
         longitude: longitude,
         source: 'USGS',
       };
-
-      await sendNotification(earthquakeData);
-      if (time > maxTimestamp) {
-        maxTimestamp = time;
-      }
-    }
+    });
   }
-  await lastTimestampRef.set(maxTimestamp);
-});
+);
 
-exports.emscNotifier = functions.pubsub.schedule('every 5 minutes').onRun(async (context) => {
-  const lastTimestampRef = admin.database().ref('last_timestamps/emsc');
-  const lastTimestampSnapshot = await lastTimestampRef.once('value');
-  let lastTimestamp = lastTimestampSnapshot.val() || 0;
-
-  try {
-    const response = await axios.get('https://www.seismicportal.eu/fdsnws/event/1/query?format=json&limit=50&nodata=404');
-    const earthquakes = response.data.features;
-    let maxTimestamp = lastTimestamp;
-
-    for (const earthquake of earthquakes) {
+exports.emscNotifier = createEarthquakeNotifier(
+  'emsc',
+  'https://www.seismicportal.eu/fdsnws/event/1/query?format=json&limit=50&nodata=404',
+  (data) => {
+    return data.features.map(earthquake => {
       const { properties, geometry, id } = earthquake;
       const { mag, flynn_region, time } = properties;
       const [longitude, latitude] = geometry.coordinates;
-
       const timeInMillis = Date.parse(time);
-
-      if (timeInMillis > lastTimestamp) {
-        const earthquakeData = {
-          id: id,
-          magnitude: mag,
-          place: flynn_region,
-          time: timeInMillis,
-          latitude: latitude,
-          longitude: longitude,
-          source: 'EMSC'
-        };
-        await sendNotification(earthquakeData);
-        if (timeInMillis > maxTimestamp) {
-          maxTimestamp = timeInMillis;
-        }
-      }
-    }
-    await lastTimestampRef.set(maxTimestamp);
-  } catch (error) {
-    console.error('Error fetching earthquake data from EMSC:', error);
+      return {
+        id: id,
+        magnitude: mag,
+        place: flynn_region,
+        time: timeInMillis,
+        latitude: latitude,
+        longitude: longitude,
+        source: 'EMSC'
+      };
+    });
   }
-});
+);

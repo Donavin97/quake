@@ -55,6 +55,29 @@ class Earthquake extends HiveObject {
     this.distance,
   });
 
+  factory Earthquake.fromJson(Map<String, dynamic> json) {
+    EarthquakeSource sourceEnum;
+    if (json['source'] == 'USGS') {
+      sourceEnum = EarthquakeSource.usgs;
+    } else if (json['source'] == 'EMSC') {
+      sourceEnum = EarthquakeSource.emsc;
+    } else {
+      sourceEnum = EarthquakeSource.usgs; // Default value
+    }
+
+    return Earthquake(
+      id: json['id'] ?? '',
+      magnitude: json['magnitude']?.toDouble() ?? 0.0,
+      place: json['place'] ?? 'Unknown',
+      time: DateTime.fromMillisecondsSinceEpoch(json['time'] ?? 0),
+      latitude: json['latitude']?.toDouble() ?? 0.0,
+      longitude: json['longitude']?.toDouble() ?? 0.0,
+      depth: json['depth']?.toDouble() ?? 0.0, 
+      source: sourceEnum,
+      provider: json['source'] ?? 'Unknown',
+    );
+  }
+
   factory Earthquake.fromUsgsJson(Map<String, dynamic> json) {
     return Earthquake(
       id: json['id'],
