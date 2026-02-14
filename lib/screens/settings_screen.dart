@@ -1,7 +1,8 @@
-// ignore_for_file: avoid_redundant_argument_values
+import 'dart:math';
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+
 import '../models/time_window.dart';
 import '../providers/settings_provider.dart';
 
@@ -93,24 +94,24 @@ class SettingsScreen extends StatelessWidget {
                     value: settings.minMagnitude.toDouble(),
                     max: 10,
                     divisions: 10,
-                    label: settings.minMagnitude.toString(),
+                    label:
+                        'Magnitude ${settings.minMagnitude.toString()}${settings.minMagnitude == 10 ? '' : '+'}',
                     onChanged: (value) {
                       settings.setMinMagnitude(value.round());
                     },
                   ),
                   const SizedBox(height: 24),
                   Text(
-                    'Notification Radius (km)',
+                    'Notification Radius: ${settings.radius.toStringAsFixed(2)} km',
                     style: Theme.of(context).textTheme.titleLarge,
                   ),
                   Slider(
-                    value: settings.radius,
-                    min: 0,
-                    max: 1000,
+                    value: log(settings.radius + 1) / log(1001),
                     divisions: 100,
                     label: settings.radius.round().toString(),
                     onChanged: (value) {
-                      settings.setRadius(value);
+                      final radius = pow(1001, value) - 1;
+                      settings.setRadius(radius.toDouble());
                     },
                   ),
                 ],

@@ -56,17 +56,25 @@ class NotificationService {
 
     if (radius > 0) {
       // Subscribe to new geohash topics
+      final precision = _getGeohashPrecision(radius);
       final geoHasher = GeoHasher();
-      final centerGeohash = geoHasher.encode(latitude, longitude, precision: 5);
-      final neighbors = geoHasher.neighbors(centerGeohash);
-      
-      final Set<String> newGeohashTopics = {centerGeohash, ...neighbors.values};
+      final centerGeohash = geoHasher.encode(latitude, longitude, precision: precision);
+      final geohashes = geoHasher.neighbors(centerGeohash).values.toList()..add(centerGeohash);
 
-      for (final geohash in newGeohashTopics) {
+      for (final geohash in geohashes) {
         await _firebaseMessaging.subscribeToTopic(geohash);
         _currentGeohashTopics.add(geohash);
       }
     }
+  }
+
+  int _getGeohashPrecision(double radius) {
+    if (radius <= 0.07) return 6; // Up to 70m
+    if (radius <= 0.6) return 5; // Up to 600m
+    if (radius <= 2.4) return 4; // Up to 2.4km
+    if (radius <= 20) return 3; // Up to 20km
+    if (radius <= 78) return 2; // Up to 78km
+    return 1; // Up to 630km
   }
 
   Future<void> _showLocalNotification(RemoteMessage message) async {

@@ -47,6 +47,7 @@ class _HomeScreenState extends State<HomeScreen> {
     return Scaffold(
       appBar: AppBar(
         leading: PopupMenuButton<String>(
+          tooltip: 'Menu',
           onSelected: (value) async {
             final router = GoRouter.of(context);
             if (value == 'profile') {
@@ -66,6 +67,7 @@ class _HomeScreenState extends State<HomeScreen> {
               child: Text('Sign Out'),
             ),
           ],
+          icon: const Icon(Icons.more_vert),
         ),
         title: const Text('QuakeTrack'),
         actions: [

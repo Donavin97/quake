@@ -6,8 +6,6 @@ const geohash = require('ngeohash');
 admin.initializeApp();
 
 const sendNotification = async (earthquake) => {
-  const earthquakeGeohash = geohash.encode(earthquake.latitude, earthquake.longitude, 5);
-
   const payload = {
     notification: {
       title: 'New Earthquake Alert!',
@@ -34,18 +32,22 @@ const sendNotification = async (earthquake) => {
       return;
     }
 
-    // FCM condition can have max 5 topics. We use 1 for geohash, so 4 for magnitude.
-    const chunkSize = 4; 
-    for (let i = 0; i < magTopics.length; i += chunkSize) {
-      const chunk = magTopics.slice(i, i + chunkSize);
-      const condition = `'${earthquakeGeohash}' in topics && (${chunk.join(' || ')})`;
+    for (let precision = 1; precision <= 6; precision++) {
+      const earthquakeGeohash = geohash.encode(earthquake.latitude, earthquake.longitude, precision);
       
-      const message = {
-          ...payload,
-          condition: condition,
-      };
+      // FCM condition can have max 5 topics. We use 1 for geohash, so 4 for magnitude.
+      const chunkSize = 4; 
+      for (let i = 0; i < magTopics.length; i += chunkSize) {
+        const chunk = magTopics.slice(i, i + chunkSize);
+        const condition = `'${earthquakeGeohash}' in topics && (${chunk.join(' || ')})`;
+        
+        const message = {
+            ...payload,
+            condition: condition,
+        };
 
-      await admin.messaging().send(message);
+        await admin.messaging().send(message);
+      }
     }
 
     console.log('Notifications sent successfully for earthquake:', earthquake.id);
