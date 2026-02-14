@@ -46,7 +46,7 @@ class EarthquakeProvider with ChangeNotifier {
       final position = _locationProvider.currentPosition;
       final allEarthquakes = await _apiService.fetchEarthquakes(
         _settingsProvider.earthquakeProvider,
-        _settingsProvider.minMagnitude,
+        _settingsProvider.minMagnitude.toDouble(),
         _settingsProvider.radius,
         position?.latitude,
         position?.longitude,

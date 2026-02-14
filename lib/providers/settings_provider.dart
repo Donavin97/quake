@@ -122,7 +122,7 @@ class SettingsProvider with ChangeNotifier {
         position = await _locationService.getCurrentPosition();
       } catch (e) {
         // Handle location errors where permission is denied
-        print('Could not get location: $e');
+        debugPrint('Could not get location: $e');
       }
       if (position != null) {
         await _notificationService.updateSubscriptions(

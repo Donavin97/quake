@@ -1,6 +1,6 @@
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
-import 'package:geohash_plus/geohash_plus.dart';
+import 'package:dart_geohash/dart_geohash.dart';
 
 class NotificationService {
   final FirebaseMessaging _firebaseMessaging = FirebaseMessaging.instance;
@@ -56,8 +56,9 @@ class NotificationService {
 
     if (radius > 0) {
       // Subscribe to new geohash topics
-      final centerGeohash = Geohash.encode(latitude, longitude, precision: 5);
-      final neighbors = Geohash.neighbors(centerGeohash);
+      final geoHasher = GeoHasher();
+      final centerGeohash = geoHasher.encode(latitude, longitude, precision: 5);
+      final neighbors = geoHasher.neighbors(centerGeohash);
       
       final Set<String> newGeohashTopics = {centerGeohash, ...neighbors.values};
 
@@ -91,6 +92,7 @@ class NotificationService {
   }
 }
 
+@pragma('vm:entry-point')
 Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   // Handle background messages
 }

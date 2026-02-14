@@ -201,6 +201,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "1.0.8"
+  dart_geohash:
+    dependency: "direct main"
+    description:
+      name: dart_geohash
+      sha256: c5594c0063ca67f37778b2c7d025d22e2ecd38741c0acd5b0f7596374e3309f2
+      url: "https://pub.dev"
+    source: hosted
+    version: "2.1.0"
   dart_style:
     dependency: transitive
     description:
@@ -416,14 +424,6 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "4.0.0"
-  geohash_plus:
-    dependency: "direct main"
-    description:
-      name: geohash_plus
-      sha256: "2735f559b1ee1ee04ff44f771efb98666ab42410b4bbf89773b950b7418995db"
-      url: "https://pub.dev"
-    source: hosted
-    version: "1.1.1"
   geolocator:
     dependency: "direct main"
     description:
