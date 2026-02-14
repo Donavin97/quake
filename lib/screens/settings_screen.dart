@@ -92,9 +92,9 @@ class SettingsScreen extends StatelessWidget {
                       if (value) {
                         notificationService.updateSubscriptions(
                           latitude:
-                              locationProvider.lastKnownPosition?.latitude ?? 0,
+                              locationProvider.currentPosition?.latitude ?? 0,
                           longitude:
-                              locationProvider.lastKnownPosition?.longitude ?? 0,
+                              locationProvider.currentPosition?.longitude ?? 0,
                           radius: settings.radius,
                           magnitude: settings.minMagnitude,
                         );
@@ -125,9 +125,9 @@ class SettingsScreen extends StatelessWidget {
                     onChangeEnd: (value) {
                       notificationService.updateSubscriptions(
                         latitude:
-                            locationProvider.lastKnownPosition?.latitude ?? 0,
+                            locationProvider.currentPosition?.latitude ?? 0,
                         longitude:
-                            locationProvider.lastKnownPosition?.longitude ?? 0,
+                            locationProvider.currentPosition?.longitude ?? 0,
                         radius: settings.radius,
                         magnitude: value.round(),
                       );
@@ -150,9 +150,9 @@ class SettingsScreen extends StatelessWidget {
                       final radius = pow(1001, value) - 1;
                       notificationService.updateSubscriptions(
                         latitude:
-                            locationProvider.lastKnownPosition?.latitude ?? 0,
+                            locationProvider.currentPosition?.latitude ?? 0,
                         longitude:
-                            locationProvider.lastKnownPosition?.longitude ?? 0,
+                            locationProvider.currentPosition?.longitude ?? 0,
                         radius: radius.toDouble(),
                         magnitude: settings.minMagnitude,
                       );

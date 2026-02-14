@@ -38,6 +38,7 @@ void main() {
         time: DateTime.now(),
         latitude: 0.0,
         longitude: 0.0,
+        depth: 10.0,
         source: EarthquakeSource.usgs,
         provider: 'usgs');
 
