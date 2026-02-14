@@ -39,4 +39,26 @@ class MockNotificationService extends _i1.Mock
         returnValue: _i3.Future<void>.value(),
         returnValueForMissingStub: _i3.Future<void>.value(),
       ) as _i3.Future<void>);
+
+  @override
+  _i3.Future<void> updateSubscriptions({
+    required double? latitude,
+    required double? longitude,
+    required double? radius,
+    required int? magnitude,
+  }) =>
+      (super.noSuchMethod(
+        Invocation.method(
+          #updateSubscriptions,
+          [],
+          {
+            #latitude: latitude,
+            #longitude: longitude,
+            #radius: radius,
+            #magnitude: magnitude,
+          },
+        ),
+        returnValue: _i3.Future<void>.value(),
+        returnValueForMissingStub: _i3.Future<void>.value(),
+      ) as _i3.Future<void>);
 }

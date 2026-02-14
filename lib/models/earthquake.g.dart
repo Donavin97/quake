@@ -25,6 +25,7 @@ class EarthquakeAdapter extends TypeAdapter<Earthquake> {
       longitude: fields[5] as double,
       source: fields[6] as EarthquakeSource,
       provider: fields[7] as String,
+      depth: fields[9] as double,
       distance: fields[8] as double?,
     );
   }
@@ -32,7 +33,7 @@ class EarthquakeAdapter extends TypeAdapter<Earthquake> {
   @override
   void write(BinaryWriter writer, Earthquake obj) {
     writer
-      ..writeByte(9)
+      ..writeByte(10)
       ..writeByte(0)
       ..write(obj.id)
       ..writeByte(1)
@@ -50,7 +51,9 @@ class EarthquakeAdapter extends TypeAdapter<Earthquake> {
       ..writeByte(7)
       ..write(obj.provider)
       ..writeByte(8)
-      ..write(obj.distance);
+      ..write(obj.distance)
+      ..writeByte(9)
+      ..write(obj.depth);
   }
 
   @override

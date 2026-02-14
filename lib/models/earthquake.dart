@@ -39,6 +39,9 @@ class Earthquake extends HiveObject {
   @HiveField(8)
   double? distance;
 
+  @HiveField(9)
+  final double depth;
+
   Earthquake({
     required this.id,
     required this.magnitude,
@@ -48,6 +51,7 @@ class Earthquake extends HiveObject {
     required this.longitude,
     required this.source,
     required this.provider,
+    required this.depth,
     this.distance,
   });
 
@@ -59,6 +63,7 @@ class Earthquake extends HiveObject {
       time: DateTime.fromMillisecondsSinceEpoch(json['properties']['time']),
       latitude: json['geometry']['coordinates'][1]?.toDouble() ?? 0.0,
       longitude: json['geometry']['coordinates'][0]?.toDouble() ?? 0.0,
+      depth: json['geometry']['coordinates'][2]?.toDouble() ?? 0.0,
       source: EarthquakeSource.usgs,
       provider: 'USGS',
     );
@@ -72,6 +77,7 @@ class Earthquake extends HiveObject {
       time: DateTime.parse(json['properties']['time']).toLocal(),
       latitude: json['geometry']['coordinates'][1]?.toDouble() ?? 0.0,
       longitude: json['geometry']['coordinates'][0]?.toDouble() ?? 0.0,
+      depth: json['properties']['depth']?.toDouble() ?? 0.0,
       source: EarthquakeSource.emsc,
       provider: 'EMSC',
     );

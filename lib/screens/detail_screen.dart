@@ -130,6 +130,8 @@ class _DetailScreenState extends State<DetailScreen> {
             Text(
               'Coordinates: (${widget.earthquake.latitude.toStringAsFixed(2)}, ${widget.earthquake.longitude.toStringAsFixed(2)})',
             ),
+            const SizedBox(height: 8),
+            Text('Depth: ${widget.earthquake.depth.toStringAsFixed(2)} km'),
             if (distance != null)
               Padding(
                 padding: const EdgeInsets.only(top: 8.0),
