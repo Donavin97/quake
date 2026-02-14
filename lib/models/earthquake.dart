@@ -69,7 +69,7 @@ class Earthquake extends HiveObject {
       id: json['id'],
       magnitude: json['properties']['mag']?.toDouble() ?? 0.0,
       place: json['properties']['flynn_region'] ?? 'Unknown',
-      time: DateTime.parse(json['properties']['time']),
+      time: DateTime.parse(json['properties']['time']).toLocal(),
       latitude: json['geometry']['coordinates'][1]?.toDouble() ?? 0.0,
       longitude: json['geometry']['coordinates'][0]?.toDouble() ?? 0.0,
       source: EarthquakeSource.emsc,
