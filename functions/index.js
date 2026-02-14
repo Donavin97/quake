@@ -1,22 +1,24 @@
-const functions = require('firebase-functions');
-const admin = require('firebase-admin');
-const axios = require('axios');
-const geohash = require('ngeohash');
+const functions = require(\'firebase-functions\');
+const admin = require(\'firebase-admin\');
+const axios = require(\'axios\');
+const geohash = require(\'ngeohash\');
 
-admin.initializeApp();
+admin.initializeApp({
+    databaseURL: "https://quakewatch-89047796-c7f3c-default-rtdb.firebaseio.com"
+});
 
 const sendNotification = async (earthquake) => {
   const payload = {
     notification: {
-      title: 'New Earthquake Alert!',
-      body: `Magnitude ${earthquake.magnitude} (${earthquake.source}) near ${earthquake.place}`,
+      title: \'New Earthquake Alert!\',
+      body: `Magnitude ${earthquake.magnitude} (${earthquake.source}) near ${earthquake.place}`,\
     },
     data: {
       earthquakeId: earthquake.id,
     },
     android: {
       notification: {
-        sound: 'earthquake',
+        sound: \'earthquake\',
       },
     },
   };
@@ -25,7 +27,7 @@ const sendNotification = async (earthquake) => {
     const magnitude = Math.floor(earthquake.magnitude);
     const magTopics = [];
     for (let i = 0; i <= magnitude; i++) {
-      magTopics.push(`'minmag_${i}' in topics`);
+      magTopics.push(`\'minmag_${i}\' in topics`);
     }
 
     if (magTopics.length === 0) {
@@ -39,7 +41,7 @@ const sendNotification = async (earthquake) => {
       const chunkSize = 4; 
       for (let i = 0; i < magTopics.length; i += chunkSize) {
         const chunk = magTopics.slice(i, i + chunkSize);
-        const condition = `'${earthquakeGeohash}' in topics && (${chunk.join(' || ')})`;
+        const condition = `\'${earthquakeGeohash}\' in topics && (${chunk.join(\' || \')})`;
         
         const message = {
             ...payload,
@@ -50,19 +52,19 @@ const sendNotification = async (earthquake) => {
       }
     }
 
-    console.log('Notifications sent successfully for earthquake:', earthquake.id);
+    console.log(\'Notifications sent successfully for earthquake:\', earthquake.id);
   } catch (error) {
-    console.error('Error sending notifications:', error);
+    console.error(\'Error sending notifications:\', error);
   }
 };
 
-exports.usgsNotifier = functions.pubsub.schedule('every 5 minutes').onRun(async () => {
-  const lastTimestampRef = admin.database().ref('last_timestamps/usgs');
-  const lastTimestampSnapshot = await lastTimestampRef.once('value');
+exports.usgsNotifier = functions.pubsub.schedule(\'every 5 minutes\').onRun(async () => {
+  const lastTimestampRef = admin.database().ref(\'last_timestamps/usgs\');
+  const lastTimestampSnapshot = await lastTimestampRef.once(\'value\');
   let lastTimestamp = lastTimestampSnapshot.val() || 0;
 
   const response = await axios.get(
-    'https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/all_hour.geojson'
+    \'https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/all_hour.geojson\'
   );
   const earthquakes = response.data.features;
   let maxTimestamp = lastTimestamp;
@@ -80,7 +82,7 @@ exports.usgsNotifier = functions.pubsub.schedule('every 5 minutes').onRun(async 
         time: time,
         latitude: latitude,
         longitude: longitude,
-        source: 'USGS',
+        source: \'USGS\',
       };
 
       await sendNotification(earthquakeData);
@@ -92,13 +94,13 @@ exports.usgsNotifier = functions.pubsub.schedule('every 5 minutes').onRun(async 
   await lastTimestampRef.set(maxTimestamp);
 });
 
-exports.emscNotifier = functions.pubsub.schedule('every 5 minutes').onRun(async (context) => {
-  const lastTimestampRef = admin.database().ref('last_timestamps/emsc');
-  const lastTimestampSnapshot = await lastTimestampRef.once('value');
+exports.emscNotifier = functions.pubsub.schedule(\'every 5 minutes\').onRun(async (context) => {
+  const lastTimestampRef = admin.database().ref(\'last_timestamps/emsc\');
+  const lastTimestampSnapshot = await lastTimestampRef.once(\'value\');
   let lastTimestamp = lastTimestampSnapshot.val() || 0;
 
   try {
-    const response = await axios.get('https://www.seismicportal.eu/fdsnws/event/1/query?format=json&limit=50&nodata=404');
+    const response = await axios.get(\'https://www.seismicportal.eu/fdsnws/event/1/query?format=json&limit=50&nodata=404\');
     const earthquakes = response.data.features;
     let maxTimestamp = lastTimestamp;
 
@@ -117,7 +119,7 @@ exports.emscNotifier = functions.pubsub.schedule('every 5 minutes').onRun(async 
           time: timeInMillis,
           latitude: latitude,
           longitude: longitude,
-          source: 'EMSC'
+          source: \'EMSC\'
         };
         await sendNotification(earthquakeData);
         if (timeInMillis > maxTimestamp) {
@@ -127,6 +129,6 @@ exports.emscNotifier = functions.pubsub.schedule('every 5 minutes').onRun(async 
     }
     await lastTimestampRef.set(maxTimestamp);
   } catch (error) {
-    console.error('Error fetching earthquake data from EMSC:', error);
+    console.error(\'Error fetching earthquake data from EMSC:\', error);
   }
 });
