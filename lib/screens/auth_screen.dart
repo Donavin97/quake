@@ -94,6 +94,7 @@ class _AuthScreenState extends State<AuthScreen> {
                     icon: Icon(
                       _passwordVisible ? Icons.visibility : Icons.visibility_off,
                     ),
+                    tooltip: ('Show Password'),
                     onPressed: () {
                       setState(() {
                         _passwordVisible = !_passwordVisible;
