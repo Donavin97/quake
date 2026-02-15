@@ -34,6 +34,7 @@ dependencies:
   dio: ^5.4.3
   dart_geohash: ^2.1.0
   get: ^4.6.6
+  introduction_screen: ^4.0.0
 
 dev_dependencies:
   flutter_test:

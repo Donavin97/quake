@@ -32,7 +32,7 @@ class BackgroundService {
   static Future<void> initialize() async {
     // Setup local notifications
     const AndroidNotificationChannel channel = AndroidNotificationChannel(
-      'earthquake_alerts',
+      'earthquake_channel',
       'Earthquake Alerts',
       description: 'Notifications for new earthquake events',
       importance: Importance.max,
@@ -105,7 +105,7 @@ class BackgroundService {
 
     const AndroidNotificationDetails androidPlatformChannelSpecifics =
         AndroidNotificationDetails(
-      'earthquake_alerts',
+      'earthquake_channel',
       'Earthquake Alerts',
       channelDescription: 'Notifications for new earthquake events',
       importance: Importance.max,
