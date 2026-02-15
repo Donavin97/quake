@@ -3,17 +3,16 @@ import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
 import '../providers/location_provider.dart';
-import '../services/notification_service.dart';
+import '../services/background_service.dart';
 
 class PermissionScreen extends StatelessWidget {
   const PermissionScreen({super.key});
 
   Future<void> _requestPermissions(BuildContext context) async {
     final locationProvider = context.read<LocationProvider>();
-    final notificationService = context.read<NotificationService>();
 
     await locationProvider.requestPermission();
-    await notificationService.requestPermission();
+    await BackgroundService.initialize(); // Re-initializing to request permission
 
     if (context.mounted) {
       context.go('/');

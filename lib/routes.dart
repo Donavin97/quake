@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'package:provider/provider.dart';
 
 import 'models/earthquake.dart';
 import 'providers/user_provider.dart';
@@ -11,16 +10,16 @@ import 'screens/home_screen.dart';
 import 'screens/permission_screen.dart';
 import 'screens/profile_screen.dart';
 import 'screens/setup_screen.dart';
-import 'services/services.dart';
+import 'services/navigation_service.dart';
 
 class AppRouter {
   final UserProvider userProvider;
-  final NotificationService notificationService;
 
-  AppRouter(this.userProvider, this.notificationService);
+  AppRouter(this.userProvider);
 
   GoRouter get router => GoRouter(
-        initialLocation: '/',
+        navigatorKey: NavigationService.navigatorKey,
+        initialLocation: NavigationService.initialRoute ?? '/',
         refreshListenable: userProvider,
         redirect: (BuildContext context, GoRouterState state) {
           final bool isSetupComplete = userProvider.isSetupComplete;
@@ -55,7 +54,8 @@ class AppRouter {
                   if (earthquake != null) {
                     return DetailScreen(earthquake: earthquake);
                   } else {
-                    return const Text('Error: Earthquake not found');
+                    final id = state.pathParameters['id']!;
+                    return DetailScreen(earthquakeId: id);
                   }
                 },
               ),
@@ -75,14 +75,15 @@ class AppRouter {
           ),
           GoRoute(
             path: '/auth',
-            builder: (context, state) => const AuthScreen(),
+            builder: (context, state) => AuthScreen(
+              onLoginSuccess: () {
+                context.go('/permission');
+              },
+            ),
           ),
           GoRoute(
             path: '/permission',
-            builder: (context, state) => Provider<NotificationService>.value(
-              value: notificationService,
-              child: const PermissionScreen(),
-            ),
+            builder: (context, state) => const PermissionScreen(),
           ),
         ],
       );

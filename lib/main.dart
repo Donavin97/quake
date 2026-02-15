@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:provider/provider.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 
@@ -15,6 +16,7 @@ import 'providers/settings_provider.dart';
 import 'providers/theme_provider.dart';
 import 'providers/user_provider.dart';
 import 'routes.dart';
+import 'services/navigation_service.dart';
 import 'services/services.dart';
 import 'theme.dart';
 
@@ -29,6 +31,15 @@ void main() async {
     Hive.registerAdapter(EarthquakeSourceAdapter());
     await Hive.openBox<Earthquake>('earthquakes');
     await BackgroundService.initialize();
+
+    final NotificationAppLaunchDetails? notificationAppLaunchDetails =
+        await FlutterLocalNotificationsPlugin().getNotificationAppLaunchDetails();
+    final String? launchPayload =
+        notificationAppLaunchDetails?.notificationResponse?.payload;
+    if (launchPayload != null) {
+      NavigationService.initialRoute = '/details/$launchPayload';
+    }
+
     FlutterError.onError = FirebaseCrashlytics.instance.recordFlutterError;
     runApp(const MyApp());
   }, (error, stack) => FirebaseCrashlytics.instance.recordError(error, stack));
@@ -43,9 +54,6 @@ class MyApp extends StatelessWidget {
       providers: [
         ChangeNotifierProvider<AuthService>(
           create: (_) => AuthService(),
-        ),
-        Provider<NotificationService>(
-          create: (_) => NotificationService()..initialize(),
         ),
         ChangeNotifierProvider(
           create: (context) => UserProvider(),
@@ -75,8 +83,7 @@ class MyApp extends StatelessWidget {
       child: Builder(
         builder: (context) {
           final userProvider = Provider.of<UserProvider>(context);
-          final notificationService = Provider.of<NotificationService>(context);
-          final router = AppRouter(userProvider, notificationService).router;
+          final router = AppRouter(userProvider).router;
 
           return Consumer<SettingsProvider>(
             builder: (context, settingsProvider, child) {

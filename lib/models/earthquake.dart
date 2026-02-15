@@ -72,11 +72,23 @@ class Earthquake extends HiveObject {
       time: DateTime.fromMillisecondsSinceEpoch(json['time'] ?? 0),
       latitude: json['latitude']?.toDouble() ?? 0.0,
       longitude: json['longitude']?.toDouble() ?? 0.0,
-      depth: json['depth']?.toDouble() ?? 0.0, 
+      depth: json['depth']?.toDouble() ?? 0.0,
       source: sourceEnum,
       provider: json['source'] ?? 'Unknown',
     );
   }
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'magnitude': magnitude,
+        'place': place,
+        'time': time.millisecondsSinceEpoch,
+        'latitude': latitude,
+        'longitude': longitude,
+        'depth': depth,
+        'source': source.toString().split('.').last,
+        'provider': provider,
+      };
 
   factory Earthquake.fromUsgsJson(Map<String, dynamic> json) {
     return Earthquake(

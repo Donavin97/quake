@@ -1,17 +1,18 @@
+import 'package:dart_geohash/dart_geohash.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 
 import '../models/time_window.dart';
 import '../services/location_service.dart';
-import '../services/notification_service.dart';
 import '../services/user_service.dart';
 
 class SettingsProvider with ChangeNotifier {
   final UserService _userService = UserService();
   final LocationService _locationService = LocationService();
-  final NotificationService _notificationService = NotificationService();
   final FirebaseAuth _auth = FirebaseAuth.instance;
+  final FirebaseMessaging _messaging = FirebaseMessaging.instance;
 
   ThemeMode _themeMode = ThemeMode.system;
   TimeWindow _timeWindow = TimeWindow.day;
@@ -19,6 +20,7 @@ class SettingsProvider with ChangeNotifier {
   bool _notificationsEnabled = true;
   double _radius = 0.0;
   String _earthquakeProvider = 'usgs';
+  Set<String> _subscribedTopics = {};
 
   ThemeMode get themeMode => _themeMode;
   TimeWindow get timeWindow => _timeWindow;
@@ -47,6 +49,8 @@ class SettingsProvider with ChangeNotifier {
         _notificationsEnabled = preferences['notificationsEnabled'] ?? true;
         _radius = (preferences['radius'] as num? ?? 0).toDouble();
         _earthquakeProvider = preferences['earthquakeProvider'] ?? 'usgs';
+        _subscribedTopics =
+            Set<String>.from(preferences['subscribedTopics'] ?? []);
       }
     }
     await _updateSubscriptions();
@@ -63,6 +67,7 @@ class SettingsProvider with ChangeNotifier {
         'notificationsEnabled': _notificationsEnabled,
         'radius': _radius,
         'earthquakeProvider': _earthquakeProvider,
+        'subscribedTopics': _subscribedTopics.toList(),
       };
       Position? position;
       if (_radius > 0) {
@@ -72,7 +77,8 @@ class SettingsProvider with ChangeNotifier {
           // Handle location errors
         }
       }
-      await _userService.saveUserPreferences(user.uid, preferences, position: position);
+      await _userService.saveUserPreferences(user.uid, preferences,
+          position: position);
     }
   }
 
@@ -116,30 +122,60 @@ class SettingsProvider with ChangeNotifier {
   }
 
   Future<void> _updateSubscriptions() async {
-    if (_notificationsEnabled) {
+    // Unsubscribe from old topics
+    for (final topic in _subscribedTopics) {
+      await _messaging.unsubscribeFromTopic(topic);
+    }
+    _subscribedTopics.clear();
+
+    if (!_notificationsEnabled) {
+      await _savePreferences();
+      return;
+    }
+
+    if (_radius == 0) {
+      // Subscribe to global magnitude topics
+      for (int mag = _minMagnitude; mag <= 10; mag++) {
+        final topic = 'magnitude_$mag';
+        await _messaging.subscribeToTopic(topic);
+        _subscribedTopics.add(topic);
+      }
+    } else {
+      // Subscribe to location-based topics
       Position? position;
       try {
         position = await _locationService.getCurrentPosition();
       } catch (e) {
-        // Handle location errors where permission is denied
-        debugPrint('Could not get location: $e');
+        // Handle location errors
+        return;
       }
-      if (position != null) {
-        await _notificationService.updateSubscriptions(
-          latitude: position.latitude,
-          longitude: position.longitude,
-          radius: _radius,
-          magnitude: _minMagnitude,
-        );
+
+      final geohasher = GeoHasher();
+      final precision = _getGeohashPrecision(_radius);
+      final centerGeohash =
+          geohasher.encode(position.longitude, position.latitude, precision: precision);
+      final neighbors = geohasher.neighbors(centerGeohash);
+
+      final geohashes = [centerGeohash, ...neighbors.values];
+
+      for (int mag = _minMagnitude; mag <= 10; mag++) {
+        for (final geohash in geohashes) {
+            final topic = 'magnitude_${mag}_geohash_$geohash';
+            await _messaging.subscribeToTopic(topic);
+            _subscribedTopics.add(topic);
+        }
       }
-    } else {
-      // Unsubscribe from all topics
-      await _notificationService.updateSubscriptions(
-        latitude: 0,
-        longitude: 0,
-        radius: 0,
-        magnitude: -1, // Sentinel value to unsubscribe from all magnitude topics
-      );
     }
+    await _savePreferences();
+  }
+
+
+  int _getGeohashPrecision(double radius) {
+    if (radius <= 1) return 6;
+    if (radius <= 5) return 5;
+    if (radius <= 40) return 4;
+    if (radius <= 150) return 3;
+    if (radius <= 1250) return 2;
+    return 1;
   }
 }

@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
 import '../providers/theme_provider.dart';
@@ -7,7 +6,9 @@ import '../providers/user_provider.dart';
 import '../services/auth_service.dart';
 
 class AuthScreen extends StatefulWidget {
-  const AuthScreen({super.key});
+  final VoidCallback onLoginSuccess;
+
+  const AuthScreen({super.key, required this.onLoginSuccess});
 
   @override
   State<AuthScreen> createState() => _AuthScreenState();
@@ -28,7 +29,6 @@ class _AuthScreenState extends State<AuthScreen> {
     final authService = Provider.of<AuthService>(context, listen: false);
     final userProvider = Provider.of<UserProvider>(context, listen: false);
     final messenger = ScaffoldMessenger.of(context);
-    final router = GoRouter.of(context);
     final email = _emailController.text;
     final password = _passwordController.text;
 
@@ -42,7 +42,7 @@ class _AuthScreenState extends State<AuthScreen> {
       if (!mounted) return;
 
       userProvider.completeSetup();
-      router.go('/permission');
+      widget.onLoginSuccess();
     } catch (e) {
       if (!mounted) return;
       messenger.showSnackBar(
@@ -131,7 +131,6 @@ class _AuthScreenState extends State<AuthScreen> {
                   final authService = context.read<AuthService>();
                   final userProvider = context.read<UserProvider>();
                   final messenger = ScaffoldMessenger.of(context);
-                  final router = GoRouter.of(context);
 
                   try {
                     await authService.signInWithGoogle();
@@ -139,7 +138,7 @@ class _AuthScreenState extends State<AuthScreen> {
                     if (!mounted) return;
 
                     userProvider.completeSetup();
-                    router.go('/permission');
+                    widget.onLoginSuccess();
                   } catch (e) {
                     if (!mounted) return;
                     messenger.showSnackBar(
