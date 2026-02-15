@@ -25,12 +25,8 @@ class AppRouter {
           final bool isSetupComplete = userProvider.isSetupComplete;
           final String location = state.matchedLocation;
 
-          final isSetupRoute = [
-            '/setup',
-            '/disclaimer',
-            '/auth',
-            '/permission'
-          ].contains(location);
+          final isSetupRoute =
+              ['/setup', '/disclaimer', '/auth'].contains(location);
 
           if (isSetupComplete && isSetupRoute) {
             return '/';

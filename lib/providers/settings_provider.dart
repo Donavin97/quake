@@ -152,7 +152,6 @@ class SettingsProvider with ChangeNotifier {
         }
       } catch (e) {
         // Handle location errors
-        return;
       }
     }
     await _savePreferences();
