@@ -39,7 +39,7 @@ class LocationProvider with ChangeNotifier {
   }
 
   Future<void> requestPermission() async {
-    final LocationPermission permission = await Geolocator.requestPermission();
+    final LocationPermission permission = await _locationService.requestPermission();
     await _updatePermissionStatus(permission);
   }
 
@@ -50,7 +50,7 @@ class LocationProvider with ChangeNotifier {
       notifyListeners();
       return;
     }
-    final LocationPermission permission = await Geolocator.checkPermission();
+    final LocationPermission permission = await _locationService.checkPermission();
     await _updatePermissionStatus(permission);
   }
 

@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:dart_geohash/dart_geohash.dart';
@@ -15,8 +16,6 @@ class NotificationService {
   final Set<String> _currentTopics = {};
 
   Future<void> initialize() async {
-    await _firebaseMessaging.requestPermission();
-
     const AndroidNotificationChannel channel = AndroidNotificationChannel(
       'earthquake_channel',
       'Earthquake Notifications',
@@ -50,6 +49,10 @@ class NotificationService {
     });
 
     FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
+  }
+
+  Future<void> requestPermission() async {
+    await _firebaseMessaging.requestPermission();
   }
 
   Future<void> updateSubscriptions({
@@ -107,6 +110,13 @@ class NotificationService {
   }
 
   Future<void> _showLocalNotification(RemoteMessage message) async {
+    final String? title = message.notification?.title ?? message.data['title'];
+    final String? body = message.notification?.body ?? message.data['body'];
+
+    if (title == null || body == null) {
+      return;
+    }
+
     const AndroidNotificationDetails androidPlatformChannelSpecifics =
         AndroidNotificationDetails(
       'earthquake_channel',
@@ -122,8 +132,8 @@ class NotificationService {
     );
     await _flutterLocalNotificationsPlugin.show(
       0,
-      message.data['title'],
-      message.data['body'],
+      title,
+      body,
       platformChannelSpecifics,
       payload: message.data['earthquake'],
     );
@@ -132,7 +142,56 @@ class NotificationService {
 
 @pragma('vm:entry-point')
 Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
-  final notificationService = NotificationService();
-  await notificationService.initialize();
-  await notificationService._showLocalNotification(message);
+  await Firebase.initializeApp();
+
+  if (message.notification != null) {
+    return;
+  }
+
+  final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin =
+      FlutterLocalNotificationsPlugin();
+
+  const AndroidNotificationChannel channel = AndroidNotificationChannel(
+    'earthquake_channel',
+    'Earthquake Notifications',
+    description: 'Notifications for new earthquakes',
+    importance: Importance.max,
+    sound: RawResourceAndroidNotificationSound('earthquake'),
+  );
+
+  await flutterLocalNotificationsPlugin
+      .resolvePlatformSpecificImplementation<
+          AndroidFlutterLocalNotificationsPlugin>()
+      ?.createNotificationChannel(channel);
+
+  const AndroidInitializationSettings initializationSettingsAndroid =
+      AndroidInitializationSettings('@mipmap/ic_launcher');
+  const InitializationSettings initializationSettings = InitializationSettings(
+    android: initializationSettingsAndroid,
+  );
+  await flutterLocalNotificationsPlugin.initialize(
+    initializationSettings,
+  );
+
+  const AndroidNotificationDetails androidPlatformChannelSpecifics =
+      AndroidNotificationDetails(
+    'earthquake_channel',
+    'Earthquake Notifications',
+    channelDescription: 'Notifications for new earthquakes',
+    importance: Importance.max,
+    priority: Priority.high,
+    sound: RawResourceAndroidNotificationSound('earthquake'),
+  );
+
+  const NotificationDetails platformChannelSpecifics = NotificationDetails(
+    android: androidPlatformChannelSpecifics,
+  );
+
+  await flutterLocalNotificationsPlugin.show(
+    0,
+    message.data['title'],
+    message.data['body'],
+    platformChannelSpecifics,
+    payload: message.data['earthquake'],
+  );
 }

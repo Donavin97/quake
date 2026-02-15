@@ -3,7 +3,7 @@ import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
 import '../providers/location_provider.dart';
-import '../services/services.dart';
+import '../services/notification_service.dart';
 
 class PermissionScreen extends StatelessWidget {
   const PermissionScreen({super.key});
@@ -13,7 +13,7 @@ class PermissionScreen extends StatelessWidget {
     final notificationService = context.read<NotificationService>();
 
     await locationProvider.requestPermission();
-    await notificationService.initialize();
+    await notificationService.requestPermission();
 
     if (context.mounted) {
       context.go('/');
