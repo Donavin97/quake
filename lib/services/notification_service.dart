@@ -122,8 +122,8 @@ class NotificationService {
     );
     await _flutterLocalNotificationsPlugin.show(
       0,
-      message.notification?.title,
-      message.notification?.body,
+      message.data['title'],
+      message.data['body'],
       platformChannelSpecifics,
       payload: message.data['earthquake'],
     );
