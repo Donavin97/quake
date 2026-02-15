@@ -6,6 +6,7 @@ import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:go_router/go_router.dart';
 import 'package:hive_flutter/hive_flutter.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../models/earthquake.dart';
 import 'navigation_service.dart';
@@ -31,10 +32,11 @@ class BackgroundService {
   static Future<void> initialize() async {
     // Setup local notifications
     const AndroidNotificationChannel channel = AndroidNotificationChannel(
-      'main_channel',
-      'Main Channel',
-      description: 'Main notification channel',
+      'earthquake_alerts',
+      'Earthquake Alerts',
+      description: 'Notifications for new earthquake events',
       importance: Importance.max,
+      sound: RawResourceAndroidNotificationSound('earthquake'),
     );
 
     await _flutterLocalNotificationsPlugin
@@ -50,9 +52,20 @@ class BackgroundService {
     await _flutterLocalNotificationsPlugin.initialize(
       initializationSettings,
       onDidReceiveNotificationResponse: (details) async {
-        // Handle notification tap
-        if (details.payload != null) {
-          final earthquake = Earthquake.fromJson(jsonDecode(details.payload!));
+        if (details.payload == null) return;
+
+        final payloadData = jsonDecode(details.payload!);
+
+        if (details.actionId == 'map_action') {
+          final mapUrl = payloadData['mapUrl'] as String?;
+          if (mapUrl != null) {
+            final uri = Uri.parse(mapUrl);
+            if (await canLaunchUrl(uri)) {
+              await launchUrl(uri);
+            }
+          }
+        } else {
+          final earthquake = Earthquake.fromJson(payloadData['earthquake']);
           final context = NavigationService.navigatorKey.currentContext;
           if (context != null) {
             GoRouter.of(context).go('/details/${earthquake.id}', extra: earthquake);
@@ -72,22 +85,39 @@ class BackgroundService {
   }
 
   static Future<void> showNotification(RemoteMessage message) async {
-    final earthquake = Earthquake.fromJson(message.data);
-    final title = '${earthquake.magnitude} Magnitude Earthquake';
-    final body = earthquake.place;
-    final payload = jsonEncode(earthquake.toJson());
+    final title = message.data['title'] as String?;
+    final body = message.data['body'] as String?;
+    final earthquakeData = message.data['earthquake'] as String?;
+    final mapUrl = message.data['mapUrl'] as String?;
 
+    if (earthquakeData == null) {
+      return;
+    }
+
+    final earthquake = Earthquake.fromJson(jsonDecode(earthquakeData));
     final box = Hive.box<Earthquake>('earthquakes');
     await box.put(earthquake.id, earthquake);
 
+    final payload = jsonEncode({
+      'earthquake': jsonDecode(earthquakeData),
+      'mapUrl': mapUrl,
+    });
+
     const AndroidNotificationDetails androidPlatformChannelSpecifics =
         AndroidNotificationDetails(
-      'main_channel',
-      'Main Channel',
-      channelDescription: 'Main notification channel',
+      'earthquake_alerts',
+      'Earthquake Alerts',
+      channelDescription: 'Notifications for new earthquake events',
       importance: Importance.max,
       priority: Priority.high,
       showWhen: false,
+      sound: RawResourceAndroidNotificationSound('earthquake'),
+      actions: <AndroidNotificationAction>[
+        AndroidNotificationAction(
+          'map_action',
+          'View on Map',
+        )
+      ],
     );
     const NotificationDetails platformChannelSpecifics = NotificationDetails(
       android: androidPlatformChannelSpecifics,

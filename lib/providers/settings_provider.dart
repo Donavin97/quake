@@ -133,49 +133,28 @@ class SettingsProvider with ChangeNotifier {
       return;
     }
 
-    if (_radius == 0) {
-      // Subscribe to global magnitude topics
-      for (int mag = _minMagnitude; mag <= 10; mag++) {
-        final topic = 'magnitude_$mag';
-        await _messaging.subscribeToTopic(topic);
-        _subscribedTopics.add(topic);
-      }
-    } else {
+    // Subscribe to magnitude topic
+    final magnitudeTopic = 'minmag_$_minMagnitude';
+    await _messaging.subscribeToTopic(magnitudeTopic);
+    _subscribedTopics.add(magnitudeTopic);
+
+    if (_radius > 0) {
       // Subscribe to location-based topics
       Position? position;
       try {
         position = await _locationService.getCurrentPosition();
+        final geohasher = GeoHasher();
+        for (var precision = 1; precision <= 5; precision++) {
+          final geohash = geohasher.encode(position.longitude, position.latitude,
+              precision: precision);
+          await _messaging.subscribeToTopic(geohash);
+          _subscribedTopics.add(geohash);
+        }
       } catch (e) {
         // Handle location errors
         return;
       }
-
-      final geohasher = GeoHasher();
-      final precision = _getGeohashPrecision(_radius);
-      final centerGeohash =
-          geohasher.encode(position.longitude, position.latitude, precision: precision);
-      final neighbors = geohasher.neighbors(centerGeohash);
-
-      final geohashes = [centerGeohash, ...neighbors.values];
-
-      for (int mag = _minMagnitude; mag <= 10; mag++) {
-        for (final geohash in geohashes) {
-            final topic = 'magnitude_${mag}_geohash_$geohash';
-            await _messaging.subscribeToTopic(topic);
-            _subscribedTopics.add(topic);
-        }
-      }
     }
     await _savePreferences();
-  }
-
-
-  int _getGeohashPrecision(double radius) {
-    if (radius <= 1) return 6;
-    if (radius <= 5) return 5;
-    if (radius <= 40) return 4;
-    if (radius <= 150) return 3;
-    if (radius <= 1250) return 2;
-    return 1;
   }
 }

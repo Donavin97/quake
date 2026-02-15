@@ -18,6 +18,7 @@ import 'providers/user_provider.dart';
 import 'routes.dart';
 import 'services/navigation_service.dart';
 import 'services/services.dart';
+import 'services/settings_service.dart';
 import 'theme.dart';
 
 void main() async {
@@ -30,7 +31,10 @@ void main() async {
     Hive.registerAdapter(EarthquakeAdapter());
     Hive.registerAdapter(EarthquakeSourceAdapter());
     await Hive.openBox<Earthquake>('earthquakes');
-    await BackgroundService.initialize();
+
+    final settingsService = SettingsService();
+    final minMagnitude = await settingsService.getMinMagnitude();
+    await settingsService.subscribeToTopic(minMagnitude);
 
     final NotificationAppLaunchDetails? notificationAppLaunchDetails =
         await FlutterLocalNotificationsPlugin().getNotificationAppLaunchDetails();
