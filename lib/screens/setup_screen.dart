@@ -108,31 +108,13 @@ class _SetupScreenState extends State<SetupScreen> {
       builder: (BuildContext context) {
         return AlertDialog(
           title: const Text('Sign In'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              ElevatedButton.icon(
-                onPressed: () async {
-                  final authService = context.read<AuthService>();
-                  final messenger = ScaffoldMessenger.of(context);
-                  final navigator = Navigator.of(context);
-                  try {
-                    await authService.signInWithGoogle();
-                    navigator.pop();
-                    _nextStep();
-                  } catch (e) {
-                    messenger.showSnackBar(
-                      SnackBar(content: Text(e.toString())),
-                    );
-                  }
-                },
-                icon: Image.asset(
-                  'assets/google_logo.png',
-                  height: 24.0,
-                ),
-                label: const Text('Sign in with Google'),
-              ),
-            ],
+          content: SingleChildScrollView(
+            child: AuthForm(
+              onAuthSuccess: () {
+                Navigator.of(context).pop();
+                _nextStep();
+              },
+            ),
           ),
         );
       },
@@ -176,6 +158,127 @@ class _SetupScreenState extends State<SetupScreen> {
     return const Scaffold(
       body: Center(
         child: CircularProgressIndicator(),
+      ),
+    );
+  }
+}
+
+class AuthForm extends StatefulWidget {
+  final VoidCallback onAuthSuccess;
+
+  const AuthForm({super.key, required this.onAuthSuccess});
+
+  @override
+  State<AuthForm> createState() => _AuthFormState();
+}
+
+class _AuthFormState extends State<AuthForm> {
+  final _formKey = GlobalKey<FormState>();
+  bool _isLogin = true;
+  String _email = '';
+  String _password = '';
+  String? _error;
+
+  void _trySubmit() async {
+    final isValid = _formKey.currentState!.validate();
+    FocusScope.of(context).unfocus();
+
+    if (isValid) {
+      _formKey.currentState!.save();
+      final authService = context.read<AuthService>();
+      final messenger = ScaffoldMessenger.of(context);
+      try {
+        if (_isLogin) {
+          await authService.signInWithEmailAndPassword(_email, _password);
+        } else {
+          await authService.createUserWithEmailAndPassword(_email, _password);
+        }
+        widget.onAuthSuccess();
+      } catch (e) {
+        setState(() {
+          _error = e.toString();
+        });
+        messenger.showSnackBar(
+          SnackBar(content: Text(_error!)),
+        );
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Form(
+      key: _formKey,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: <Widget>[
+          TextFormField(
+            key: const ValueKey('email'),
+            validator: (value) {
+              if (value!.isEmpty || !value.contains('@')) {
+                return 'Please enter a valid email address.';
+              }
+              return null;
+            },
+            onSaved: (value) {
+              _email = value!;
+            },
+            keyboardType: TextInputType.emailAddress,
+            decoration: const InputDecoration(
+              labelText: 'Email address',
+            ),
+          ),
+          TextFormField(
+            key: const ValueKey('password'),
+            validator: (value) {
+              if (value!.isEmpty || value.length < 7) {
+                return 'Password must be at least 7 characters long.';
+              }
+              return null;
+            },
+            onSaved: (value) {
+              _password = value!;
+            },
+            obscureText: true,
+            decoration: const InputDecoration(
+              labelText: 'Password',
+            ),
+          ),
+          const SizedBox(height: 12),
+          ElevatedButton(
+            onPressed: _trySubmit,
+            child: Text(_isLogin ? 'Login' : 'Signup'),
+          ),
+          TextButton(
+            child: Text(_isLogin ? 'Create new account' : 'I already have an account'),
+            onPressed: () {
+              setState(() {
+                _isLogin = !_isLogin;
+                _error = null;
+              });
+            },
+          ),
+          const Divider(),
+          ElevatedButton.icon(
+            onPressed: () async {
+              final authService = context.read<AuthService>();
+              final messenger = ScaffoldMessenger.of(context);
+              try {
+                await authService.signInWithGoogle();
+                widget.onAuthSuccess();
+              } catch (e) {
+                messenger.showSnackBar(
+                  SnackBar(content: Text(e.toString())),
+                );
+              }
+            },
+            icon: Image.asset(
+              'assets/google_logo.png',
+              height: 24.0,
+            ),
+            label: const Text('Sign in with Google'),
+          ),
+        ],
       ),
     );
   }
