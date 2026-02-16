@@ -20,8 +20,9 @@ class MapScreen extends StatefulWidget {
 }
 
 class _MapScreenState extends State<MapScreen> {
+  late final EarthquakeProvider _earthquakeProvider;
+  late final LocationProvider _locationProvider;
   List<Marker> _markers = [];
-  late EarthquakeProvider _earthquakeProvider;
   List<Polygon> _plates = [];
   List<Polyline> _faults = [];
   final MapController _mapController = MapController();
@@ -29,16 +30,29 @@ class _MapScreenState extends State<MapScreen> {
   @override
   void initState() {
     super.initState();
-    _earthquakeProvider = Provider.of<EarthquakeProvider>(context, listen: false);
+    _earthquakeProvider = context.read<EarthquakeProvider>();
+    _locationProvider = context.read<LocationProvider>();
     _earthquakeProvider.addListener(_updateMarkers);
-    _updateMarkers(); // Initial update
+    _locationProvider.addListener(_updateMapCenter);
+    _updateMarkers();
     _loadGeoJson();
   }
 
   @override
   void dispose() {
     _earthquakeProvider.removeListener(_updateMarkers);
+    _locationProvider.removeListener(_updateMapCenter);
     super.dispose();
+  }
+
+  void _updateMapCenter() {
+    final currentPosition = _locationProvider.currentPosition;
+    if (currentPosition != null) {
+      _mapController.move(
+        latlong.LatLng(currentPosition.latitude, currentPosition.longitude),
+        _mapController.camera.zoom,
+      );
+    }
   }
 
   Future<void> _loadGeoJson() async {
@@ -54,13 +68,13 @@ class _MapScreenState extends State<MapScreen> {
 
     setState(() {
       _plates = platesFeatures.map((feature) {
-        final coordinates = feature['geometry']['coordinates'] as List;
-        final points = coordinates[0].map<latlong.LatLng>((coords) {
+        final coordinates = feature['geometry']['coordinates'][0] as List;
+        final points = coordinates.map<latlong.LatLng>((coords) {
           return latlong.LatLng(coords[1], coords[0]);
         }).toList();
         return Polygon(
           points: points,
-          color: Colors.red.withAlpha((255 * 0.2).round()),
+          color: Colors.red.withOpacity(0.2),
           borderColor: Colors.red,
           borderStrokeWidth: 1,
         );
@@ -79,7 +93,7 @@ class _MapScreenState extends State<MapScreen> {
           );
         }
         return null;
-      }).where((p) => p != null).cast<Polyline>().toList();
+      }).whereType<Polyline>().toList();
     });
   }
 
@@ -94,9 +108,7 @@ class _MapScreenState extends State<MapScreen> {
           height: 80.0,
           point: latlong.LatLng(earthquake.latitude, earthquake.longitude),
           child: GestureDetector(
-            onTap: () {
-              context.go('/details/${earthquake.id}', extra: earthquake);
-            },
+            onTap: () => context.go('/details/${earthquake.id}', extra: earthquake),
             child: Tooltip(
               message: 'Magnitude: ${earthquake.magnitude}',
               child: Icon(
@@ -112,7 +124,6 @@ class _MapScreenState extends State<MapScreen> {
   }
 
   double _getMarkerSize(double magnitude) {
-    if (magnitude < 0) return 5;
     if (magnitude < 3.0) return 10;
     if (magnitude < 5.0) return 20;
     if (magnitude < 7.0) return 30;
@@ -120,36 +131,18 @@ class _MapScreenState extends State<MapScreen> {
   }
 
   Color _getMarkerColorForMagnitude(double magnitude) {
-    if (magnitude < 3.0) {
-      return Colors.green.withAlpha(179);
-    } else if (magnitude < 5.0) {
-      return Colors.yellow.withAlpha(179);
-    } else if (magnitude < 7.0) {
-      return Colors.orange.withAlpha(179);
-    } else {
-      return Colors.red.withAlpha(179);
-    }
+    if (magnitude < 3.0) return Colors.green.withOpacity(0.7);
+    if (magnitude < 5.0) return Colors.yellow.withOpacity(0.7);
+    if (magnitude < 7.0) return Colors.orange.withOpacity(0.7);
+    return Colors.red.withOpacity(0.7);
   }
 
-  @override
-  Widget build(BuildContext context) {
-    final locationProvider = Provider.of<LocationProvider>(context);
-    final currentPosition = locationProvider.currentPosition;
-
-    latlong.LatLng initialCenter;
-    if (currentPosition != null) {
-      initialCenter = latlong.LatLng(currentPosition.latitude, currentPosition.longitude);
-    } else {
-      return const Center(
-        child: CircularProgressIndicator(),
-      );
-    }
-
+  Widget _buildMap(latlong.LatLng initialCenter) {
     return FlutterMap(
       mapController: _mapController,
       options: MapOptions(
         initialCenter: initialCenter,
-        initialZoom: 1,
+        initialZoom: 5,
       ),
       children: [
         TileLayer(
@@ -158,35 +151,71 @@ class _MapScreenState extends State<MapScreen> {
         ),
         PolygonLayer(polygons: _plates),
         PolylineLayer(polylines: _faults),
-        MarkerLayer(
-          markers: _markers,
-        ),
-        RichText(
-          text: TextSpan(
-            children: [
-              const TextSpan(
-                text: '© ',
-                style: TextStyle(color: Colors.black),
-              ),
-              TextSpan(
-                text: 'OpenStreetMap',
-                style: const TextStyle(
-                  color: Colors.blue,
-                  decoration: TextDecoration.underline,
+        MarkerLayer(markers: _markers),
+        AttributionWidget(
+          attributionBuilder: (_) => Align(
+            alignment: Alignment.bottomRight,
+            child: ColoredBox(
+              color: Colors.white.withOpacity(0.8),
+              child: Padding(
+                padding: const EdgeInsets.all(2),
+                child: RichText(
+                  text: TextSpan(
+                    children: [
+                      const TextSpan(
+                        text: '© ',
+                        style: TextStyle(color: Colors.black),
+                      ),
+                      TextSpan(
+                        text: 'OpenStreetMap',
+                        style: const TextStyle(
+                          color: Colors.blue,
+                          decoration: TextDecoration.underline,
+                        ),
+                        recognizer: TapGestureRecognizer()
+                          ..onTap = () => launchUrl(
+                            Uri.parse('https://www.openstreetmap.org/copyright'),
+                          ),
+                      ),
+                      const TextSpan(
+                        text: ' contributors',
+                        style: TextStyle(color: Colors.black),
+                      ),
+                    ],
+                  ),
                 ),
-                recognizer: TapGestureRecognizer()
-                  ..onTap = () {
-                    launchUrl(Uri.parse('https://www.openstreetmap.org/copyright'));
-                  },
               ),
-              const TextSpan(
-                text: ' contributors',
-                style: TextStyle(color: Colors.black),
-              ),
-            ],
+            ),
           ),
         ),
       ],
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Consumer<LocationProvider>(
+      builder: (context, locationProvider, child) {
+        final currentPosition = locationProvider.currentPosition;
+        if (currentPosition != null) {
+          return _buildMap(
+            latlong.LatLng(currentPosition.latitude, currentPosition.longitude),
+          );
+        } else {
+          return const Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                CircularProgressIndicator(),
+                SizedBox(height: 16),
+                Text('Waiting for location data...'),
+                SizedBox(height: 8),
+                Text('Please ensure location services are enabled.'),
+              ],
+            ),
+          );
+        }
+      },
     );
   }
 }
