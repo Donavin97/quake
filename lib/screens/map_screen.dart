@@ -1,6 +1,5 @@
 import 'dart:convert';
 
-import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_map/flutter_map.dart';
@@ -74,7 +73,7 @@ class _MapScreenState extends State<MapScreen> {
         }).toList();
         return Polygon(
           points: points,
-          color: Colors.red.withOpacity(0.2),
+          color: const Color.fromRGBO(255, 0, 0, 0.2),
           borderColor: Colors.red,
           borderStrokeWidth: 1,
         );
@@ -131,10 +130,10 @@ class _MapScreenState extends State<MapScreen> {
   }
 
   Color _getMarkerColorForMagnitude(double magnitude) {
-    if (magnitude < 3.0) return Colors.green.withOpacity(0.7);
-    if (magnitude < 5.0) return Colors.yellow.withOpacity(0.7);
-    if (magnitude < 7.0) return Colors.orange.withOpacity(0.7);
-    return Colors.red.withOpacity(0.7);
+    if (magnitude < 3.0) return const Color.fromRGBO(76, 175, 80, 0.7);
+    if (magnitude < 5.0) return const Color.fromRGBO(255, 235, 59, 0.7);
+    if (magnitude < 7.0) return const Color.fromRGBO(255, 152, 0, 0.7);
+    return const Color.fromRGBO(244, 67, 54, 0.7);
   }
 
   Widget _buildMap(latlong.LatLng initialCenter) {
@@ -152,41 +151,13 @@ class _MapScreenState extends State<MapScreen> {
         PolygonLayer(polygons: _plates),
         PolylineLayer(polylines: _faults),
         MarkerLayer(markers: _markers),
-        AttributionWidget(
-          attributionBuilder: (_) => Align(
-            alignment: Alignment.bottomRight,
-            child: ColoredBox(
-              color: Colors.white.withOpacity(0.8),
-              child: Padding(
-                padding: const EdgeInsets.all(2),
-                child: RichText(
-                  text: TextSpan(
-                    children: [
-                      const TextSpan(
-                        text: '© ',
-                        style: TextStyle(color: Colors.black),
-                      ),
-                      TextSpan(
-                        text: 'OpenStreetMap',
-                        style: const TextStyle(
-                          color: Colors.blue,
-                          decoration: TextDecoration.underline,
-                        ),
-                        recognizer: TapGestureRecognizer()
-                          ..onTap = () => launchUrl(
-                            Uri.parse('https://www.openstreetmap.org/copyright'),
-                          ),
-                      ),
-                      const TextSpan(
-                        text: ' contributors',
-                        style: TextStyle(color: Colors.black),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
+        RichAttributionWidget(
+          attributions: [
+            TextSourceAttribution(
+              'OpenStreetMap contributors',
+              onTap: () => launchUrl(Uri.parse('https://openstreetmap.org/copyright')),
             ),
-          ),
+          ],
         ),
       ],
     );
