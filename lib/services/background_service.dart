@@ -75,13 +75,16 @@ class BackgroundService {
     );
 
     // Setup FCM
-    await _firebaseMessaging.requestPermission();
     FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
 
     // Handle foreground messages
     FirebaseMessaging.onMessage.listen((RemoteMessage message) {
       showNotification(message);
     });
+  }
+
+  static Future<void> requestPermission() async {
+    await _firebaseMessaging.requestPermission();
   }
 
   static Future<void> showNotification(RemoteMessage message) async {

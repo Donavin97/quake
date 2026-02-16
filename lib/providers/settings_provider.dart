@@ -1,26 +1,22 @@
-import 'package:dart_geohash/dart_geohash.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
-import 'package:geolocator/geolocator.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
 
 import '../models/time_window.dart';
-import '../services/location_service.dart';
+import '../services/background_service.dart';
 import '../services/user_service.dart';
 
 class SettingsProvider with ChangeNotifier {
-  final UserService _userService = UserService();
-  final LocationService _locationService = LocationService();
-  final FirebaseAuth _auth = FirebaseAuth.instance;
-  final FirebaseMessaging _messaging = FirebaseMessaging.instance;
+  final _auth = FirebaseAuth.instance;
+  final _userService = UserService();
 
-  ThemeMode _themeMode = ThemeMode.system;
-  TimeWindow _timeWindow = TimeWindow.day;
-  int _minMagnitude = 0;
-  bool _notificationsEnabled = true;
-  double _radius = 0.0;
-  String _earthquakeProvider = 'usgs';
-  Set<String> _subscribedTopics = {};
+  var _themeMode = ThemeMode.system;
+  var _timeWindow = TimeWindow.day;
+  var _minMagnitude = 0;
+  var _notificationsEnabled = true;
+  var _radius = 2000.0;
+  var _earthquakeProvider = 'usgs';
+  var _subscribedTopics = <String>{};
 
   ThemeMode get themeMode => _themeMode;
   TimeWindow get timeWindow => _timeWindow;
@@ -60,7 +56,7 @@ class SettingsProvider with ChangeNotifier {
   Future<void> _savePreferences() async {
     final user = _auth.currentUser;
     if (user != null) {
-      final preferences = {
+      await _userService.saveUserPreferences(user.uid, {
         'themeMode': _themeMode.index,
         'timeWindow': _timeWindow.index,
         'minMagnitude': _minMagnitude,
@@ -68,92 +64,89 @@ class SettingsProvider with ChangeNotifier {
         'radius': _radius,
         'earthquakeProvider': _earthquakeProvider,
         'subscribedTopics': _subscribedTopics.toList(),
-      };
-      Position? position;
-      if (_radius > 0) {
-        try {
-          position = await _locationService.getCurrentPosition();
-        } catch (e) {
-          // Handle location errors
-        }
-      }
-      await _userService.saveUserPreferences(user.uid, preferences,
-          position: position);
+      });
     }
   }
 
-  Future<void> setThemeMode(ThemeMode value) async {
-    _themeMode = value;
+  Future<void> setThemeMode(ThemeMode mode) async {
+    _themeMode = mode;
     await _savePreferences();
     notifyListeners();
   }
 
-  Future<void> setTimeWindow(TimeWindow value) async {
-    _timeWindow = value;
+  Future<void> setTimeWindow(TimeWindow window) async {
+    _timeWindow = window;
     await _savePreferences();
     notifyListeners();
   }
 
-  Future<void> setMinMagnitude(int value) async {
-    _minMagnitude = value;
-    await _savePreferences();
-    await _updateSubscriptions();
-    notifyListeners();
-  }
-
-  Future<void> setNotificationsEnabled(bool value) async {
-    _notificationsEnabled = value;
+  Future<void> setMinMagnitude(int magnitude) async {
+    _minMagnitude = magnitude;
     await _savePreferences();
     await _updateSubscriptions();
     notifyListeners();
   }
 
-  Future<void> setRadius(double value) async {
-    _radius = value;
+  Future<void> setNotificationsEnabled(bool enabled) async {
+    _notificationsEnabled = enabled;
     await _savePreferences();
-    await _updateSubscriptions();
+    if (enabled) {
+      await BackgroundService.requestPermission();
+      await _updateSubscriptions();
+    } else {
+      await _unsubscribeFromAllTopics();
+    }
     notifyListeners();
   }
 
-  Future<void> setEarthquakeProvider(String value) async {
-    _earthquakeProvider = value;
+  Future<void> setRadius(double radius) async {
+    _radius = radius;
+    await _savePreferences();
+    notifyListeners();
+  }
+
+  Future<void> setEarthquakeProvider(String provider) async {
+    _earthquakeProvider = provider;
     await _savePreferences();
     notifyListeners();
   }
 
   Future<void> _updateSubscriptions() async {
-    // Unsubscribe from old topics
+    if (!_notificationsEnabled) return;
+
+    final newTopics = {
+      if (_minMagnitude >= 0) 'magnitude_0',
+      if (_minMagnitude >= 1) 'magnitude_1',
+      if (_minMagnitude >= 2) 'magnitude_2',
+      if (_minMagnitude >= 3) 'magnitude_3',
+      if (_minMagnitude >= 4) 'magnitude_4',
+      if (_minMagnitude >= 5) 'magnitude_5',
+      if (_minMagnitude >= 6) 'magnitude_6',
+      if (_minMagnitude >= 7) 'magnitude_7',
+      if (_minMagnitude >= 8) 'magnitude_8',
+    };
+
+    final toAdd = newTopics.difference(_subscribedTopics);
+    final toRemove = _subscribedTopics.difference(newTopics);
+
+    for (final topic in toAdd) {
+      await FirebaseMessaging.instance.subscribeToTopic(topic);
+      _subscribedTopics.add(topic);
+    }
+
+    for (final topic in toRemove) {
+      await FirebaseMessaging.instance.unsubscribeFromTopic(topic);
+      _subscribedTopics.remove(topic);
+    }
+
+    await _savePreferences();
+  }
+
+  Future<void> _unsubscribeFromAllTopics() async {
     for (final topic in _subscribedTopics) {
-      await _messaging.unsubscribeFromTopic(topic);
+      await FirebaseMessaging.instance.unsubscribeFromTopic(topic);
     }
     _subscribedTopics.clear();
-
-    if (!_notificationsEnabled) {
-      await _savePreferences();
-      return;
-    }
-
-    // Subscribe to magnitude topic
-    final magnitudeTopic = 'minmag_$_minMagnitude';
-    await _messaging.subscribeToTopic(magnitudeTopic);
-    _subscribedTopics.add(magnitudeTopic);
-
-    if (_radius > 0) {
-      // Subscribe to location-based topics
-      Position? position;
-      try {
-        position = await _locationService.getCurrentPosition();
-        final geohasher = GeoHasher();
-        for (var precision = 1; precision <= 5; precision++) {
-          final geohash = geohasher.encode(position.longitude, position.latitude,
-              precision: precision);
-          await _messaging.subscribeToTopic(geohash);
-          _subscribedTopics.add(geohash);
-        }
-      } catch (e) {
-        // Handle location errors
-      }
-    }
     await _savePreferences();
   }
 }

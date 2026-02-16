@@ -32,6 +32,8 @@ void main() async {
     Hive.registerAdapter(EarthquakeSourceAdapter());
     await Hive.openBox<Earthquake>('earthquakes');
 
+    await BackgroundService.initialize();
+
     final settingsService = SettingsService();
     final minMagnitude = await settingsService.getMinMagnitude();
     await settingsService.subscribeToTopic(minMagnitude);
