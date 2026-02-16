@@ -121,15 +121,14 @@ class SettingsProvider with ChangeNotifier {
     if (!_notificationsEnabled) return;
 
     final newTopics = <String>{'global'};
-    for (var i = _minMagnitude; i <= 8; i++) {
-      newTopics.add('magnitude_$i');
-    }
+    
+    newTopics.add('minmag_$_minMagnitude');
 
     final position = _locationProvider.currentPosition;
     if (position != null) {
       final geohash = GeoHasher().encode(position.longitude, position.latitude);
-      for (int i = 4; i <= 6; i++) {
-        newTopics.add('geohash_${geohash.substring(0, i)}');
+      for (int i = 1; i <= 5; i++) {
+        newTopics.add(geohash.substring(0, i));
       }
     }
 
