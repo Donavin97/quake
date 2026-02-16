@@ -1,14 +1,17 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:dart_geohash/dart_geohash.dart';
 
 import '../models/time_window.dart';
 import '../services/background_service.dart';
 import '../services/user_service.dart';
+import 'location_provider.dart';
 
 class SettingsProvider with ChangeNotifier {
   final _auth = FirebaseAuth.instance;
   final _userService = UserService();
+  final LocationProvider _locationProvider;
 
   var _themeMode = ThemeMode.system;
   var _timeWindow = TimeWindow.day;
@@ -25,12 +28,15 @@ class SettingsProvider with ChangeNotifier {
   double get radius => _radius;
   String get earthquakeProvider => _earthquakeProvider;
 
-  SettingsProvider() {
+  SettingsProvider(this._locationProvider) {
     _loadPreferences();
     _auth.userChanges().listen((user) {
       if (user != null) {
         _loadPreferences();
       }
+    });
+    _locationProvider.locationStream.listen((_) {
+      _updateSubscriptions();
     });
   }
 
@@ -114,17 +120,18 @@ class SettingsProvider with ChangeNotifier {
   Future<void> _updateSubscriptions() async {
     if (!_notificationsEnabled) return;
 
-    final newTopics = {
-      if (_minMagnitude >= 0) 'magnitude_0',
-      if (_minMagnitude >= 1) 'magnitude_1',
-      if (_minMagnitude >= 2) 'magnitude_2',
-      if (_minMagnitude >= 3) 'magnitude_3',
-      if (_minMagnitude >= 4) 'magnitude_4',
-      if (_minMagnitude >= 5) 'magnitude_5',
-      if (_minMagnitude >= 6) 'magnitude_6',
-      if (_minMagnitude >= 7) 'magnitude_7',
-      if (_minMagnitude >= 8) 'magnitude_8',
-    };
+    final newTopics = <String>{'global'};
+    for (var i = _minMagnitude; i <= 8; i++) {
+      newTopics.add('magnitude_$i');
+    }
+
+    final position = _locationProvider.currentPosition;
+    if (position != null) {
+      final geohash = GeoHasher().encode(position.longitude, position.latitude);
+      for (int i = 4; i <= 6; i++) {
+        newTopics.add('geohash_${geohash.substring(0, i)}');
+      }
+    }
 
     final toAdd = newTopics.difference(_subscribedTopics);
     final toRemove = _subscribedTopics.difference(newTopics);

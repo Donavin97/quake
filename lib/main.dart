@@ -18,7 +18,6 @@ import 'providers/user_provider.dart';
 import 'routes.dart';
 import 'services/navigation_service.dart';
 import 'services/services.dart';
-import 'services/settings_service.dart';
 import 'theme.dart';
 
 void main() async {
@@ -33,10 +32,6 @@ void main() async {
     await Hive.openBox<Earthquake>('earthquakes');
 
     await BackgroundService.initialize();
-
-    final settingsService = SettingsService();
-    final minMagnitude = await settingsService.getMinMagnitude();
-    await settingsService.subscribeToTopic(minMagnitude);
 
     final NotificationAppLaunchDetails? notificationAppLaunchDetails =
         await FlutterLocalNotificationsPlugin().getNotificationAppLaunchDetails();
@@ -68,7 +63,7 @@ class MyApp extends StatelessWidget {
           create: (context) => LocationProvider(),
         ),
         ChangeNotifierProvider(
-          create: (context) => SettingsProvider(),
+          create: (context) => SettingsProvider(context.read<LocationProvider>()),
         ),
         ChangeNotifierProvider(
           create: (context) => DisclaimerProvider(),
