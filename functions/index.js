@@ -70,16 +70,17 @@ const sendNotification = async (earthquake) => {
       .where('preferences.minMagnitude', '<=', earthquakeMagnitude)
       .get();
 
-    const recipientTokens = [];
+    const recipientTokens = []; // Will store objects { token: fcmToken, userId: userId }
 
     usersSnapshot.forEach(doc => {
       const userData = doc.data();
       const preferences = userData.preferences;
       const fcmToken = userData.fcmToken;
       const userLocation = userData.location; // User's last known location
+      const userId = doc.id; // Get userId here
 
       if (!fcmToken) {
-        console.log(`User ${doc.id} has no FCM token. Skipping.`);
+        console.log(`User ${userId} has no FCM token. Skipping.`);
         return;
       }
 
@@ -93,7 +94,7 @@ const sendNotification = async (earthquake) => {
       //    A value of 0.0 means this override is disabled.
       if (preferences.globalMinMagnitudeOverrideQuietHours > 0 && earthquakeMagnitude >= preferences.globalMinMagnitudeOverrideQuietHours) {
         shouldSendNotification = true;
-        console.log(`User ${doc.id}: Global magnitude override met (Mag ${earthquakeMagnitude} >= ${preferences.globalMinMagnitudeOverrideQuietHours}).`);
+        console.log(`User ${userId}: Global magnitude override met (Mag ${earthquakeMagnitude} >= ${preferences.globalMinMagnitudeOverrideQuietHours}).`);
       }
 
       // 2. Check for Always Notify Radius (always notify if within X km)
@@ -102,9 +103,9 @@ const sendNotification = async (earthquake) => {
         const distance = getDistance(userLocation.latitude, userLocation.longitude, earthquakeLatitude, earthquakeLongitude);
         if (distance <= preferences.alwaysNotifyRadiusValue) {
           shouldSendNotification = true;
-          console.log(`User ${doc.id}: Always notify radius met (Distance ${distance} km <= ${preferences.alwaysNotifyRadiusValue} km).`);
+          console.log(`User ${userId}: Always notify radius met (Distance ${distance} km <= ${preferences.alwaysNotifyRadiusValue} km).`);
         } else {
-            console.log(`User ${doc.id}: Always notify radius enabled, but not within radius. Distance: ${distance} km, Radius: ${preferences.alwaysNotifyRadiusValue} km.`);
+            console.log(`User ${userId}: Always notify radius enabled, but not within radius. Distance: ${distance} km, Radius: ${preferences.alwaysNotifyRadiusValue} km.`);
         }
       }
 
@@ -118,23 +119,23 @@ const sendNotification = async (earthquake) => {
             const distance = getDistance(userLocation.latitude, userLocation.longitude, earthquakeLatitude, earthquakeLongitude);
             if (distance <= preferences.emergencyRadius) {
               shouldSendNotification = true; // Emergency override
-              console.log(`User ${doc.id}: Emergency override during quiet hours. Mag ${earthquakeMagnitude} >= ${preferences.emergencyMagnitudeThreshold} AND distance ${distance} km <= ${preferences.emergencyRadius} km.`);
+              console.log(`User ${userId}: Emergency override during quiet hours. Mag ${earthquakeMagnitude} >= ${preferences.emergencyMagnitudeThreshold} AND distance ${distance} km <= ${preferences.emergencyRadius} km.`);
             } else {
-              console.log(`User ${doc.id}: Emergency magnitude met during quiet hours but not within emergency radius. Distance: ${distance} km, Radius: ${preferences.emergencyRadius} km.`);
+              console.log(`User ${userId}: Emergency magnitude met during quiet hours but not within emergency radius. Distance: ${distance} km, Radius: ${preferences.emergencyRadius} km.`);
             }
           } else {
-             console.log(`User ${doc.id}: During quiet hours. Emergency magnitude (${earthquakeMagnitude}) not met (${preferences.emergencyMagnitudeThreshold}) or location unavailable.`);
+             console.log(`User ${userId}: During quiet hours. Emergency magnitude (${earthquakeMagnitude}) not met (${preferences.emergencyMagnitudeThreshold}) or location unavailable.`);
           }
         } else {
           // Not in quiet hours, general notification is allowed
           shouldSendNotification = true;
-          console.log(`User ${doc.id}: Not during quiet hours. General notification sent.`);
+          console.log(`User ${userId}: Not during quiet hours. General notification sent.`);
         }
       }
 
       // Final decision to send based on all criteria
       if (shouldSendNotification) {
-        recipientTokens.push(fcmToken);
+        recipientTokens.push({ token: fcmToken, userId: userId }); // Push object
       }
     });
 
@@ -163,7 +164,7 @@ const sendNotification = async (earthquake) => {
 
     // Send messages in batches
     const response = await admin.messaging().sendEachForMulticast({
-      tokens: recipientTokens,
+      tokens: tokensOnly,
       data: messagePayload.data,
       android: messagePayload.android,
       apns: messagePayload.apns
@@ -172,10 +173,22 @@ const sendNotification = async (earthquake) => {
     console.log(`Notifications sent successfully for earthquake ${earthquake.id}: ${response.successCount} successful, ${response.failureCount} failed.`);
 
     if (response.failureCount > 0) {
-      response.responses.forEach((resp, idx) => {
+      response.responses.forEach(async (resp, idx) => { // Use async here
         if (!resp.success) {
-          console.error(`Failed to send message to token ${recipientTokens[idx]}: ${resp.error}`);
-          // TODO: Optionally remove invalid tokens from Firestore
+          const invalidToken = recipientTokens[idx].token;
+          const invalidUserId = recipientTokens[idx].userId;
+          console.error(`Failed to send message to user ${invalidUserId} with token ${invalidToken}: ${resp.error}`);
+
+          // Check if error indicates an invalid or expired token
+          if (resp.error.code === 'messaging/invalid-registration-token' ||
+              resp.error.code === 'messaging/registration-token-not-registered' ||
+              resp.error.code === 'messaging/unregistered') { // Added 'messaging/unregistered' for completeness
+            console.log(`Removing invalid FCM token for user ${invalidUserId}.`);
+            // Remove the token from Firestore document
+            await admin.firestore().collection('users').doc(invalidUserId).update({
+              fcmToken: admin.firestore.FieldValue.delete() // Remove the field
+            });
+          }
         }
       });
     }
