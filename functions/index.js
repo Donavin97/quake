@@ -91,46 +91,50 @@ const createEarthquakeNotifier = (source, apiUrl, dataTransformer) => {
   });
 };
 
-
-exports.usgsNotifier = createEarthquakeNotifier(
-  'usgs',
-  'https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/all_hour.geojson',
-  (data) => {
-    return data.features.map(earthquake => {
-      const { properties, geometry, id } = earthquake;
-      const { mag, place, time } = properties;
-      const [longitude, latitude] = geometry.coordinates;
-      return {
-        id: id,
-        magnitude: mag,
-        place: place,
-        time: time,
-        latitude: latitude,
-        longitude: longitude,
-        source: 'USGS',
-      };
-    });
+const sources = [
+  {
+    name: 'usgs',
+    url: 'https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/all_hour.geojson',
+    transformer: (data) => {
+      return data.features.map(earthquake => {
+        const { properties, geometry, id } = earthquake;
+        const { mag, place, time } = properties;
+        const [longitude, latitude] = geometry.coordinates;
+        return {
+          id: id,
+          magnitude: mag,
+          place: place,
+          time: time,
+          latitude: latitude,
+          longitude: longitude,
+          source: 'USGS',
+        };
+      });
+    }
+  },
+  {
+    name: 'emsc',
+    url: 'https://www.seismicportal.eu/fdsnws/event/1/query?format=json&limit=50&nodata=404',
+    transformer: (data) => {
+      return data.features.map(earthquake => {
+        const { properties, geometry, id } = earthquake;
+        const { mag, flynn_region, time } = properties;
+        const [longitude, latitude] = geometry.coordinates;
+        const timeInMillis = Date.parse(time);
+        return {
+          id: id,
+          magnitude: mag,
+          place: flynn_region,
+          time: timeInMillis,
+          latitude: latitude,
+          longitude: longitude,
+          source: 'EMSC'
+        };
+      });
+    }
   }
-);
+];
 
-exports.emscNotifier = createEarthquakeNotifier(
-  'emsc',
-  'https://www.seismicportal.eu/fdsnws/event/1/query?format=json&limit=50&nodata=404',
-  (data) => {
-    return data.features.map(earthquake => {
-      const { properties, geometry, id } = earthquake;
-      const { mag, flynn_region, time } = properties;
-      const [longitude, latitude] = geometry.coordinates;
-      const timeInMillis = Date.parse(time);
-      return {
-        id: id,
-        magnitude: mag,
-        place: flynn_region,
-        time: timeInMillis,
-        latitude: latitude,
-        longitude: longitude,
-        source: 'EMSC'
-      };
-    });
-  }
-);
+sources.forEach(source => {
+  exports[`${source.name}Notifier`] = createEarthquakeNotifier(source.name, source.url, source.transformer);
+});

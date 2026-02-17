@@ -8,14 +8,17 @@ import '../models/earthquake.dart';
 import '../models/sort_criterion.dart';
 import '../models/time_window.dart';
 import '../services/api_service.dart';
+import '../services/websocket_service.dart'; // Import WebSocketService
 import 'location_provider.dart';
 import 'settings_provider.dart';
 
 class EarthquakeProvider with ChangeNotifier {
   final ApiService _apiService = ApiService();
+  final WebSocketService _webSocketService = WebSocketService(); // Instantiate WebSocketService
   final LocationProvider _locationProvider;
   late SettingsProvider _settingsProvider;
   StreamSubscription<Position>? _locationSubscription;
+  StreamSubscription<Earthquake>? _websocketSubscription; // Add WebSocket subscription
 
   List<Earthquake> _earthquakes = [];
   String? _error;
@@ -35,6 +38,7 @@ class EarthquakeProvider with ChangeNotifier {
 
   void _init() async {
     _locationSubscription?.cancel();
+    _websocketSubscription?.cancel(); // Cancel previous WebSocket subscription
 
     // Load initial data from Hive
     _earthquakes = _earthquakeBox.values.toList();
@@ -73,6 +77,24 @@ class EarthquakeProvider with ChangeNotifier {
       _sort();
       notifyListeners();
     });
+
+    // Subscribe to WebSocket stream
+    _websocketSubscription = _webSocketService.earthquakeStream.listen((newEarthquake) {
+      _addNewEarthquake(newEarthquake);
+    });
+  }
+
+  void _addNewEarthquake(Earthquake newEarthquake) async {
+    // Prevent duplicates
+    if (!_earthquakes.any((eq) => eq.id == newEarthquake.id)) {
+      _earthquakes.add(newEarthquake);
+      _updateDistances();
+      _earthquakes = _filterEarthquakes(_earthquakes); // Apply filters to the new earthquake
+      _sort();
+      await _earthquakeBox.put(newEarthquake.id, newEarthquake); // Add to Hive
+      _lastUpdated = DateTime.now(); // Update last updated time
+      notifyListeners();
+    }
   }
 
   void refresh() {
@@ -98,6 +120,10 @@ class EarthquakeProvider with ChangeNotifier {
         return false;
       }
 
+      // Magnitude filter (from settings provider)
+      if (earthquake.magnitude < _settingsProvider.minMagnitude) {
+        return false;
+      }
       return true;
     }).toList();
   }
@@ -160,6 +186,8 @@ class EarthquakeProvider with ChangeNotifier {
   @override
   void dispose() {
     _locationSubscription?.cancel();
+    _websocketSubscription?.cancel(); // Cancel WebSocket subscription
+    _webSocketService.dispose(); // Dispose WebSocketService
     super.dispose();
   }
 }
