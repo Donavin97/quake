@@ -61,7 +61,7 @@ class _QuietSettingsScreenState extends State<QuietSettingsScreen> {
       appBar: AppBar(
         title: const Text('Quiet Hours Settings'),
       ),
-      body: Padding(
+      body: SingleChildScrollView(
         padding: const EdgeInsets.all(16.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -220,7 +220,7 @@ class _QuietSettingsScreenState extends State<QuietSettingsScreen> {
                   ),
                 ],
               ),
-            const Spacer(),
+            const SizedBox(height: 24),
             Center(
               child: ElevatedButton(
                 onPressed: _applyQuietSettings,
