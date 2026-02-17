@@ -162,6 +162,8 @@ const sendNotification = async (earthquake) => {
       }
     };
 
+    const tokensOnly = recipientTokens.map(r => r.token); // Extract tokens for sendEachForMulticast
+
     // Send messages in batches
     const response = await admin.messaging().sendEachForMulticast({
       tokens: tokensOnly,
