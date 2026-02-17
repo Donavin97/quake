@@ -46,6 +46,8 @@ class EarthquakeProvider with ChangeNotifier {
     _sort();
     notifyListeners();
 
+    final List<Earthquake> newEarthquakesToAdd = []; // Declared here
+
     try {
       final position = _locationProvider.currentPosition;
       final allEarthquakes = await _apiService.fetchEarthquakes(
@@ -56,12 +58,26 @@ class EarthquakeProvider with ChangeNotifier {
         position?.longitude,
       );
 
-      _earthquakes = _filterEarthquakes(allEarthquakes);
+      // Merge new data with existing cached data
+      final Set<String> existingEarthquakeIds = _earthquakes.map((e) => e.id).toSet();
 
-      // Update Hive box
-      await _earthquakeBox.clear();
-      await _earthquakeBox.addAll(_earthquakes);
 
+      for (final earthquakeFromApi in allEarthquakes) {
+        if (!existingEarthquakeIds.contains(earthquakeFromApi.id)) {
+          newEarthquakesToAdd.add(earthquakeFromApi);
+        }
+      }
+
+      // Add new earthquakes to the main list and Hive
+      if (newEarthquakesToAdd.isNotEmpty) {
+        _earthquakes.addAll(newEarthquakesToAdd);
+        await _earthquakeBox.putAll(
+          {for (final eq in newEarthquakesToAdd) eq.id: eq},
+        );
+      }
+
+      // Re-apply filters, update distances, and sort to the combined list
+      _earthquakes = _filterEarthquakes(_earthquakes);
       _updateDistances();
       _sort();
       _lastUpdated = DateTime.now();
@@ -69,7 +85,11 @@ class EarthquakeProvider with ChangeNotifier {
     } catch (e) {
       _error = e.toString();
     } finally {
-      notifyListeners();
+      // Notify listeners only if there were actual changes or new data was fetched
+      // This helps prevent unnecessary UI rebuilds if only stale data was served
+      if (newEarthquakesToAdd.isNotEmpty || _error != null) { // Or if initial error happened
+        notifyListeners();
+      }
     }
 
     _locationSubscription = _locationProvider.locationStream.listen((position) {
