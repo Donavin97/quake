@@ -22,6 +22,8 @@ class _ListScreenState extends State<ListScreen> {
     return Scaffold(
       body: Column(
         children: [
+          if (earthquakeProvider.isProcessing)
+            const LinearProgressIndicator(minHeight: 2),
           if (earthquakeProvider.lastUpdated != null)
             Padding(
               padding: const EdgeInsets.all(8.0),

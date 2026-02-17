@@ -1,6 +1,6 @@
 import 'dart:async';
 
-import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:hive/hive.dart';
 
@@ -8,10 +8,27 @@ import '../models/earthquake.dart';
 import '../models/sort_criterion.dart';
 import '../models/time_window.dart';
 import '../services/api_service.dart';
-import '../services/background_service.dart'; // Import BackgroundService
-import '../services/websocket_service.dart'; // Import WebSocketService
+import '../services/background_service.dart';
+import '../services/websocket_service.dart';
 import 'location_provider.dart';
 import 'settings_provider.dart';
+
+/// Data class to pass parameters to the background Isolate
+class _ProcessingParams {
+  final List<Earthquake> earthquakes;
+  final Position? userPosition;
+  final TimeWindow timeWindow;
+  final int minMagnitude;
+  final SortCriterion sortCriterion;
+
+  _ProcessingParams({
+    required this.earthquakes,
+    required this.userPosition,
+    required this.timeWindow,
+    required this.minMagnitude,
+    required this.sortCriterion,
+  });
+}
 
 class EarthquakeProvider with ChangeNotifier {
   final ApiService _apiService = ApiService();
@@ -27,11 +44,13 @@ class EarthquakeProvider with ChangeNotifier {
   DateTime? _lastUpdated;
   SortCriterion _sortCriterion = SortCriterion.date;
   late Box<Earthquake> _earthquakeBox;
+  bool _isProcessing = false;
 
   List<Earthquake> get earthquakes => _earthquakes;
   String? get error => _error;
   DateTime? get lastUpdated => _lastUpdated;
   SortCriterion get sortCriterion => _sortCriterion;
+  bool get isProcessing => _isProcessing;
 
   EarthquakeProvider(this._settingsProvider, this._locationProvider) {
     _earthquakeBox = Hive.box<Earthquake>('earthquakes');
@@ -45,9 +64,7 @@ class EarthquakeProvider with ChangeNotifier {
 
     // Load initial data from Hive
     _earthquakes = _earthquakeBox.values.toList();
-    _updateDistances();
-    _sort();
-    notifyListeners();
+    await _processAndRefresh();
 
     final List<Earthquake> newEarthquakesToAdd = []; // Declared here
 
@@ -79,26 +96,22 @@ class EarthquakeProvider with ChangeNotifier {
         );
       }
 
-      // Re-apply filters, update distances, and sort to the combined list
-      _earthquakes = _filterEarthquakes(_earthquakes);
-      _updateDistances();
-      _sort();
+      // Perform background processing
+      await _processAndRefresh();
+      
       _lastUpdated = DateTime.now();
       _error = null;
     } catch (e) {
       _error = e.toString();
     } finally {
       // Notify listeners only if there were actual changes or new data was fetched
-      // This helps prevent unnecessary UI rebuilds if only stale data was served
-      if (newEarthquakesToAdd.isNotEmpty || _error != null) { // Or if initial error happened
+      if (newEarthquakesToAdd.isNotEmpty || _error != null) {
         notifyListeners();
       }
     }
 
     _locationSubscription = _locationProvider.locationStream.listen((position) {
-      _updateDistances();
-      _sort();
-      notifyListeners();
+      _processAndRefresh();
     });
 
     // Subscribe to WebSocket stream
@@ -112,79 +125,72 @@ class EarthquakeProvider with ChangeNotifier {
     });
   }
 
-  void _addNewEarthquake(Earthquake newEarthquake) async {
-    // Prevent duplicates
-    if (!_earthquakes.any((eq) => eq.id == newEarthquake.id)) {
-      _earthquakes.add(newEarthquake);
-      _updateDistances();
-      _earthquakes = _filterEarthquakes(_earthquakes); // Apply filters to the new earthquake
-      _sort();
-      await _earthquakeBox.put(newEarthquake.id, newEarthquake); // Add to Hive
-      _lastUpdated = DateTime.now(); // Update last updated time
+  /// High-level method to trigger Isolate-based processing
+  Future<void> _processAndRefresh() async {
+    if (_earthquakes.isEmpty) {
+      notifyListeners();
+      return;
+    }
+
+    _isProcessing = true;
+    notifyListeners();
+
+    try {
+      final params = _ProcessingParams(
+        earthquakes: _earthquakes,
+        userPosition: _locationProvider.currentPosition,
+        timeWindow: _settingsProvider.timeWindow,
+        minMagnitude: _settingsProvider.minMagnitude,
+        sortCriterion: _sortCriterion,
+      );
+
+      // OFF-LOAD TO BACKGROUND ISOLATE
+      _earthquakes = await compute(_backgroundProcessor, params);
+      
+    } catch (e) {
+      debugPrint('Background processing error: $e');
+    } finally {
+      _isProcessing = false;
       notifyListeners();
     }
   }
 
-  void refresh() {
-    _init();
-  }
+  /// Static entry point for the Isolate
+  /// This runs in a separate thread and does not block the UI
+  static List<Earthquake> _backgroundProcessor(_ProcessingParams params) {
+    List<Earthquake> list = List.from(params.earthquakes);
+    final now = DateTime.now();
 
-  List<Earthquake> _filterEarthquakes(List<Earthquake> earthquakes) {
-    return earthquakes.where((earthquake) {
-      final timeWindow = _settingsProvider.timeWindow;
-      final now = DateTime.now();
-
-      // Time window filter
-      if (timeWindow == TimeWindow.day &&
-          now.difference(earthquake.time).inDays > 1) {
-        return false;
-      }
-      if (timeWindow == TimeWindow.week &&
-          now.difference(earthquake.time).inDays > 7) {
-        return false;
-      }
-      if (timeWindow == TimeWindow.month &&
-          now.difference(earthquake.time).inDays > 30) {
-        return false;
-      }
-
-      // Magnitude filter (from settings provider)
-      if (earthquake.magnitude < _settingsProvider.minMagnitude) {
-        return false;
-      }
-      return true;
-    }).toList();
-  }
-
-  void _updateDistances() {
-    final position = _locationProvider.currentPosition;
-    if (position != null) {
-      for (final earthquake in _earthquakes) {
-        earthquake.distance = Geolocator.distanceBetween(
-          position.latitude,
-          position.longitude,
-          earthquake.latitude,
-          earthquake.longitude,
+    // 1. Calculate distances
+    if (params.userPosition != null) {
+      for (final eq in list) {
+        eq.distance = Geolocator.distanceBetween(
+          params.userPosition!.latitude,
+          params.userPosition!.longitude,
+          eq.latitude,
+          eq.longitude,
         );
       }
     }
-  }
 
-  void updateSettings(SettingsProvider newSettings) {
-    _settingsProvider = newSettings;
-    _init();
-  }
+    // 2. Filter
+    list = list.where((eq) {
+      // Time window
+      final diff = now.difference(eq.time).inDays;
+      if (params.timeWindow == TimeWindow.day && diff > 1) return false;
+      if (params.timeWindow == TimeWindow.week && diff > 7) return false;
+      if (params.timeWindow == TimeWindow.month && diff > 30) return false;
 
-  void setSortCriterion(SortCriterion criterion) {
-    _sortCriterion = criterion;
-    _sort();
-    notifyListeners();
-  }
+      // Magnitude
+      if (eq.magnitude < params.minMagnitude) return false;
 
-  void _sort() {
-    _earthquakes.sort((a, b) {
+      return true;
+    }).toList();
+
+    // 3. Sort
+    list.sort((a, b) {
       int comparison;
-      switch (_sortCriterion) {
+      switch (params.sortCriterion) {
         case SortCriterion.date:
           comparison = b.time.compareTo(a.time);
           break;
@@ -203,20 +209,42 @@ class EarthquakeProvider with ChangeNotifier {
           }
           break;
       }
-      if (comparison == 0) {
-        return b.time.compareTo(a.time);
-      } else {
-        return comparison;
-      }
+      return comparison == 0 ? b.time.compareTo(a.time) : comparison;
     });
+
+    return list;
+  }
+
+  void _addNewEarthquake(Earthquake newEarthquake) async {
+    // Prevent duplicates
+    if (!_earthquakes.any((eq) => eq.id == newEarthquake.id)) {
+      _earthquakes.add(newEarthquake);
+      await _earthquakeBox.put(newEarthquake.id, newEarthquake);
+      await _processAndRefresh();
+      _lastUpdated = DateTime.now();
+    }
+  }
+
+  void refresh() {
+    _init();
+  }
+
+  void updateSettings(SettingsProvider newSettings) {
+    _settingsProvider = newSettings;
+    _init();
+  }
+
+  void setSortCriterion(SortCriterion criterion) {
+    _sortCriterion = criterion;
+    _processAndRefresh();
   }
 
   @override
   void dispose() {
     _locationSubscription?.cancel();
-    _websocketSubscription?.cancel(); // Cancel WebSocket subscription
-    _fcmSubscription?.cancel(); // Cancel FCM subscription
-    _webSocketService.dispose(); // Dispose WebSocketService
+    _websocketSubscription?.cancel();
+    _fcmSubscription?.cancel();
+    _webSocketService.dispose();
     super.dispose();
   }
 }
