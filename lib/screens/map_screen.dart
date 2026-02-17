@@ -22,9 +22,13 @@ class _MapScreenState extends State<MapScreen> {
   late final EarthquakeProvider _earthquakeProvider;
   late final LocationProvider _locationProvider;
   List<Marker> _markers = [];
-  List<Polygon> _plates = [];
+  List<Polyline> _plates = [];
   List<Polyline> _faults = [];
   final MapController _mapController = MapController();
+
+  bool _showPlates = true;
+  bool _showFaults = true;
+  bool _isGeoJsonLoading = false;
 
   @override
   void initState() {
@@ -46,7 +50,7 @@ class _MapScreenState extends State<MapScreen> {
 
   void _updateMapCenter() {
     final currentPosition = _locationProvider.currentPosition;
-    if (currentPosition != null) {
+    if (currentPosition != null && _mapController.camera.center.latitude == 0) {
       _mapController.move(
         latlong.LatLng(currentPosition.latitude, currentPosition.longitude),
         _mapController.camera.zoom,
@@ -55,45 +59,67 @@ class _MapScreenState extends State<MapScreen> {
   }
 
   Future<void> _loadGeoJson() async {
-    final platesString = await rootBundle.loadString('assets/plates.json');
-    final platesJson = json.decode(platesString);
-    final platesFeatures = platesJson['features'] as List;
-
-    final faultsString = await rootBundle.loadString('assets/faults.json');
-    final faultsJson = json.decode(faultsString);
-    final faultsFeatures = faultsJson['features'] as List;
-
-    if (!mounted) return;
-
     setState(() {
-      _plates = platesFeatures.map((feature) {
-        final coordinates = feature['geometry']['coordinates'][0] as List;
-        final points = coordinates.map<latlong.LatLng>((coords) {
-          return latlong.LatLng(coords[1], coords[0]);
-        }).toList();
-        return Polygon(
-          points: points,
-          color: const Color.fromRGBO(255, 0, 0, 0.2),
-          borderColor: Colors.red,
-          borderStrokeWidth: 1,
-        );
-      }).toList();
+      _isGeoJsonLoading = true;
+    });
 
-      _faults = faultsFeatures.map((feature) {
+    try {
+      // Load Plates
+      final platesString = await rootBundle.loadString('assets/plates.json');
+      final platesJson = json.decode(platesString);
+      final platesFeatures = platesJson['features'] as List;
+
+      // Load Faults
+      final faultsString = await rootBundle.loadString('assets/faults.json');
+      final faultsJson = json.decode(faultsString);
+      final faultsFeatures = faultsJson['features'] as List;
+
+      if (!mounted) return;
+
+      final List<Polyline> loadedPlates = [];
+      for (final feature in platesFeatures) {
         final geometry = feature['geometry'];
         if (geometry['type'] == 'LineString') {
           final coordinates = geometry['coordinates'] as List;
           final points = coordinates.map<latlong.LatLng>((coords) {
-            return latlong.LatLng(coords[1], coords[0]);
+            return latlong.LatLng(coords[1].toDouble(), coords[0].toDouble());
           }).toList();
-          return Polyline(
+          loadedPlates.add(Polyline(
             points: points,
-            color: Colors.orange,
-          );
+            color: Colors.red.withAlpha(180),
+            strokeWidth: 2.0,
+          ));
         }
-        return null;
-      }).whereType<Polyline>().toList();
-    });
+      }
+
+      final List<Polyline> loadedFaults = [];
+      for (final feature in faultsFeatures) {
+        final geometry = feature['geometry'];
+        if (geometry['type'] == 'LineString') {
+          final coordinates = geometry['coordinates'] as List;
+          final points = coordinates.map<latlong.LatLng>((coords) {
+            return latlong.LatLng(coords[1].toDouble(), coords[0].toDouble());
+          }).toList();
+          loadedFaults.add(Polyline(
+            points: points,
+            color: Colors.orange.withAlpha(150),
+          ));
+        }
+      }
+
+      setState(() {
+        _plates = loadedPlates;
+        _faults = loadedFaults;
+        _isGeoJsonLoading = false;
+      });
+    } catch (e) {
+      debugPrint('Error loading geological data: $e');
+      if (mounted) {
+        setState(() {
+          _isGeoJsonLoading = false;
+        });
+      }
+    }
   }
 
   void _updateMarkers() {
@@ -103,18 +129,15 @@ class _MapScreenState extends State<MapScreen> {
       _markers = earthquakes.map((earthquake) {
         final magnitude = earthquake.magnitude;
         return Marker(
-          width: 80.0,
-          height: 80.0,
+          width: 40.0,
+          height: 40.0,
           point: latlong.LatLng(earthquake.latitude, earthquake.longitude),
           child: GestureDetector(
             onTap: () => context.go('/details/${earthquake.id}', extra: earthquake),
-            child: Tooltip(
-              message: 'Magnitude: ${earthquake.magnitude}',
-              child: Icon(
-                Icons.circle,
-                color: _getMarkerColorForMagnitude(magnitude),
-                size: _getMarkerSize(magnitude),
-              ),
+            child: Icon(
+              Icons.circle,
+              color: _getMarkerColorForMagnitude(magnitude),
+              size: _getMarkerSize(magnitude),
             ),
           ),
         );
@@ -123,42 +146,88 @@ class _MapScreenState extends State<MapScreen> {
   }
 
   double _getMarkerSize(double magnitude) {
-    if (magnitude < 3.0) return 10;
+    if (magnitude < 3.0) return 12;
     if (magnitude < 5.0) return 20;
-    if (magnitude < 7.0) return 30;
-    return 40;
+    if (magnitude < 7.0) return 28;
+    return 36;
   }
 
   Color _getMarkerColorForMagnitude(double magnitude) {
-    if (magnitude < 3.0) return const Color.fromRGBO(76, 175, 80, 0.7);
-    if (magnitude < 5.0) return const Color.fromRGBO(255, 235, 59, 0.7);
-    if (magnitude < 7.0) return const Color.fromRGBO(255, 152, 0, 0.7);
-    return const Color.fromRGBO(244, 67, 54, 0.7);
+    if (magnitude < 3.0) return Colors.green.withAlpha(180);
+    if (magnitude < 5.0) return Colors.yellow.withAlpha(180);
+    if (magnitude < 7.0) return Colors.orange.withAlpha(180);
+    return Colors.red.withAlpha(180);
   }
 
   Widget _buildMap(latlong.LatLng initialCenter) {
-    return FlutterMap(
-      mapController: _mapController,
-      options: MapOptions(
-        initialCenter: initialCenter,
-        initialZoom: 5,
-      ),
+    return Stack(
       children: [
-        TileLayer(
-          urlTemplate: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
-          userAgentPackageName: 'com.liebgott.quaketrack',
-        ),
-        PolygonLayer(polygons: _plates),
-        PolylineLayer(polylines: _faults),
-        MarkerLayer(markers: _markers),
-        RichAttributionWidget(
-          attributions: [
-            TextSourceAttribution(
-              'OpenStreetMap contributors',
-              onTap: () => launchUrl(Uri.parse('https://openstreetmap.org/copyright')),
+        FlutterMap(
+          mapController: _mapController,
+          options: MapOptions(
+            initialCenter: initialCenter,
+            initialZoom: 4,
+          ),
+          children: [
+            TileLayer(
+              urlTemplate: 'https://{s}.tile.openstreetmap.fr/hot/{z}/{x}/{y}.png',
+              userAgentPackageName: 'com.liebgott.quaketrack',
+            ),
+            if (_showPlates) PolylineLayer(polylines: _plates),
+            if (_showFaults) PolylineLayer(polylines: _faults),
+            MarkerLayer(markers: _markers),
+            RichAttributionWidget(
+              attributions: [
+                TextSourceAttribution(
+                  'OpenStreetMap contributors',
+                  onTap: () => launchUrl(Uri.parse('https://openstreetmap.org/copyright')),
+                ),
+              ],
             ),
           ],
         ),
+        Positioned(
+          top: 10,
+          right: 10,
+          child: Column(
+            children: [
+              FloatingActionButton.small(
+                heroTag: 'platesToggle',
+                onPressed: () => setState(() => _showPlates = !_showPlates),
+                backgroundColor: _showPlates ? Colors.red : Colors.white,
+                child: Icon(Icons.public, color: _showPlates ? Colors.white : Colors.red),
+              ),
+              const SizedBox(height: 8),
+              FloatingActionButton.small(
+                heroTag: 'faultsToggle',
+                onPressed: () => setState(() => _showFaults = !_showFaults),
+                backgroundColor: _showFaults ? Colors.orange : Colors.white,
+                child: Icon(Icons.reorder, color: _showFaults ? Colors.white : Colors.orange),
+              ),
+            ],
+          ),
+        ),
+        if (_isGeoJsonLoading)
+          const Positioned(
+            bottom: 20,
+            left: 20,
+            child: Card(
+              child: Padding(
+                padding: EdgeInsets.all(8.0),
+                child: Row(
+                  children: [
+                    SizedBox(
+                      width: 15,
+                      height: 15,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    ),
+                    SizedBox(width: 10),
+                    Text('Loading geological data...', style: TextStyle(fontSize: 12)),
+                  ],
+                ),
+              ),
+            ),
+          ),
       ],
     );
   }
