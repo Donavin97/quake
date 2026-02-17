@@ -145,6 +145,28 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 );
               },
             ),
+            const SizedBox(height: 24),
+            Text(
+              'Notification Radius',
+              style: Theme.of(context).textTheme.titleLarge,
+            ),
+            const SizedBox(height: 12),
+            Text(_radius == 0
+                ? 'Global (All Earthquakes)'
+                : 'Within ${_radius.round()} km'),
+            Slider(
+              value: _radius,
+              max: 20000, // Max radius in km
+              divisions: 200, // 0 to 20000 in steps of 100
+              label: _radius == 0
+                  ? 'Global'
+                  : '${_radius.round()} km',
+              onChanged: (value) {
+                setState(() {
+                  _radius = value;
+                });
+              },
+            ),
 
             Text(
               'Earthquake Provider',

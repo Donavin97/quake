@@ -178,15 +178,17 @@ const sendNotification = async (earthquake) => {
       }
     };
 
-    const tokensOnly = recipientTokens.map(r => r.token); // Extract tokens for sendEachForMulticast
-
-    // Send messages in batches
-    const response = await admin.messaging().sendEachForMulticast({
-      tokens: tokensOnly,
+    const messages = recipientTokens.map(r => ({
+      token: r.token,
       data: messagePayload.data,
       android: messagePayload.android,
       apns: messagePayload.apns
-    });
+    }));
+
+    // Send messages in batches
+    // Note: sendEachForMulticast accepts up to 500 messages at once.
+    // For production with >500 users, you would need to chunk 'messages' array.
+    const response = await admin.messaging().sendEachForMulticast(messages);
 
     console.log(`Notifications sent successfully for earthquake ${earthquake.id}: ${response.successCount} successful, ${response.failureCount} failed.`);
 

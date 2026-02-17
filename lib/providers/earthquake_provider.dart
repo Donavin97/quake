@@ -8,7 +8,6 @@ import '../models/earthquake.dart';
 import '../models/sort_criterion.dart';
 import '../models/time_window.dart';
 import '../services/api_service.dart';
-import '../services/background_service.dart';
 import '../services/websocket_service.dart';
 import 'location_provider.dart';
 import 'settings_provider.dart';
@@ -38,6 +37,7 @@ class EarthquakeProvider with ChangeNotifier {
   StreamSubscription<Position>? _locationSubscription;
   StreamSubscription<Earthquake>? _websocketSubscription; // Add WebSocket subscription
   StreamSubscription<Earthquake>? _fcmSubscription; // Add FCM subscription
+  StreamSubscription<BoxEvent>? _boxSubscription; // Add Hive box subscription
 
   List<Earthquake> _earthquakes = [];
   String? _error;
@@ -61,6 +61,7 @@ class EarthquakeProvider with ChangeNotifier {
     _locationSubscription?.cancel();
     _websocketSubscription?.cancel(); // Cancel previous WebSocket subscription
     _fcmSubscription?.cancel(); // Cancel previous FCM subscription
+    _boxSubscription?.cancel(); // Cancel previous box subscription
 
     // Load initial data from Hive
     _earthquakes = _earthquakeBox.values.toList();
@@ -119,9 +120,25 @@ class EarthquakeProvider with ChangeNotifier {
       _addNewEarthquake(newEarthquake);
     });
 
-    // Subscribe to FCM earthquake stream
-    _fcmSubscription = BackgroundService.onEarthquakeReceived.listen((newEarthquake) {
-      _addNewEarthquake(newEarthquake);
+    // Subscribe to Hive box changes (handles background updates and foreground FCM writes)
+    _boxSubscription = _earthquakeBox.watch().listen((event) {
+      // If the event value is null, it might be a deletion, or we should ignore it if not relevant
+      if (event.deleted) {
+         _earthquakes.removeWhere((e) => e.id == event.key);
+         _processAndRefresh();
+      } else if (event.value != null && event.value is Earthquake) {
+        final newEq = event.value as Earthquake;
+        final index = _earthquakes.indexWhere((e) => e.id == newEq.id);
+        if (index != -1) {
+          // Update existing
+          _earthquakes[index] = newEq;
+        } else {
+          // Add new
+          _earthquakes.add(newEq);
+        }
+        _processAndRefresh();
+        _lastUpdated = DateTime.now();
+      }
     });
   }
 
@@ -162,14 +179,18 @@ class EarthquakeProvider with ChangeNotifier {
     final now = DateTime.now();
 
     // 1. Calculate distances
-    if (params.userPosition != null) {
-      for (final eq in list) {
+    for (final eq in list) {
+      if (params.userPosition != null) {
         eq.distance = Geolocator.distanceBetween(
           params.userPosition!.latitude,
           params.userPosition!.longitude,
           eq.latitude,
           eq.longitude,
         );
+      } else {
+        // If user position is null, assign a very large distance
+        // so these earthquakes appear at the end when sorting by distance.
+        eq.distance = double.maxFinite;
       }
     }
 
@@ -243,7 +264,7 @@ class EarthquakeProvider with ChangeNotifier {
   void dispose() {
     _locationSubscription?.cancel();
     _websocketSubscription?.cancel();
-    _fcmSubscription?.cancel();
+    _boxSubscription?.cancel();
     _webSocketService.dispose();
     super.dispose();
   }
