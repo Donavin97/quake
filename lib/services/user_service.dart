@@ -6,7 +6,7 @@ class UserService {
 
   Future<void> saveUserPreferences(String userId, Map<String, dynamic> preferences, {Position? position, String? fcmToken}) async {
     final userRef = _firestore.collection('users').doc(userId);
-    Map<String, dynamic> dataToSet = {'preferences': preferences};
+    final Map<String, dynamic> dataToSet = {'preferences': preferences};
 
     if (position != null) {
       dataToSet['location'] = {
