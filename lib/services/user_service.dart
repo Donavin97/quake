@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:dart_geohash/dart_geohash.dart';
 
 class UserService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
@@ -9,9 +10,11 @@ class UserService {
     final Map<String, dynamic> dataToSet = {'preferences': preferences};
 
     if (position != null) {
+      final geohash = GeoHasher().encode(position.longitude, position.latitude);
       dataToSet['location'] = {
         'latitude': position.latitude,
         'longitude': position.longitude,
+        'geohash': geohash,
       };
     }
     if (fcmToken != null) {
@@ -29,10 +32,12 @@ class UserService {
   }
 
   Future<void> updateUserLocation(String userId, Position position) async {
+    final geohash = GeoHasher().encode(position.longitude, position.latitude);
     await _firestore.collection('users').doc(userId).set({
       'location': {
         'latitude': position.latitude,
         'longitude': position.longitude,
+        'geohash': geohash,
       }
     }, SetOptions(merge: true));
   }

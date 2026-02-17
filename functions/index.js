@@ -62,80 +62,96 @@ const sendNotification = async (earthquake) => {
     const earthquakeMagnitude = earthquake.magnitude;
     const earthquakeLatitude = earthquake.latitude;
     const earthquakeLongitude = earthquake.longitude;
-    const earthquakeTime = new Date(earthquake.time); // Convert earthquake time to Date object
+    const earthquakeTime = new Date(earthquake.time);
+    
+    // Calculate earthquake geohash
+    const eqHash = geohash.encode(earthquakeLatitude, earthquakeLongitude, 10);
+    const eqPrefix2 = eqHash.substring(0, 2); // ~1250km area
+    
+    console.log(`Processing notification for ${earthquake.id}. Magnitude: ${earthquakeMagnitude}. Geohash: ${eqHash} (Prefix: ${eqPrefix2})`);
 
-    // Fetch all users who have notifications enabled and minMagnitude <= earthquake.magnitude
-    const usersSnapshot = await admin.firestore().collection('users')
-      .where('preferences.notificationsEnabled', '==', true)
-      .where('preferences.minMagnitude', '<=', earthquakeMagnitude)
+    const usersCollection = admin.firestore().collection('users');
+    const baseQuery = usersCollection.where('preferences.notificationsEnabled', '==', true);
+
+    // We perform two queries in parallel to catch both local and global users
+    // Query 1: Local users (using geohash range for prefix)
+    const localQuery = baseQuery
+      .where('location.geohash', '>=', eqPrefix2)
+      .where('location.geohash', '<=', eqPrefix2 + '\uf8ff')
       .get();
 
-    const recipientTokens = []; // Will store objects { token: fcmToken, userId: userId }
+    // Query 2: Global users (radius set to 0)
+    const globalQuery = baseQuery
+      .where('preferences.radius', '==', 0)
+      .get();
 
-    usersSnapshot.forEach(doc => {
-      const userData = doc.data();
+    const [localSnapshot, globalSnapshot] = await Promise.all([localQuery, globalQuery]);
+
+    // Use a Map to deduplicate users by ID
+    const uniqueUsers = new Map();
+    
+    localSnapshot.forEach(doc => uniqueUsers.set(doc.id, doc.data()));
+    globalSnapshot.forEach(doc => uniqueUsers.set(doc.id, doc.data()));
+
+    console.log(`Found ${uniqueUsers.size} potential recipients (${localSnapshot.size} local, ${globalSnapshot.size} global).`);
+
+    const recipientTokens = [];
+
+    uniqueUsers.forEach((userData, userId) => {
       const preferences = userData.preferences;
       const fcmToken = userData.fcmToken;
-      const userLocation = userData.location; // User's last known location
-      const userId = doc.id; // Get userId here
+      const userLocation = userData.location;
 
-      if (!fcmToken) {
-        console.log(`User ${userId} has no FCM token. Skipping.`);
-        return;
+      if (!fcmToken) return;
+
+      // Filter by magnitude first (most common filter)
+      if (earthquakeMagnitude < (preferences.minMagnitude || 0)) {
+        // Check if global magnitude override applies
+        if (!(preferences.globalMinMagnitudeOverrideQuietHours > 0 && earthquakeMagnitude >= preferences.globalMinMagnitudeOverrideQuietHours)) {
+          return; 
+        }
       }
 
-      // Check quiet hours
-      const currentTime = new Date(); // Current time on the server
-      let shouldSendNotification = false; // Start with false, enable if criteria met
+      const currentTime = new Date();
+      let shouldSendNotification = false;
 
-      // --- New Logic for Global/Always-On Overrides ---
-
-      // 1. Check for Global Minimum Magnitude Override (always notify if X mag and up)
-      //    A value of 0.0 means this override is disabled.
+      // 1. Check for Global Minimum Magnitude Override
       if (preferences.globalMinMagnitudeOverrideQuietHours > 0 && earthquakeMagnitude >= preferences.globalMinMagnitudeOverrideQuietHours) {
         shouldSendNotification = true;
-        console.log(`User ${userId}: Global magnitude override met (Mag ${earthquakeMagnitude} >= ${preferences.globalMinMagnitudeOverrideQuietHours}).`);
       }
 
-      // 2. Check for Always Notify Radius (always notify if within X km)
-      //    Only if not already decided by global magnitude override, and enabled/value > 0.
-      if (!shouldSendNotification && preferences.alwaysNotifyRadiusEnabled && preferences.alwaysNotifyRadiusValue > 0 && userLocation && userLocation.latitude && userLocation.longitude) {
+      // 2. Check for Always Notify Radius
+      if (!shouldSendNotification && preferences.alwaysNotifyRadiusEnabled && preferences.alwaysNotifyRadiusValue > 0 && userLocation) {
         const distance = getDistance(userLocation.latitude, userLocation.longitude, earthquakeLatitude, earthquakeLongitude);
         if (distance <= preferences.alwaysNotifyRadiusValue) {
           shouldSendNotification = true;
-          console.log(`User ${userId}: Always notify radius met (Distance ${distance} km <= ${preferences.alwaysNotifyRadiusValue} km).`);
-        } else {
-            console.log(`User ${userId}: Always notify radius enabled, but not within radius. Distance: ${distance} km, Radius: ${preferences.alwaysNotifyRadiusValue} km.`);
         }
       }
 
+      // 3. Regular Radius check (if radius is set and not worldwide)
+      if (!shouldSendNotification && preferences.radius > 0 && userLocation) {
+        const distance = getDistance(userLocation.latitude, userLocation.longitude, earthquakeLatitude, earthquakeLongitude);
+        if (distance > preferences.radius) {
+          return; // Outside requested notification radius
+        }
+      }
 
-      // --- Existing Logic (if not already decided by overrides) ---
+      // 4. Quiet Hours / Emergency Logic
       if (!shouldSendNotification) {
-        // If not overridden, apply quiet hours logic if relevant
         if (isDuringQuietHours(preferences, currentTime, earthquakeTime)) {
-          // In quiet hours, check for emergency override
-          if (earthquakeMagnitude >= preferences.emergencyMagnitudeThreshold && userLocation && userLocation.latitude && userLocation.longitude) {
+          if (earthquakeMagnitude >= preferences.emergencyMagnitudeThreshold && userLocation) {
             const distance = getDistance(userLocation.latitude, userLocation.longitude, earthquakeLatitude, earthquakeLongitude);
             if (distance <= preferences.emergencyRadius) {
-              shouldSendNotification = true; // Emergency override
-              console.log(`User ${userId}: Emergency override during quiet hours. Mag ${earthquakeMagnitude} >= ${preferences.emergencyMagnitudeThreshold} AND distance ${distance} km <= ${preferences.emergencyRadius} km.`);
-            } else {
-              console.log(`User ${userId}: Emergency magnitude met during quiet hours but not within emergency radius. Distance: ${distance} km, Radius: ${preferences.emergencyRadius} km.`);
+              shouldSendNotification = true;
             }
-          } else {
-             console.log(`User ${userId}: During quiet hours. Emergency magnitude (${earthquakeMagnitude}) not met (${preferences.emergencyMagnitudeThreshold}) or location unavailable.`);
           }
         } else {
-          // Not in quiet hours, general notification is allowed
           shouldSendNotification = true;
-          console.log(`User ${userId}: Not during quiet hours. General notification sent.`);
         }
       }
 
-      // Final decision to send based on all criteria
       if (shouldSendNotification) {
-        recipientTokens.push({ token: fcmToken, userId: userId }); // Push object
+        recipientTokens.push({ token: fcmToken, userId: userId });
       }
     });
 
@@ -202,7 +218,7 @@ const sendNotification = async (earthquake) => {
 
 
 const createEarthquakeNotifier = (source, apiUrl, dataTransformer) => {
-  return functions.pubsub.schedule('every 5 minutes').onRun(async () => {
+  return functions.pubsub.schedule('every 2 minutes').onRun(async () => {
     const lastTimestampRef = admin.database().ref(`last_timestamps/${source}`);
     const lastTimestampSnapshot = await lastTimestampRef.once('value');
     let lastTimestamp = lastTimestampSnapshot.val() || 0;

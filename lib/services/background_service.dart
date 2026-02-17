@@ -29,6 +29,12 @@ class BackgroundService {
       FlutterLocalNotificationsPlugin();
   static final FirebaseMessaging _firebaseMessaging = FirebaseMessaging.instance;
 
+  static final StreamController<Earthquake> _onEarthquakeReceivedController =
+      StreamController<Earthquake>.broadcast();
+
+  static Stream<Earthquake> get onEarthquakeReceived =>
+      _onEarthquakeReceivedController.stream;
+
   static Future<void> initialize() async {
     // Setup local notifications
     const AndroidNotificationChannel channel = AndroidNotificationChannel(
@@ -79,8 +85,29 @@ class BackgroundService {
 
     // Handle foreground messages
     FirebaseMessaging.onMessage.listen((RemoteMessage message) {
-      showNotification(message);
+      _handleForegroundMessage(message);
     });
+  }
+
+  static void _handleForegroundMessage(RemoteMessage message) {
+    final earthquakeData = message.data['earthquake'] as String?;
+    if (earthquakeData != null) {
+      try {
+        final Map<String, dynamic> decoded = jsonDecode(earthquakeData);
+        final String id = decoded['id'] ?? '';
+        final box = Hive.box<Earthquake>('earthquakes');
+        
+        if (box.containsKey(id)) {
+          // If the earthquake is already in the local cache, it was likely
+          // already received via the WebSocket or a recent API fetch.
+          // We suppress the notification to avoid redundant alerts while using the app.
+          return;
+        }
+      } catch (e) {
+        // Fallback to showing notification if parsing fails
+      }
+    }
+    showNotification(message);
   }
 
   static Future<void> requestPermission() async {
@@ -98,6 +125,10 @@ class BackgroundService {
     }
 
     final earthquake = Earthquake.fromJson(jsonDecode(earthquakeData));
+    
+    // Emit through stream for foreground UI updates
+    _onEarthquakeReceivedController.add(earthquake);
+
     final box = Hive.box<Earthquake>('earthquakes');
     await box.put(earthquake.id, earthquake);
 

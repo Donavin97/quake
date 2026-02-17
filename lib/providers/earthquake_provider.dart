@@ -8,6 +8,7 @@ import '../models/earthquake.dart';
 import '../models/sort_criterion.dart';
 import '../models/time_window.dart';
 import '../services/api_service.dart';
+import '../services/background_service.dart'; // Import BackgroundService
 import '../services/websocket_service.dart'; // Import WebSocketService
 import 'location_provider.dart';
 import 'settings_provider.dart';
@@ -19,6 +20,7 @@ class EarthquakeProvider with ChangeNotifier {
   late SettingsProvider _settingsProvider;
   StreamSubscription<Position>? _locationSubscription;
   StreamSubscription<Earthquake>? _websocketSubscription; // Add WebSocket subscription
+  StreamSubscription<Earthquake>? _fcmSubscription; // Add FCM subscription
 
   List<Earthquake> _earthquakes = [];
   String? _error;
@@ -39,6 +41,7 @@ class EarthquakeProvider with ChangeNotifier {
   void _init() async {
     _locationSubscription?.cancel();
     _websocketSubscription?.cancel(); // Cancel previous WebSocket subscription
+    _fcmSubscription?.cancel(); // Cancel previous FCM subscription
 
     // Load initial data from Hive
     _earthquakes = _earthquakeBox.values.toList();
@@ -100,6 +103,11 @@ class EarthquakeProvider with ChangeNotifier {
 
     // Subscribe to WebSocket stream
     _websocketSubscription = _webSocketService.earthquakeStream.listen((newEarthquake) {
+      _addNewEarthquake(newEarthquake);
+    });
+
+    // Subscribe to FCM earthquake stream
+    _fcmSubscription = BackgroundService.onEarthquakeReceived.listen((newEarthquake) {
       _addNewEarthquake(newEarthquake);
     });
   }
@@ -207,6 +215,7 @@ class EarthquakeProvider with ChangeNotifier {
   void dispose() {
     _locationSubscription?.cancel();
     _websocketSubscription?.cancel(); // Cancel WebSocket subscription
+    _fcmSubscription?.cancel(); // Cancel FCM subscription
     _webSocketService.dispose(); // Dispose WebSocketService
     super.dispose();
   }
