@@ -21,12 +21,28 @@ class SettingsProvider with ChangeNotifier {
   var _earthquakeProvider = 'usgs';
   var _subscribedTopics = <String>{};
 
+  // New quiet hours and emergency override fields
+  var _quietHoursEnabled = false;
+  var _quietHoursStart = const [22, 0];
+  var _quietHoursEnd = const [6, 0];
+  var _quietHoursDays = const [0, 1, 2, 3, 4, 5, 6];
+  var _emergencyMagnitudeThreshold = 5.0;
+  var _emergencyRadius = 100.0;
+
   ThemeMode get themeMode => _themeMode;
   TimeWindow get timeWindow => _timeWindow;
   int get minMagnitude => _minMagnitude;
   bool get notificationsEnabled => _notificationsEnabled;
   double get radius => _radius;
   String get earthquakeProvider => _earthquakeProvider;
+
+  // New getters
+  bool get quietHoursEnabled => _quietHoursEnabled;
+  List<int> get quietHoursStart => _quietHoursStart;
+  List<int> get quietHoursEnd => _quietHoursEnd;
+  List<int> get quietHoursDays => _quietHoursDays;
+  double get emergencyMagnitudeThreshold => _emergencyMagnitudeThreshold;
+  double get emergencyRadius => _emergencyRadius;
 
   SettingsProvider(this._locationProvider) {
     _loadPreferences();
@@ -51,8 +67,15 @@ class SettingsProvider with ChangeNotifier {
         _notificationsEnabled = preferences['notificationsEnabled'] ?? true;
         _radius = (preferences['radius'] as num? ?? 0).toDouble();
         _earthquakeProvider = preferences['earthquakeProvider'] ?? 'usgs';
-        _subscribedTopics =
-            Set<String>.from(preferences['subscribedTopics'] ?? []);
+        _subscribedTopics = Set<String>.from(preferences['subscribedTopics'] ?? []);
+
+        // Load new quiet hours preferences
+        _quietHoursEnabled = preferences['quietHoursEnabled'] ?? false;
+        _quietHoursStart = (preferences['quietHoursStart'] as List<dynamic>?)?.map((e) => e as int).toList() ?? const [22, 0];
+        _quietHoursEnd = (preferences['quietHoursEnd'] as List<dynamic>?)?.map((e) => e as int).toList() ?? const [6, 0];
+        _quietHoursDays = (preferences['quietHoursDays'] as List<dynamic>?)?.map((e) => e as int).toList() ?? const [0, 1, 2, 3, 4, 5, 6];
+        _emergencyMagnitudeThreshold = (preferences['emergencyMagnitudeThreshold'] as num?)?.toDouble() ?? 5.0;
+        _emergencyRadius = (preferences['emergencyRadius'] as num?)?.toDouble() ?? 100.0;
       }
     }
     await _updateSubscriptions();
@@ -62,6 +85,7 @@ class SettingsProvider with ChangeNotifier {
   Future<void> _savePreferences() async {
     final user = _auth.currentUser;
     if (user != null) {
+      final fcmToken = await FirebaseMessaging.instance.getToken(); // Get FCM token
       await _userService.saveUserPreferences(user.uid, {
         'themeMode': _themeMode.index,
         'timeWindow': _timeWindow.index,
@@ -70,7 +94,14 @@ class SettingsProvider with ChangeNotifier {
         'radius': _radius,
         'earthquakeProvider': _earthquakeProvider,
         'subscribedTopics': _subscribedTopics.toList(),
-      });
+        // Save new quiet hours preferences
+        'quietHoursEnabled': _quietHoursEnabled,
+        'quietHoursStart': _quietHoursStart,
+        'quietHoursEnd': _quietHoursEnd,
+        'quietHoursDays': _quietHoursDays,
+        'emergencyMagnitudeThreshold': _emergencyMagnitudeThreshold,
+        'emergencyRadius': _emergencyRadius,
+      }, fcmToken: fcmToken); // Pass FCM token
     }
   }
 
@@ -113,6 +144,43 @@ class SettingsProvider with ChangeNotifier {
 
   Future<void> setEarthquakeProvider(String provider) async {
     _earthquakeProvider = provider;
+    await _savePreferences();
+    notifyListeners();
+  }
+
+  // New setters for quiet hours and emergency override
+  Future<void> setQuietHoursEnabled(bool enabled) async {
+    _quietHoursEnabled = enabled;
+    await _savePreferences();
+    notifyListeners();
+  }
+
+  Future<void> setQuietHoursStart(List<int> time) async {
+    _quietHoursStart = time;
+    await _savePreferences();
+    notifyListeners();
+  }
+
+  Future<void> setQuietHoursEnd(List<int> time) async {
+    _quietHoursEnd = time;
+    await _savePreferences();
+    notifyListeners();
+  }
+
+  Future<void> setQuietHoursDays(List<int> days) async {
+    _quietHoursDays = days;
+    await _savePreferences();
+    notifyListeners();
+  }
+
+  Future<void> setEmergencyMagnitudeThreshold(double magnitude) async {
+    _emergencyMagnitudeThreshold = magnitude;
+    await _savePreferences();
+    notifyListeners();
+  }
+
+  Future<void> setEmergencyRadius(double radius) async {
+    _emergencyRadius = radius;
     await _savePreferences();
     notifyListeners();
   }

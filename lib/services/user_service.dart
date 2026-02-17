@@ -4,19 +4,20 @@ import 'package:geolocator/geolocator.dart';
 class UserService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
-  Future<void> saveUserPreferences(String userId, Map<String, dynamic> preferences, {Position? position}) async {
+  Future<void> saveUserPreferences(String userId, Map<String, dynamic> preferences, {Position? position, String? fcmToken}) async {
     final userRef = _firestore.collection('users').doc(userId);
+    Map<String, dynamic> dataToSet = {'preferences': preferences};
+
     if (position != null) {
-      await userRef.set({
-        'preferences': preferences,
-        'location': {
-          'latitude': position.latitude,
-          'longitude': position.longitude,
-        }
-      }, SetOptions(merge: true));
-    } else {
-      await userRef.set({'preferences': preferences}, SetOptions(merge: true));
+      dataToSet['location'] = {
+        'latitude': position.latitude,
+        'longitude': position.longitude,
+      };
     }
+    if (fcmToken != null) {
+      dataToSet['fcmToken'] = fcmToken;
+    }
+    await userRef.set(dataToSet, SetOptions(merge: true));
   }
 
   Future<Map<String, dynamic>?> getUserPreferences(String userId) async {

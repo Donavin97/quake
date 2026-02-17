@@ -21,6 +21,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
   late double _radius;
   late String _earthquakeProvider;
 
+  // New variables for quiet hours and emergency override
+  late bool _quietHoursEnabled;
+  late TimeOfDay _quietHoursStart;
+  late TimeOfDay _quietHoursEnd;
+  late List<int> _quietHoursDays;
+  late double _emergencyMagnitudeThreshold;
+  late double _emergencyRadius;
+
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
@@ -31,6 +39,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _minMagnitude = settings.minMagnitude;
     _radius = settings.radius;
     _earthquakeProvider = settings.earthquakeProvider;
+
+    // Initialize new quiet hours and emergency override variables
+    _quietHoursEnabled = settings.quietHoursEnabled;
+    _quietHoursStart = TimeOfDay(hour: settings.quietHoursStart[0], minute: settings.quietHoursStart[1]);
+    _quietHoursEnd = TimeOfDay(hour: settings.quietHoursEnd[0], minute: settings.quietHoursEnd[1]);
+    _quietHoursDays = List.from(settings.quietHoursDays); // Create a mutable copy
+    _emergencyMagnitudeThreshold = settings.emergencyMagnitudeThreshold;
+    _emergencyRadius = settings.emergencyRadius;
   }
 
   void _applySettings() {
@@ -41,6 +57,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
     settings.setMinMagnitude(_minMagnitude);
     settings.setRadius(_radius);
     settings.setEarthquakeProvider(_earthquakeProvider);
+
+    // Apply new quiet hours and emergency override settings
+    settings.setQuietHoursEnabled(_quietHoursEnabled);
+    settings.setQuietHoursStart([_quietHoursStart.hour, _quietHoursStart.minute]);
+    settings.setQuietHoursEnd([_quietHoursEnd.hour, _quietHoursEnd.minute]);
+    settings.setQuietHoursDays(_quietHoursDays);
+    settings.setEmergencyMagnitudeThreshold(_emergencyMagnitudeThreshold);
+    settings.setEmergencyRadius(_emergencyRadius);
 
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('Settings Applied')),
@@ -127,6 +151,114 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 });
               },
             ),
+            SwitchListTile(
+              title: const Text('Enable Quiet Hours'),
+              value: _quietHoursEnabled,
+              onChanged: (value) {
+                setState(() {
+                  _quietHoursEnabled = value;
+                });
+              },
+            ),
+            if (_quietHoursEnabled)
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const SizedBox(height: 24),
+                  Text(
+                    'Quiet Hours',
+                    style: Theme.of(context).textTheme.titleLarge,
+                  ),
+                  ListTile(
+                    title: const Text('Start Time'),
+                    trailing: Text(_quietHoursStart.format(context)),
+                    onTap: () async {
+                      final TimeOfDay? picked = await showTimePicker(
+                        context: context,
+                        initialTime: _quietHoursStart,
+                      );
+                      if (picked != null && picked != _quietHoursStart) {
+                        setState(() {
+                          _quietHoursStart = picked;
+                        });
+                      }
+                    },
+                  ),
+                  ListTile(
+                    title: const Text('End Time'),
+                    trailing: Text(_quietHoursEnd.format(context)),
+                    onTap: () async {
+                      final TimeOfDay? picked = await showTimePicker(
+                        context: context,
+                        initialTime: _quietHoursEnd,
+                      );
+                      if (picked != null && picked != _quietHoursEnd) {
+                        setState(() {
+                          _quietHoursEnd = picked;
+                        });
+                      }
+                    },
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    'Quiet Days',
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
+                  // Day selection (checkboxes)
+                  Wrap(
+                    spacing: 8.0,
+                    children: List.generate(7, (index) {
+                      final dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+                      final isSelected = _quietHoursDays.contains(index);
+                      return FilterChip(
+                        label: Text(dayNames[index]),
+                        selected: isSelected,
+                        onSelected: (selected) {
+                          setState(() {
+                            if (selected) {
+                              _quietHoursDays.add(index);
+                            } else {
+                              _quietHoursDays.remove(index);
+                            }
+                            _quietHoursDays.sort(); // Keep sorted for consistency
+                          });
+                        },
+                      );
+                    }),
+                  ),
+                  const SizedBox(height: 24),
+                  Text(
+                    'Emergency Override (during Quiet Hours)',
+                    style: Theme.of(context).textTheme.titleLarge,
+                  ),
+                  const SizedBox(height: 12),
+                  Text('Min Magnitude: ${_emergencyMagnitudeThreshold.toStringAsFixed(1)}'),
+                  Slider(
+                    value: _emergencyMagnitudeThreshold,
+                    max: 10,
+                    divisions: 10,
+                    label: _emergencyMagnitudeThreshold.toStringAsFixed(1),
+                    onChanged: (value) {
+                      setState(() {
+                        _emergencyMagnitudeThreshold = value;
+                      });
+                    },
+                  ),
+                  const SizedBox(height: 12),
+                  Text('Emergency Radius: ${_emergencyRadius.round()} km'),
+                  Slider(
+                    value: log(_emergencyRadius + 1) / log(20001),
+                    divisions: 100,
+                    label: _emergencyRadius.round().toString(),
+                    onChanged: (value) {
+                      final radius = pow(20001, value) - 1;
+                      setState(() {
+                        _emergencyRadius = radius.toDouble();
+                      });
+                    },
+                  ),
+                ],
+              ),
             if (_notificationsEnabled)
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
