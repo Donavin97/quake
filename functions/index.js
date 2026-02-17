@@ -52,6 +52,14 @@ const sendNotification = async (earthquake) => {
         const message = {
             ...payload,
             condition: condition,
+            android: {
+                priority: 'high'
+            },
+            apns: {
+                headers: {
+                    'apns-priority': '10' // High priority for iOS
+                }
+            }
         };
 
         await admin.messaging().send(message);
