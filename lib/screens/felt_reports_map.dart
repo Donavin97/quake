@@ -51,47 +51,99 @@ class _FeltReportsMapState extends State<FeltReportsMap> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Felt Reports'),
+        title: const Text('Did You Feel It? Map'),
       ),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : FlutterMap(
-              options: MapOptions(
-                initialCenter: LatLng(widget.earthquake.latitude, widget.earthquake.longitude),
-                initialZoom: 5,
-              ),
-              children: [
-                TileLayer(
-                  urlTemplate: 'https://{s}.tile.openstreetmap.fr/hot/{z}/{x}/{y}.png',
-                  userAgentPackageName: 'com.liebgott.quaketrack',
-                ),
-                CircleLayer(
-                  circles: [
-                    CircleMarker(
-                      point: LatLng(widget.earthquake.latitude, widget.earthquake.longitude),
-                      radius: widget.earthquake.magnitude * 20000,
-                      useRadiusInMeter: true,
-                      color: Colors.red.withAlpha(77),
-                      borderColor: Colors.red,
-                      borderStrokeWidth: 2,
-                    )
+      body: Stack(
+        children: [
+          _isLoading
+              ? const Center(child: CircularProgressIndicator())
+              : FlutterMap(
+                  options: MapOptions(
+                    initialCenter: LatLng(widget.earthquake.latitude, widget.earthquake.longitude),
+                    initialZoom: 5,
+                  ),
+                  children: [
+                    TileLayer(
+                      urlTemplate: 'https://{s}.tile.openstreetmap.fr/hot/{z}/{x}/{y}.png',
+                      userAgentPackageName: 'com.liebgott.quaketrack',
+                    ),
+                    CircleLayer(
+                      circles: [
+                        CircleMarker(
+                          point: LatLng(widget.earthquake.latitude, widget.earthquake.longitude),
+                          radius: widget.earthquake.magnitude * 20000,
+                          useRadiusInMeter: true,
+                          color: Colors.red.withAlpha(77),
+                          borderColor: Colors.red,
+                          borderStrokeWidth: 2,
+                        )
+                      ],
+                    ),
+                    MarkerLayer(
+                      markers: _feltReports.map((report) {
+                        return Marker(
+                          width: 40.0,
+                          height: 40.0,
+                          point: LatLng(report.location.latitude, report.location.longitude),
+                          child: Icon(
+                            Icons.location_on,
+                            color: FeltReport.getIntensityColor(report.intensity),
+                            size: 30,
+                          ),
+                        );
+                      }).toList(),
+                    ),
                   ],
                 ),
-                MarkerLayer(
-                  markers: _feltReports.map((report) {
-                    return Marker(
-                      width: 80.0,
-                      height: 80.0,
-                      point: LatLng(report.location.latitude, report.location.longitude),
-                      child: const Icon(
-                        Icons.comment,
-                        color: Colors.blue,
-                      ),
+          Positioned(
+            bottom: 20,
+            right: 16,
+            child: Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: Theme.of(context).cardColor.withAlpha(230),
+                borderRadius: BorderRadius.circular(8),
+                boxShadow: const [
+                  BoxShadow(
+                    color: Colors.black26,
+                    blurRadius: 4,
+                    offset: Offset(0, 2),
+                  ),
+                ],
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'MMI Scale',
+                    style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 4),
+                  ...List.generate(10, (index) {
+                    final level = index + 1;
+                    return Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Container(
+                          width: 12,
+                          height: 12,
+                          color: FeltReport.getIntensityColor(level),
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          '$level: ${FeltReport.getIntensityDescription(level)}',
+                          style: Theme.of(context).textTheme.bodySmall,
+                        ),
+                      ],
                     );
-                  }).toList(),
-                ),
-              ],
+                  }).reversed,
+                ],
+              ),
             ),
+          ),
+        ],
+      ),
     );
   }
 }

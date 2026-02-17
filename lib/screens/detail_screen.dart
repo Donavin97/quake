@@ -81,22 +81,70 @@ class _DetailScreenState extends State<DetailScreen> {
   Future<void> _reportFelt() async {
     if (_isReporting || _earthquake == null) return;
 
+    final authService = Provider.of<AuthService>(context, listen: false);
+    final user = authService.currentUser;
+
+    if (user == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('You must be logged in to report.')),
+      );
+      return;
+    }
+
+    final int? selectedIntensity = await showDialog<int>(
+      context: context,
+      builder: (context) {
+        int currentLevel = 3;
+        return StatefulBuilder(
+          builder: (context, setState) {
+            return AlertDialog(
+              title: const Text('How strongly did you feel it?'),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    'Level $currentLevel: ${FeltReport.getIntensityDescription(currentLevel)}',
+                    style: TextStyle(
+                      color: FeltReport.getIntensityColor(currentLevel),
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  Slider(
+                    value: currentLevel.toDouble(),
+                    min: 1,
+                    max: 10,
+                    divisions: 9,
+                    onChanged: (value) {
+                      setState(() {
+                        currentLevel = value.toInt();
+                      });
+                    },
+                  ),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('Cancel'),
+                ),
+                TextButton(
+                  onPressed: () => Navigator.pop(context, currentLevel),
+                  child: const Text('Submit'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+
+    if (selectedIntensity == null) return;
+
     setState(() {
       _isReporting = true;
     });
 
     try {
-      final authService = Provider.of<AuthService>(context, listen: false);
-      final user = authService.currentUser;
-
-      if (user == null) {
-        if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('You must be logged in to report.')),
-        );
-        return;
-      }
-
       final position = await Geolocator.getCurrentPosition();
       if (!mounted) return;
 
@@ -105,6 +153,7 @@ class _DetailScreenState extends State<DetailScreen> {
         userId: user.uid,
         timestamp: Timestamp.now(),
         location: GeoPoint(position.latitude, position.longitude),
+        intensity: selectedIntensity,
       );
 
       await _feltReportService.addFeltReport(report);
