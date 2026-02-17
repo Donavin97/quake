@@ -85,32 +85,50 @@ const sendNotification = async (earthquake) => {
 
       // Check quiet hours
       const currentTime = new Date(); // Current time on the server
-      let shouldSendNotification = true; // Assume notification should be sent by default
+      let shouldSendNotification = false; // Start with false, enable if criteria met
 
-      if (isDuringQuietHours(preferences, currentTime, earthquakeTime)) {
-        // We are in quiet hours, check for emergency override
-        shouldSendNotification = false; // Don't send by default during quiet hours
+      // --- New Logic for Global/Always-On Overrides ---
 
-        if (earthquakeMagnitude >= preferences.emergencyMagnitudeThreshold) {
-          // Magnitude threshold met, now check proximity
-          if (userLocation && userLocation.latitude && userLocation.longitude) {
-            const distance = getDistance(
-              userLocation.latitude, userLocation.longitude,
-              earthquakeLatitude, earthquakeLongitude
-            );
+      // 1. Check for Global Minimum Magnitude Override (always notify if X mag and up)
+      //    A value of 0.0 means this override is disabled.
+      if (preferences.globalMinMagnitudeOverrideQuietHours > 0 && earthquakeMagnitude >= preferences.globalMinMagnitudeOverrideQuietHours) {
+        shouldSendNotification = true;
+        console.log(`User ${doc.id}: Global magnitude override met (Mag ${earthquakeMagnitude} >= ${preferences.globalMinMagnitudeOverrideQuietHours}).`);
+      }
 
+      // 2. Check for Always Notify Radius (always notify if within X km)
+      //    Only if not already decided by global magnitude override, and enabled/value > 0.
+      if (!shouldSendNotification && preferences.alwaysNotifyRadiusEnabled && preferences.alwaysNotifyRadiusValue > 0 && userLocation && userLocation.latitude && userLocation.longitude) {
+        const distance = getDistance(userLocation.latitude, userLocation.longitude, earthquakeLatitude, earthquakeLongitude);
+        if (distance <= preferences.alwaysNotifyRadiusValue) {
+          shouldSendNotification = true;
+          console.log(`User ${doc.id}: Always notify radius met (Distance ${distance} km <= ${preferences.alwaysNotifyRadiusValue} km).`);
+        } else {
+            console.log(`User ${doc.id}: Always notify radius enabled, but not within radius. Distance: ${distance} km, Radius: ${preferences.alwaysNotifyRadiusValue} km.`);
+        }
+      }
+
+
+      // --- Existing Logic (if not already decided by overrides) ---
+      if (!shouldSendNotification) {
+        // If not overridden, apply quiet hours logic if relevant
+        if (isDuringQuietHours(preferences, currentTime, earthquakeTime)) {
+          // In quiet hours, check for emergency override
+          if (earthquakeMagnitude >= preferences.emergencyMagnitudeThreshold && userLocation && userLocation.latitude && userLocation.longitude) {
+            const distance = getDistance(userLocation.latitude, userLocation.longitude, earthquakeLatitude, earthquakeLongitude);
             if (distance <= preferences.emergencyRadius) {
-              shouldSendNotification = true; // Emergency override - send notification
-              console.log(`Emergency override for user ${doc.id}: Magnitude ${earthquakeMagnitude} >= ${preferences.emergencyMagnitudeThreshold} AND distance ${distance} km <= ${preferences.emergencyRadius} km.`);
+              shouldSendNotification = true; // Emergency override
+              console.log(`User ${doc.id}: Emergency override during quiet hours. Mag ${earthquakeMagnitude} >= ${preferences.emergencyMagnitudeThreshold} AND distance ${distance} km <= ${preferences.emergencyRadius} km.`);
             } else {
-              console.log(`User ${doc.id}: Emergency magnitude met but not within emergency radius. Distance: ${distance} km, Radius: ${preferences.emergencyRadius} km.`);
+              console.log(`User ${doc.id}: Emergency magnitude met during quiet hours but not within emergency radius. Distance: ${distance} km, Radius: ${preferences.emergencyRadius} km.`);
             }
           } else {
-            console.log(`User ${doc.id}: Emergency magnitude met but no user location available for distance check. Will not send notification.`);
-            // If no location, cannot apply radius filter, so no emergency override based on proximity.
+             console.log(`User ${doc.id}: During quiet hours. Emergency magnitude (${earthquakeMagnitude}) not met (${preferences.emergencyMagnitudeThreshold}) or location unavailable.`);
           }
         } else {
-          console.log(`User ${doc.id}: During quiet hours. Emergency magnitude (${earthquakeMagnitude}) not met (${preferences.emergencyMagnitudeThreshold}). Will not send notification.`);
+          // Not in quiet hours, general notification is allowed
+          shouldSendNotification = true;
+          console.log(`User ${doc.id}: Not during quiet hours. General notification sent.`);
         }
       }
 

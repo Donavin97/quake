@@ -29,6 +29,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
   late double _emergencyMagnitudeThreshold;
   late double _emergencyRadius;
 
+  // New variables for notification overrides
+  late double _globalMinMagnitudeOverrideQuietHours;
+  late bool _alwaysNotifyRadiusEnabled;
+  late double _alwaysNotifyRadiusValue;
+
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
@@ -47,6 +52,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _quietHoursDays = List.from(settings.quietHoursDays); // Create a mutable copy
     _emergencyMagnitudeThreshold = settings.emergencyMagnitudeThreshold;
     _emergencyRadius = settings.emergencyRadius;
+
+    // Initialize new notification override variables
+    _globalMinMagnitudeOverrideQuietHours = settings.globalMinMagnitudeOverrideQuietHours;
+    _alwaysNotifyRadiusEnabled = settings.alwaysNotifyRadiusEnabled;
+    _alwaysNotifyRadiusValue = settings.alwaysNotifyRadiusValue;
   }
 
   void _applySettings() {
@@ -65,6 +75,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
     settings.setQuietHoursDays(_quietHoursDays);
     settings.setEmergencyMagnitudeThreshold(_emergencyMagnitudeThreshold);
     settings.setEmergencyRadius(_emergencyRadius);
+
+    // Apply new notification override settings
+    settings.setGlobalMinMagnitudeOverrideQuietHours(_globalMinMagnitudeOverrideQuietHours);
+    settings.setAlwaysNotifyRadiusEnabled(_alwaysNotifyRadiusEnabled);
+    settings.setAlwaysNotifyRadiusValue(_alwaysNotifyRadiusValue);
 
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('Settings Applied')),
@@ -289,6 +304,60 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       });
                     },
                   ),
+                ],
+              ),
+            // New UI for global magnitude override and always-notify radius
+            if (_notificationsEnabled) // Only show if notifications are generally enabled
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const SizedBox(height: 24),
+                  Text(
+                    'Global Override (Always Notify)',
+                    style: Theme.of(context).textTheme.titleLarge,
+                  ),
+                  const SizedBox(height: 12),
+                  Text('Min Magnitude (Global): ${_globalMinMagnitudeOverrideQuietHours.toStringAsFixed(1)}'),
+                  Slider(
+                    value: _globalMinMagnitudeOverrideQuietHours,
+                    max: 10,
+                    divisions: 10,
+                    label: _globalMinMagnitudeOverrideQuietHours.toStringAsFixed(1),
+                    onChanged: (value) {
+                      setState(() {
+                        _globalMinMagnitudeOverrideQuietHours = value;
+                      });
+                    },
+                  ),
+                  const SizedBox(height: 24),
+                  SwitchListTile(
+                    title: const Text('Always Notify within Radius'),
+                    value: _alwaysNotifyRadiusEnabled,
+                    onChanged: (value) {
+                      setState(() {
+                        _alwaysNotifyRadiusEnabled = value;
+                      });
+                    },
+                  ),
+                  if (_alwaysNotifyRadiusEnabled)
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const SizedBox(height: 12),
+                        Text('Radius Value: ${_alwaysNotifyRadiusValue.round()} km'),
+                        Slider(
+                          value: log(_alwaysNotifyRadiusValue + 1) / log(20001),
+                          divisions: 100,
+                          label: _alwaysNotifyRadiusValue.round().toString(),
+                          onChanged: (value) {
+                            final radius = pow(20001, value) - 1;
+                            setState(() {
+                              _alwaysNotifyRadiusValue = radius.toDouble();
+                            });
+                          },
+                        ),
+                      ],
+                    ),
                 ],
               ),
             const SizedBox(height: 24),

@@ -8,6 +8,9 @@ class UserPreferences {
   final List<int> quietHoursDays;  // [0-6] for Sunday-Saturday
   final double emergencyMagnitudeThreshold;
   final double emergencyRadius; // in kilometers
+  final double globalMinMagnitudeOverrideQuietHours; // 0.0 to disable
+  final bool alwaysNotifyRadiusEnabled;
+  final double alwaysNotifyRadiusValue; // 0.0 to disable
 
   UserPreferences({
     this.minMagnitude = 4.5,
@@ -19,6 +22,9 @@ class UserPreferences {
     this.quietHoursDays = const [0, 1, 2, 3, 4, 5, 6], // Default all days
     this.emergencyMagnitudeThreshold = 5.0,
     this.emergencyRadius = 100.0,
+    this.globalMinMagnitudeOverrideQuietHours = 0.0,
+    this.alwaysNotifyRadiusEnabled = false,
+    this.alwaysNotifyRadiusValue = 0.0,
   });
 
   factory UserPreferences.fromMap(Map<String, dynamic> data) {
@@ -32,6 +38,9 @@ class UserPreferences {
       quietHoursDays: (data['quietHoursDays'] as List<dynamic>?)?.map((e) => e as int).toList() ?? const [0, 1, 2, 3, 4, 5, 6],
       emergencyMagnitudeThreshold: (data['emergencyMagnitudeThreshold'] as num?)?.toDouble() ?? 5.0,
       emergencyRadius: (data['emergencyRadius'] as num?)?.toDouble() ?? 100.0,
+      globalMinMagnitudeOverrideQuietHours: (data['globalMinMagnitudeOverrideQuietHours'] as num?)?.toDouble() ?? 0.0,
+      alwaysNotifyRadiusEnabled: data['alwaysNotifyRadiusEnabled'] as bool? ?? false,
+      alwaysNotifyRadiusValue: (data['alwaysNotifyRadiusValue'] as num?)?.toDouble() ?? 0.0,
     );
   }
 
@@ -46,6 +55,9 @@ class UserPreferences {
       'quietHoursDays': quietHoursDays,
       'emergencyMagnitudeThreshold': emergencyMagnitudeThreshold,
       'emergencyRadius': emergencyRadius,
+      'globalMinMagnitudeOverrideQuietHours': globalMinMagnitudeOverrideQuietHours,
+      'alwaysNotifyRadiusEnabled': alwaysNotifyRadiusEnabled,
+      'alwaysNotifyRadiusValue': alwaysNotifyRadiusValue,
     };
   }
 }

@@ -28,6 +28,10 @@ class SettingsProvider with ChangeNotifier {
   var _quietHoursDays = const [0, 1, 2, 3, 4, 5, 6];
   var _emergencyMagnitudeThreshold = 5.0;
   var _emergencyRadius = 100.0;
+  // New override fields
+  var _globalMinMagnitudeOverrideQuietHours = 0.0;
+  var _alwaysNotifyRadiusEnabled = false;
+  var _alwaysNotifyRadiusValue = 0.0;
 
   ThemeMode get themeMode => _themeMode;
   TimeWindow get timeWindow => _timeWindow;
@@ -43,6 +47,10 @@ class SettingsProvider with ChangeNotifier {
   List<int> get quietHoursDays => _quietHoursDays;
   double get emergencyMagnitudeThreshold => _emergencyMagnitudeThreshold;
   double get emergencyRadius => _emergencyRadius;
+  // New getters for override fields
+  double get globalMinMagnitudeOverrideQuietHours => _globalMinMagnitudeOverrideQuietHours;
+  bool get alwaysNotifyRadiusEnabled => _alwaysNotifyRadiusEnabled;
+  double get alwaysNotifyRadiusValue => _alwaysNotifyRadiusValue;
 
   SettingsProvider(this._locationProvider) {
     _loadPreferences();
@@ -76,6 +84,10 @@ class SettingsProvider with ChangeNotifier {
         _quietHoursDays = (preferences['quietHoursDays'] as List<dynamic>?)?.map((e) => e as int).toList() ?? const [0, 1, 2, 3, 4, 5, 6];
         _emergencyMagnitudeThreshold = (preferences['emergencyMagnitudeThreshold'] as num?)?.toDouble() ?? 5.0;
         _emergencyRadius = (preferences['emergencyRadius'] as num?)?.toDouble() ?? 100.0;
+        // Load new override preferences
+        _globalMinMagnitudeOverrideQuietHours = (preferences['globalMinMagnitudeOverrideQuietHours'] as num?)?.toDouble() ?? 0.0;
+        _alwaysNotifyRadiusEnabled = preferences['alwaysNotifyRadiusEnabled'] as bool? ?? false;
+        _alwaysNotifyRadiusValue = (preferences['alwaysNotifyRadiusValue'] as num?)?.toDouble() ?? 0.0;
       }
     }
     await _updateSubscriptions();
@@ -101,6 +113,10 @@ class SettingsProvider with ChangeNotifier {
         'quietHoursDays': _quietHoursDays,
         'emergencyMagnitudeThreshold': _emergencyMagnitudeThreshold,
         'emergencyRadius': _emergencyRadius,
+        // Save new override preferences
+        'globalMinMagnitudeOverrideQuietHours': _globalMinMagnitudeOverrideQuietHours,
+        'alwaysNotifyRadiusEnabled': _alwaysNotifyRadiusEnabled,
+        'alwaysNotifyRadiusValue': _alwaysNotifyRadiusValue,
       }, fcmToken: fcmToken); // Pass FCM token
     }
   }
@@ -181,6 +197,25 @@ class SettingsProvider with ChangeNotifier {
 
   Future<void> setEmergencyRadius(double radius) async {
     _emergencyRadius = radius;
+    await _savePreferences();
+    notifyListeners();
+  }
+
+  // New setters for override fields
+  Future<void> setGlobalMinMagnitudeOverrideQuietHours(double magnitude) async {
+    _globalMinMagnitudeOverrideQuietHours = magnitude;
+    await _savePreferences();
+    notifyListeners();
+  }
+
+  Future<void> setAlwaysNotifyRadiusEnabled(bool enabled) async {
+    _alwaysNotifyRadiusEnabled = enabled;
+    await _savePreferences();
+    notifyListeners();
+  }
+
+  Future<void> setAlwaysNotifyRadiusValue(double value) async {
+    _alwaysNotifyRadiusValue = value;
     await _savePreferences();
     notifyListeners();
   }
