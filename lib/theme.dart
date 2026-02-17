@@ -18,6 +18,11 @@ class AppTheme {
       fontFamily: 'OpenSans',
       fontSize: 14,
     ),
+    labelLarge: TextStyle( // Added for buttons
+      fontFamily: 'OpenSans',
+      fontSize: 14,
+      fontWeight: FontWeight.bold,
+    ),
   );
 
   static const AppBarTheme appBarTheme = AppBarTheme(
@@ -30,6 +35,26 @@ class AppTheme {
     ),
   );
 
+  static final ElevatedButtonThemeData elevatedButtonTheme =
+      ElevatedButtonThemeData(
+    style: ElevatedButton.styleFrom(
+      foregroundColor: Colors.white,
+      backgroundColor: primarySeedColor,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(8),
+      ),
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+      textStyle: appTextTheme.labelLarge,
+    ),
+  );
+
+  static final TextButtonThemeData textButtonTheme = TextButtonThemeData(
+    style: TextButton.styleFrom(
+      foregroundColor: primarySeedColor,
+      textStyle: appTextTheme.labelLarge,
+    ),
+  );
+
   static final ThemeData lightTheme = ThemeData(
     useMaterial3: true,
     colorScheme: ColorScheme.fromSeed(
@@ -37,6 +62,8 @@ class AppTheme {
     ),
     textTheme: appTextTheme,
     appBarTheme: appBarTheme,
+    elevatedButtonTheme: elevatedButtonTheme,
+    textButtonTheme: textButtonTheme,
   );
 
   static final ThemeData darkTheme = ThemeData(
@@ -47,5 +74,7 @@ class AppTheme {
     ),
     textTheme: appTextTheme,
     appBarTheme: appBarTheme.copyWith(backgroundColor: Colors.grey[900]),
+    elevatedButtonTheme: elevatedButtonTheme,
+    textButtonTheme: textButtonTheme,
   );
 }

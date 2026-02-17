@@ -177,6 +177,7 @@ class _AuthFormState extends State<AuthForm> {
   bool _isLogin = true;
   String _email = '';
   String _password = '';
+  bool _passwordVisible = false; // Added
   String? _error;
 
   void _trySubmit() async {
@@ -239,9 +240,20 @@ class _AuthFormState extends State<AuthForm> {
             onSaved: (value) {
               _password = value!;
             },
-            obscureText: true,
-            decoration: const InputDecoration(
+            obscureText: !_passwordVisible,
+            decoration: InputDecoration(
               labelText: 'Password',
+              suffixIcon: IconButton(
+                icon: Icon(
+                  _passwordVisible ? Icons.visibility : Icons.visibility_off,
+                ),
+                onPressed: () {
+                  setState(() {
+                    _passwordVisible = !_passwordVisible;
+                  });
+                },
+                tooltip: _passwordVisible ? 'Hide password' : 'Show password',
+              ),
             ),
           ),
           const SizedBox(height: 12),

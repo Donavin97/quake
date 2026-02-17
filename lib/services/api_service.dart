@@ -1,9 +1,61 @@
+import 'dart:io';
+
 import 'package:dio/dio.dart';
 
 import '../models/earthquake.dart';
+import '../exceptions/api_exception.dart'; // New import
 
 class ApiService {
   final _dio = Dio();
+
+  // Helper function to parse time window
+  Duration _parseTimeWindow(String timeWindow) {
+    switch (timeWindow) {
+      case 'hour':
+        return const Duration(hours: 1);
+      case 'day':
+        return const Duration(days: 1);
+      case 'week':
+        return const Duration(days: 7);
+      case 'month':
+        return const Duration(days: 30);
+      default:
+        return const Duration(days: 1); // Default to day
+    }
+  }
+
+  ApiException _handleDioError(DioException error) {
+    if (error.type == DioExceptionType.badResponse) {
+      final statusCode = error.response?.statusCode;
+      final errorMessage = error.response?.data != null && error.response?.data is Map
+          ? error.response?.data['message'] ?? 'An error occurred'
+          : 'An error occurred';
+      switch (statusCode) {
+        case 400:
+          return BadRequestException(errorMessage, statusCode: statusCode);
+        case 401:
+          return UnauthorizedException(errorMessage, statusCode: statusCode);
+        case 403:
+          return ForbiddenException(errorMessage, statusCode: statusCode);
+        case 404:
+          return NotFoundException(errorMessage, statusCode: statusCode);
+        case 500:
+          return InternalServerErrorException(errorMessage, statusCode: statusCode);
+        default:
+          return UnknownApiException('Received invalid status code: $statusCode');
+      }
+    } else if (error.type == DioExceptionType.connectionTimeout ||
+        error.type == DioExceptionType.receiveTimeout ||
+        error.type == DioExceptionType.sendTimeout) {
+      return TimeoutException('Connection timed out. Please try again.');
+    } else if (error.error is SocketException) {
+      return NetworkException('No internet connection. Please check your network settings.');
+    } else if (error.type == DioExceptionType.cancel) {
+      return UnknownApiException('Request was cancelled.');
+    } else {
+      return UnknownApiException('An unknown error occurred: ${error.message}');
+    }
+  }
 
   Future<List<Earthquake>> fetchEarthquakes(
       String provider, double minMagnitude, double radius, double? latitude, double? longitude, {String? timeWindow}) async {
@@ -27,6 +79,12 @@ class ApiService {
         'orderby': 'time',
       };
 
+      if (timeWindow != null) {
+        final duration = _parseTimeWindow(timeWindow);
+        queryParameters['starttime'] = DateTime.now().subtract(duration).toIso8601String();
+        queryParameters['endtime'] = DateTime.now().toIso8601String();
+      }
+
       if (radius > 0 && latitude != null && longitude != null) {
         queryParameters.addAll({
           'latitude': latitude.toString(),
@@ -46,10 +104,12 @@ class ApiService {
         final earthquakes = features.map((json) => Earthquake.fromUsgsJson(json)).toList();
         return earthquakes;
       } else {
-        throw Exception('Failed to load USGS earthquakes');
+        throw ApiException('Failed to load USGS earthquakes: Unexpected status code', statusCode: response.statusCode);
       }
+    } on DioException catch (e) {
+      throw _handleDioError(e);
     } catch (e) {
-      throw Exception('Failed to load USGS earthquakes: $e');
+      throw UnknownApiException('An unexpected error occurred: $e');
     }
   }
 
@@ -61,6 +121,12 @@ class ApiService {
         'limit': '100',
         'orderby': 'time',
       };
+
+      if (timeWindow != null) {
+        final duration = _parseTimeWindow(timeWindow);
+        queryParameters['starttime'] = DateTime.now().subtract(duration).toIso8601String();
+        queryParameters['endtime'] = DateTime.now().toIso8601String();
+      }
 
       if (radius > 0 && latitude != null && longitude != null) {
         queryParameters.addAll({
@@ -81,10 +147,12 @@ class ApiService {
         final earthquakes = features.map((json) => Earthquake.fromEmscJson(json)).toList();
         return earthquakes;
       } else {
-        throw Exception('Failed to load EMSC earthquakes');
+        throw ApiException('Failed to load EMSC earthquakes: Unexpected status code', statusCode: response.statusCode);
       }
+    } on DioException catch (e) {
+      throw _handleDioError(e);
     } catch (e) {
-      throw Exception('Failed to load EMSC earthquakes: $e');
+      throw UnknownApiException('An unexpected error occurred: $e');
     }
   }
 }
