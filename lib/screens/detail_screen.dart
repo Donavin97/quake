@@ -4,6 +4,7 @@ import 'package:geolocator/geolocator.dart';
 import 'package:hive/hive.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
+import 'package:share_plus/share_plus.dart';
 
 import '../models/earthquake.dart';
 import '../models/felt_report.dart';
@@ -187,6 +188,23 @@ class _DetailScreenState extends State<DetailScreen> {
     );
   }
 
+  void _shareEarthquake() {
+    if (_earthquake == null) return;
+
+    final String timeStr = DateFormat.yMMMd().add_jms().format(_earthquake!.time);
+    final String mapUrl = 'https://www.google.com/maps/search/?api=1&query=${_earthquake!.latitude},${_earthquake!.longitude}';
+    
+    final String shareText = 'Earthquake Alert!\n\n'
+        'Magnitude: ${_earthquake!.magnitude.toStringAsFixed(1)}\n'
+        'Location: ${_earthquake!.place}\n'
+        'Time: $timeStr\n'
+        'Source: ${_earthquake!.source.name.toUpperCase()}\n\n'
+        'Epicenter: $mapUrl\n\n'
+        'Shared via QuakeTrack';
+
+    Share.share(shareText, subject: 'Earthquake in ${_earthquake!.place}');
+  }
+
   @override
   Widget build(BuildContext context) {
     if (_isLoading) {
@@ -210,6 +228,13 @@ class _DetailScreenState extends State<DetailScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Earthquake Details'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.share),
+            onPressed: _shareEarthquake,
+            tooltip: 'Share',
+          ),
+        ],
       ),
       body: Padding(
         padding: const EdgeInsets.all(16.0),
