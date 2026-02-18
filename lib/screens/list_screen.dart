@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
-import '../models/sort_criterion.dart';
 import '../providers/earthquake_provider.dart';
 import '../widgets/earthquake_list_item.dart';
 
@@ -33,20 +32,6 @@ class _ListScreenState extends State<ListScreen> {
                   Text(
                     'Last updated: ${DateFormat.yMMMd().add_jms().format(earthquakeProvider.lastUpdated!)}',
                     style: Theme.of(context).textTheme.bodySmall,
-                  ),
-                  DropdownButton<SortCriterion>(
-                    value: earthquakeProvider.sortCriterion,
-                    onChanged: (value) {
-                      if (value != null) {
-                        earthquakeProvider.setSortCriterion(value);
-                      }
-                    },
-                    items: SortCriterion.values.map((criterion) {
-                      return DropdownMenuItem(
-                        value: criterion,
-                        child: Text(toBeginningOfSentenceCase(criterion.name)!),
-                      );
-                    }).toList(),
                   ),
                 ],
               ),

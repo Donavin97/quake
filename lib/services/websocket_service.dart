@@ -40,7 +40,7 @@ class WebSocketService {
 
   void _reconnect() {
     _channel?.sink.close();
-    Future.delayed(Duration(seconds: 5), () {
+    Future.delayed(const Duration(seconds: 5), () {
       _connect();
     });
   }

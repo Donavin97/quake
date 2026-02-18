@@ -33,7 +33,6 @@ dependencies:
   hive_flutter: ^1.1.0
   dio: ^5.4.3
   dart_geohash: ^2.1.0
-  get: ^4.6.6
   introduction_screen: ^4.0.0
   web_socket_channel: ^2.4.0
   share_plus: ^9.0.0

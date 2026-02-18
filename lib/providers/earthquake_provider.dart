@@ -30,14 +30,14 @@ class _ProcessingParams {
 }
 
 class EarthquakeProvider with ChangeNotifier {
-  final ApiService _apiService = ApiService();
-  final WebSocketService _webSocketService = WebSocketService(); // Instantiate WebSocketService
+  final ApiService _apiService;
+  final WebSocketService _webSocketService;
   final LocationProvider _locationProvider;
   late SettingsProvider _settingsProvider;
   StreamSubscription<Position>? _locationSubscription;
-  StreamSubscription<Earthquake>? _websocketSubscription; // Add WebSocket subscription
-  StreamSubscription<Earthquake>? _fcmSubscription; // Add FCM subscription
-  StreamSubscription<BoxEvent>? _boxSubscription; // Add Hive box subscription
+  StreamSubscription<Earthquake>? _websocketSubscription;
+  StreamSubscription<Earthquake>? _fcmSubscription;
+  StreamSubscription<BoxEvent>? _boxSubscription;
 
   List<Earthquake> _earthquakes = [];
   String? _error;
@@ -52,10 +52,16 @@ class EarthquakeProvider with ChangeNotifier {
   SortCriterion get sortCriterion => _sortCriterion;
   bool get isProcessing => _isProcessing;
 
-  EarthquakeProvider(this._settingsProvider, this._locationProvider) {
+  EarthquakeProvider(
+    this._apiService,
+    this._webSocketService,
+    this._settingsProvider,
+    this._locationProvider,
+  ) {
     _earthquakeBox = Hive.box<Earthquake>('earthquakes');
     _init();
   }
+
 
   void _init() async {
     _locationSubscription?.cancel();
@@ -265,7 +271,7 @@ class EarthquakeProvider with ChangeNotifier {
     _locationSubscription?.cancel();
     _websocketSubscription?.cancel();
     _boxSubscription?.cancel();
-    _webSocketService.dispose();
     super.dispose();
   }
 }
+

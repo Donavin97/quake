@@ -185,32 +185,37 @@ const sendNotification = async (earthquake) => {
       apns: messagePayload.apns
     }));
 
-    // Send messages in batches
-    // Note: sendEachForMulticast accepts up to 500 messages at once.
-    // For production with >500 users, you would need to chunk 'messages' array.
-    const response = await admin.messaging().sendEachForMulticast(messages);
+    // Send messages in batches of 500 (Firebase limit for sendEachForMulticast)
+    const BATCH_SIZE = 500;
+    for (let i = 0; i < messages.length; i += BATCH_SIZE) {
+      const batch = messages.slice(i, i + BATCH_SIZE);
+      const response = await admin.messaging().sendEachForMulticast(batch);
 
-    console.log(`Notifications sent successfully for earthquake ${earthquake.id}: ${response.successCount} successful, ${response.failureCount} failed.`);
+      console.log(`Batch ${Math.floor(i / BATCH_SIZE) + 1} sent: ${response.successCount} successful, ${response.failureCount} failed.`);
 
-    if (response.failureCount > 0) {
-      response.responses.forEach(async (resp, idx) => { // Use async here
-        if (!resp.success) {
-          const invalidToken = recipientTokens[idx].token;
-          const invalidUserId = recipientTokens[idx].userId;
-          console.error(`Failed to send message to user ${invalidUserId} with token ${invalidToken}: ${resp.error}`);
-
-          // Check if error indicates an invalid or expired token
-          if (resp.error.code === 'messaging/invalid-registration-token' ||
-              resp.error.code === 'messaging/registration-token-not-registered' ||
-              resp.error.code === 'messaging/unregistered') { // Added 'messaging/unregistered' for completeness
-            console.log(`Removing invalid FCM token for user ${invalidUserId}.`);
-            // Remove the token from Firestore document
-            await admin.firestore().collection('users').doc(invalidUserId).update({
-              fcmToken: admin.firestore.FieldValue.delete() // Remove the field
-            });
+      if (response.failureCount > 0) {
+        const cleanupPromises = [];
+        response.responses.forEach((resp, idx) => {
+          if (!resp.success) {
+            const invalidToken = batch[idx].token;
+            const invalidUserId = recipientTokens[i + idx].userId;
+            
+            if (resp.error.code === 'messaging/invalid-registration-token' ||
+                resp.error.code === 'messaging/registration-token-not-registered' ||
+                resp.error.code === 'messaging/unregistered') {
+              console.log(`Removing invalid FCM token for user ${invalidUserId}.`);
+              cleanupPromises.push(
+                admin.firestore().collection('users').doc(invalidUserId).update({
+                  fcmToken: admin.firestore.FieldValue.delete()
+                })
+              );
+            }
           }
+        });
+        if (cleanupPromises.length > 0) {
+          await Promise.all(cleanupPromises);
         }
-      });
+      }
     }
 
   } catch (error) {

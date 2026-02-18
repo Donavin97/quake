@@ -16,10 +16,17 @@ Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   // If you're going to use other Firebase services in the background, such as Firestore,
   // make sure you call `initializeApp` before using other Firebase services.
   await Firebase.initializeApp();
-  await Hive.initFlutter();
-  Hive.registerAdapter(EarthquakeAdapter());
-  Hive.registerAdapter(EarthquakeSourceAdapter());
-  await Hive.openBox<Earthquake>('earthquakes');
+  
+  // Optimization: Check if Hive is already initialized or the box is open
+  if (!Hive.isAdapterRegistered(0)) {
+    await Hive.initFlutter();
+    Hive.registerAdapter(EarthquakeAdapter());
+    Hive.registerAdapter(EarthquakeSourceAdapter());
+  }
+  
+  if (!Hive.isBoxOpen('earthquakes')) {
+    await Hive.openBox<Earthquake>('earthquakes');
+  }
 
   BackgroundService.showNotification(message);
 }
@@ -34,6 +41,8 @@ class BackgroundService {
 
   static Stream<Earthquake> get onEarthquakeReceived =>
       _onEarthquakeReceivedController.stream;
+
+  static Stream<String> get onTokenRefresh => _firebaseMessaging.onTokenRefresh;
 
   static Future<void> initialize() async {
     // Setup local notifications
@@ -137,6 +146,8 @@ class BackgroundService {
       'mapUrl': mapUrl,
     });
 
+    const String groupKey = 'com.quaketrack.EARTHQUAKE_ALERTS';
+
     const AndroidNotificationDetails androidPlatformChannelSpecifics =
         AndroidNotificationDetails(
       'earthquake_channel',
@@ -146,6 +157,7 @@ class BackgroundService {
       priority: Priority.high,
       showWhen: false,
       sound: RawResourceAndroidNotificationSound('earthquake'),
+      groupKey: groupKey,
       actions: <AndroidNotificationAction>[
         AndroidNotificationAction(
           'map_action',
@@ -155,15 +167,41 @@ class BackgroundService {
     );
     const NotificationDetails platformChannelSpecifics = NotificationDetails(
       android: androidPlatformChannelSpecifics,
+      iOS: DarwinNotificationDetails(
+        threadIdentifier: 'earthquake_alerts',
+      ),
     );
+
+    // Use a unique ID based on the earthquake's timestamp or hash to prevent overwriting
+    final int notificationId = earthquake.id.hashCode;
+
     await _flutterLocalNotificationsPlugin.show(
-      0,
+      notificationId,
       title,
       body,
       platformChannelSpecifics,
       payload: payload,
     );
+
+    // For Android, we also need to send a "summary" notification for the group to appear correctly
+    await _flutterLocalNotificationsPlugin.show(
+      0, // Summary ID is always 0
+      '',
+      '',
+      const NotificationDetails(
+        android: AndroidNotificationDetails(
+          'earthquake_channel',
+          'Earthquake Alerts',
+          channelDescription: 'Notifications for new earthquake events',
+          importance: Importance.max,
+          priority: Priority.high,
+          groupKey: groupKey,
+          setAsGroupSummary: true,
+        ),
+      ),
+    );
   }
+
 
   static Future<String?> getFCMToken() async {
     return _firebaseMessaging.getToken();

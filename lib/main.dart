@@ -53,6 +53,13 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MultiProvider(
       providers: [
+        Provider<ApiService>(
+          create: (_) => ApiService(),
+        ),
+        Provider<WebSocketService>(
+          create: (_) => WebSocketService(),
+          dispose: (_, service) => service.dispose(),
+        ),
         ChangeNotifierProvider<AuthService>(
           create: (_) => AuthService(),
         ),
@@ -74,6 +81,8 @@ class MyApp extends StatelessWidget {
         ChangeNotifierProxyProvider2<SettingsProvider, LocationProvider,
             EarthquakeProvider>(
           create: (context) => EarthquakeProvider(
+            context.read<ApiService>(),
+            context.read<WebSocketService>(),
             context.read<SettingsProvider>(),
             context.read<LocationProvider>(),
           ),
@@ -81,6 +90,7 @@ class MyApp extends StatelessWidget {
               previous!..updateSettings(settings),
         ),
       ],
+
       child: Builder(
         builder: (context) {
           final userProvider = Provider.of<UserProvider>(context);

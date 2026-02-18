@@ -23,6 +23,12 @@ class UserService {
     await userRef.set(dataToSet, SetOptions(merge: true));
   }
 
+  Future<void> updateFCMToken(String userId, String fcmToken) async {
+    await _firestore.collection('users').doc(userId).update({
+      'fcmToken': fcmToken,
+    });
+  }
+
   Future<Map<String, dynamic>?> getUserPreferences(String userId) async {
     final doc = await _firestore.collection('users').doc(userId).get();
     if (doc.exists) {
