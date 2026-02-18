@@ -183,11 +183,11 @@ const sendNotification = async (earthquake) => {
         apns: messagePayload.apns
       }));
 
-      // Send messages in batches of 500 (Firebase limit for sendEachForMulticast)
+      // Send messages in batches of 500 (Firebase limit for sendEach)
       const BATCH_SIZE = 500;
       for (let i = 0; i < messages.length; i += BATCH_SIZE) {
         const batch = messages.slice(i, i + BATCH_SIZE);
-        const response = await admin.messaging().sendEachForMulticast(batch);
+        const response = await admin.messaging().sendEach(batch);
 
         console.log(`Batch ${Math.floor(i / BATCH_SIZE) + 1} sent: ${response.successCount} successful, ${response.failureCount} failed.`);
 
@@ -323,6 +323,24 @@ const sources = [
           latitude: latitude,
           longitude: longitude,
           source: 'EMSC'
+        };
+      });
+    }
+  },
+  {
+    name: 'sec',
+    url: 'http://quakewatch.freeddns.org:8080/fdsnws/event/1/query?limit=5&format=json',
+    transformer: (data) => {
+      if (!data.seiscomp || !data.seiscomp.events) return [];
+      return data.seiscomp.events.map(event => {
+        return {
+          id: event.eventID,
+          magnitude: event.mag,
+          place: event.region,
+          time: Date.parse(event.otime),
+          latitude: event.lat,
+          longitude: event.lon,
+          source: 'SEC'
         };
       });
     }

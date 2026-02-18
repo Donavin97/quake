@@ -56,6 +56,9 @@ class MyApp extends StatelessWidget {
         Provider<ApiService>(
           create: (_) => ApiService(),
         ),
+        Provider<GeocodingService>(
+          create: (_) => GeocodingService(),
+        ),
         Provider<WebSocketService>(
           create: (_) => WebSocketService(),
           dispose: (_, service) => service.dispose(),
@@ -85,6 +88,7 @@ class MyApp extends StatelessWidget {
             context.read<WebSocketService>(),
             context.read<SettingsProvider>(),
             context.read<LocationProvider>(),
+            context.read<GeocodingService>(),
           ),
           update: (context, settings, location, previous) =>
               previous!..updateSettings(settings),

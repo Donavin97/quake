@@ -78,6 +78,8 @@ class EarthquakeSourceAdapter extends TypeAdapter<EarthquakeSource> {
         return EarthquakeSource.usgs;
       case 1:
         return EarthquakeSource.emsc;
+      case 2:
+        return EarthquakeSource.sec;
       default:
         return EarthquakeSource.usgs;
     }
@@ -91,6 +93,9 @@ class EarthquakeSourceAdapter extends TypeAdapter<EarthquakeSource> {
         break;
       case EarthquakeSource.emsc:
         writer.writeByte(1);
+        break;
+      case EarthquakeSource.sec:
+        writer.writeByte(2);
         break;
     }
   }

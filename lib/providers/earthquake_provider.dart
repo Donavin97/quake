@@ -9,6 +9,7 @@ import '../models/sort_criterion.dart';
 import '../models/time_window.dart';
 import '../services/api_service.dart';
 import '../services/websocket_service.dart';
+import '../services/geocoding_service.dart'; // Import GeocodingService
 import 'location_provider.dart';
 import 'settings_provider.dart';
 
@@ -33,6 +34,7 @@ class EarthquakeProvider with ChangeNotifier {
   final ApiService _apiService;
   final WebSocketService _webSocketService;
   final LocationProvider _locationProvider;
+  final GeocodingService _geocodingService;
   late SettingsProvider _settingsProvider;
   StreamSubscription<Position>? _locationSubscription;
   StreamSubscription<Earthquake>? _websocketSubscription;
@@ -57,6 +59,7 @@ class EarthquakeProvider with ChangeNotifier {
     this._webSocketService,
     this._settingsProvider,
     this._locationProvider,
+    this._geocodingService,
   ) {
     _earthquakeBox = Hive.box<Earthquake>('earthquakes');
     _init();
@@ -83,6 +86,7 @@ class EarthquakeProvider with ChangeNotifier {
         _settingsProvider.radius,
         position?.latitude,
         position?.longitude,
+        timeWindow: _settingsProvider.timeWindow.name,
       );
 
       // Merge new data with existing cached data
@@ -91,6 +95,14 @@ class EarthquakeProvider with ChangeNotifier {
 
       for (final earthquakeFromApi in allEarthquakes) {
         if (!existingEarthquakeIds.contains(earthquakeFromApi.id)) {
+          // Attempt reverse geocoding for more informative region names
+          final betterPlace = await _geocodingService.reverseGeocode(
+            earthquakeFromApi.latitude, 
+            earthquakeFromApi.longitude
+          );
+          if (betterPlace != null) {
+            earthquakeFromApi.place = betterPlace;
+          }
           newEarthquakesToAdd.add(earthquakeFromApi);
         }
       }
@@ -122,7 +134,15 @@ class EarthquakeProvider with ChangeNotifier {
     });
 
     // Subscribe to WebSocket stream
-    _websocketSubscription = _webSocketService.earthquakeStream.listen((newEarthquake) {
+    _websocketSubscription = _webSocketService.earthquakeStream.listen((newEarthquake) async {
+      // Attempt reverse geocoding for WebSocket earthquakes too
+      final betterPlace = await _geocodingService.reverseGeocode(
+        newEarthquake.latitude, 
+        newEarthquake.longitude
+      );
+      if (betterPlace != null) {
+        newEarthquake.place = betterPlace;
+      }
       _addNewEarthquake(newEarthquake);
     });
 

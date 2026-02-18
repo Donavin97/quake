@@ -12,6 +12,7 @@ class ApiService {
 
   static const _usgsUrl = 'https://earthquake.usgs.gov/fdsnws/event/1/query';
   static const _emscUrl = 'https://www.seismicportal.eu/fdsnws/event/1/query';
+  static const _secUrl = 'http://quakewatch.freeddns.org:8080/fdsnws/event/1/query';
 
   Future<List<Earthquake>> fetchEarthquakes(
     String provider,
@@ -23,7 +24,7 @@ class ApiService {
   }) async {
     final futures = <Future<List<Earthquake>>>[];
 
-    if (provider == 'both' || provider == 'usgs') {
+    if (provider == 'both' || provider == 'all' || provider == 'usgs') {
       futures.add(_fetchFromSource(
         url: _usgsUrl,
         providerName: 'USGS',
@@ -32,11 +33,11 @@ class ApiService {
         latitude: latitude,
         longitude: longitude,
         timeWindow: timeWindow,
-        isUsgs: true,
+        sourceType: 'usgs',
       ));
     }
 
-    if (provider == 'both' || provider == 'emsc') {
+    if (provider == 'both' || provider == 'all' || provider == 'emsc') {
       futures.add(_fetchFromSource(
         url: _emscUrl,
         providerName: 'EMSC',
@@ -45,7 +46,20 @@ class ApiService {
         latitude: latitude,
         longitude: longitude,
         timeWindow: timeWindow,
-        isUsgs: false,
+        sourceType: 'emsc',
+      ));
+    }
+
+    if (provider == 'all' || provider == 'sec') {
+      futures.add(_fetchFromSource(
+        url: _secUrl,
+        providerName: 'SEC',
+        minMagnitude: minMagnitude,
+        radius: radius,
+        latitude: latitude,
+        longitude: longitude,
+        timeWindow: timeWindow,
+        sourceType: 'sec',
       ));
     }
 
@@ -60,16 +74,20 @@ class ApiService {
     required double radius,
     required double? latitude,
     required double? longitude,
-    required bool isUsgs,
+    required String sourceType,
     String? timeWindow,
   }) async {
     try {
       final queryParameters = {
-        'format': isUsgs ? 'geojson' : 'json',
+        'format': 'json',
         'minmagnitude': minMagnitude.toString(),
         'limit': '100',
         'orderby': 'time',
       };
+
+      if (sourceType == 'usgs') {
+        queryParameters['format'] = 'geojson';
+      }
 
       if (timeWindow != null) {
         final duration = _parseTimeWindow(timeWindow);
@@ -80,7 +98,7 @@ class ApiService {
       if (radius > 0 && latitude != null && longitude != null) {
         queryParameters['latitude'] = latitude.toString();
         queryParameters['longitude'] = longitude.toString();
-        if (isUsgs) {
+        if (sourceType == 'usgs') {
           queryParameters['maxradiuskm'] = radius.toString();
         } else {
           queryParameters['maxradius'] = (radius / 111.2).toString(); // Convert km to degrees
@@ -90,10 +108,19 @@ class ApiService {
       final response = await _dio.get(url, queryParameters: queryParameters);
 
       if (response.statusCode == 200) {
-        final features = response.data['features'] as List<dynamic>;
-        return features
-            .map((json) => isUsgs ? Earthquake.fromUsgsJson(json) : Earthquake.fromEmscJson(json))
-            .toList();
+        if (sourceType == 'sec') {
+          final events = response.data['seiscomp']?['events'] as List<dynamic>?;
+          if (events == null) return [];
+          return events.map((json) => Earthquake.fromSecJson(json)).toList();
+        } else {
+          final features = response.data['features'] as List<dynamic>?;
+          if (features == null) return [];
+          return features
+              .map((json) => sourceType == 'usgs' 
+                  ? Earthquake.fromUsgsJson(json) 
+                  : Earthquake.fromEmscJson(json))
+              .toList();
+        }
       } else {
         throw ApiException('Failed to load $providerName earthquakes', statusCode: response.statusCode);
       }

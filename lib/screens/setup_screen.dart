@@ -86,7 +86,7 @@ class _SetupScreenState extends State<SetupScreen> {
         return AlertDialog(
           title: const Text('Disclaimer'),
           content: const Text(
-              'The earthquake data is provided by the USGS and is for informational purposes only. The developer is not responsible for any inaccuracies or omissions in the data.'),
+              'Earthquake data is provided by multiple sources and is for informational purposes only. The developer is not responsible for any inaccuracies or omissions in the data.'),
           actions: <Widget>[
             TextButton(
               child: const Text('Accept'),

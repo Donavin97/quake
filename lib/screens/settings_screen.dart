@@ -181,7 +181,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   });
                 }
               },
-              items: <String>['usgs', 'emsc', 'both']
+              items: <String>['usgs', 'emsc', 'sec', 'both', 'all']
                   .map<DropdownMenuItem<String>>((String value) {
                 return DropdownMenuItem<String>(
                   value: value,

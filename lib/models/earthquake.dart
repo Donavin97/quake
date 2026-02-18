@@ -8,6 +8,8 @@ enum EarthquakeSource {
   usgs,
   @HiveField(1)
   emsc,
+  @HiveField(2)
+  sec,
 }
 
 @HiveType(typeId: 0)
@@ -19,7 +21,7 @@ class Earthquake extends HiveObject {
   final double magnitude;
 
   @HiveField(2)
-  final String place;
+  String place;
 
   @HiveField(3)
   final DateTime time;
@@ -61,6 +63,8 @@ class Earthquake extends HiveObject {
       sourceEnum = EarthquakeSource.usgs;
     } else if (json['source'] == 'EMSC') {
       sourceEnum = EarthquakeSource.emsc;
+    } else if (json['source'] == 'SEC') {
+      sourceEnum = EarthquakeSource.sec;
     } else {
       sourceEnum = EarthquakeSource.usgs; // Default value
     }
@@ -105,16 +109,38 @@ class Earthquake extends HiveObject {
   }
 
   factory Earthquake.fromEmscJson(Map<String, dynamic> json) {
+    final timeStr = json['properties']['time'];
+    DateTime parsedTime;
+    try {
+      parsedTime = DateTime.parse(timeStr).toLocal();
+    } catch (e) {
+      parsedTime = DateTime.now();
+    }
+
     return Earthquake(
       id: json['id'],
       magnitude: json['properties']['mag']?.toDouble() ?? 0.0,
       place: json['properties']['flynn_region'] ?? 'Unknown',
-      time: DateTime.parse(json['properties']['time']).toLocal(),
+      time: parsedTime,
       latitude: json['geometry']['coordinates'][1]?.toDouble() ?? 0.0,
       longitude: json['geometry']['coordinates'][0]?.toDouble() ?? 0.0,
       depth: json['properties']['depth']?.toDouble() ?? 0.0,
       source: EarthquakeSource.emsc,
       provider: 'EMSC',
+    );
+  }
+
+  factory Earthquake.fromSecJson(Map<String, dynamic> json) {
+    return Earthquake(
+      id: json['eventID'],
+      magnitude: (json['mag'] as num?)?.toDouble() ?? 0.0,
+      place: json['region'] ?? 'Unknown',
+      time: DateTime.parse(json['otime']).toLocal(),
+      latitude: (json['lat'] as num?)?.toDouble() ?? 0.0,
+      longitude: (json['lon'] as num?)?.toDouble() ?? 0.0,
+      depth: (json['depth'] as num?)?.toDouble() ?? 0.0,
+      source: EarthquakeSource.sec,
+      provider: 'SEC',
     );
   }
 }

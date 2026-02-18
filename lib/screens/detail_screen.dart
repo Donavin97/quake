@@ -255,6 +255,8 @@ class _DetailScreenState extends State<DetailScreen> {
             ),
             const SizedBox(height: 8),
             Text('Depth: ${_earthquake!.depth.toStringAsFixed(2)} km'),
+            const SizedBox(height: 8),
+            Text('Source: ${_earthquake!.source.name.toUpperCase()}'),
             if (distance != null)
               Padding(
                 padding: const EdgeInsets.only(top: 8.0),
