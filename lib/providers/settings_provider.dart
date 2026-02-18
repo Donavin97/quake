@@ -2,6 +2,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:dart_geohash/dart_geohash.dart';
+import 'package:hive/hive.dart';
 
 import '../models/time_window.dart';
 import '../services/background_service.dart';
@@ -91,14 +92,34 @@ class SettingsProvider with ChangeNotifier {
       }
     }
     await _updateSubscriptions();
+    await _saveToLocalCache();
     notifyListeners();
+  }
+
+  Future<void> _saveToLocalCache() async {
+    final box = await Hive.openBox('app_settings');
+    await box.putAll({
+      'minMagnitude': _minMagnitude,
+      'notificationsEnabled': _notificationsEnabled,
+      'radius': _radius,
+      'quietHoursEnabled': _quietHoursEnabled,
+      'quietHoursStart': _quietHoursStart,
+      'quietHoursEnd': _quietHoursEnd,
+      'quietHoursDays': _quietHoursDays,
+      'emergencyMagnitudeThreshold': _emergencyMagnitudeThreshold,
+      'emergencyRadius': _emergencyRadius,
+      'globalMinMagnitudeOverrideQuietHours': _globalMinMagnitudeOverrideQuietHours,
+      'alwaysNotifyRadiusEnabled': _alwaysNotifyRadiusEnabled,
+      'alwaysNotifyRadiusValue': _alwaysNotifyRadiusValue,
+    });
   }
 
   Future<void> _savePreferences() async {
     final user = _auth.currentUser;
     if (user != null) {
       final fcmToken = await FirebaseMessaging.instance.getToken(); // Get FCM token
-      await _userService.saveUserPreferences(user.uid, {
+      final position = _locationProvider.currentPosition;
+      final preferences = {
         'themeMode': _themeMode.index,
         'timeWindow': _timeWindow.index,
         'minMagnitude': _minMagnitude,
@@ -117,7 +138,9 @@ class SettingsProvider with ChangeNotifier {
         'globalMinMagnitudeOverrideQuietHours': _globalMinMagnitudeOverrideQuietHours,
         'alwaysNotifyRadiusEnabled': _alwaysNotifyRadiusEnabled,
         'alwaysNotifyRadiusValue': _alwaysNotifyRadiusValue,
-      }, fcmToken: fcmToken); // Pass FCM token
+      };
+      await _userService.saveUserPreferences(user.uid, preferences, fcmToken: fcmToken, position: position); // Pass FCM token and position
+      await _saveToLocalCache();
     }
   }
 
@@ -225,27 +248,40 @@ class SettingsProvider with ChangeNotifier {
 
     final newTopics = <String>{'global'};
     
-    newTopics.add('minmag_$_minMagnitude');
+    // Subscribe to all magnitude levels from our minimum up to 9.
+    // This ensures that if an earthquake of magnitude 7 occurs and the 
+    // backend sends to 'minmag_7', a user with a threshold of 4 (subscribed to minmag_4..9) will receive it.
+    for (int i = _minMagnitude; i <= 9; i++) {
+      newTopics.add('minmag_$i');
+    }
 
     final position = _locationProvider.currentPosition;
     if (position != null) {
       final geohash = GeoHasher().encode(position.longitude, position.latitude);
-      for (int i = 1; i <= 5; i++) {
-        newTopics.add(geohash.substring(0, i));
-      }
+      // Use 1 and 2 character prefixes for broad and local geohash topics
+      newTopics.add('geo_${geohash.substring(0, 1)}');
+      newTopics.add('geo_${geohash.substring(0, 2)}');
     }
 
     final toAdd = newTopics.difference(_subscribedTopics);
     final toRemove = _subscribedTopics.difference(newTopics);
 
     for (final topic in toAdd) {
-      await FirebaseMessaging.instance.subscribeToTopic(topic);
-      _subscribedTopics.add(topic);
+      try {
+        await FirebaseMessaging.instance.subscribeToTopic(topic);
+        _subscribedTopics.add(topic);
+      } catch (e) {
+        debugPrint('Error subscribing to topic $topic: $e');
+      }
     }
 
     for (final topic in toRemove) {
-      await FirebaseMessaging.instance.unsubscribeFromTopic(topic);
-      _subscribedTopics.remove(topic);
+      try {
+        await FirebaseMessaging.instance.unsubscribeFromTopic(topic);
+        _subscribedTopics.remove(topic);
+      } catch (e) {
+        debugPrint('Error unsubscribing from topic $topic: $e');
+      }
     }
 
     await _savePreferences();

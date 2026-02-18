@@ -148,7 +148,7 @@ class EarthquakeProvider with ChangeNotifier {
     });
   }
 
-  /// High-level method to trigger Isolate-based processing
+  /// High-level method to trigger processing
   Future<void> _processAndRefresh() async {
     if (_earthquakes.isEmpty) {
       notifyListeners();
@@ -167,20 +167,19 @@ class EarthquakeProvider with ChangeNotifier {
         sortCriterion: _sortCriterion,
       );
 
-      // OFF-LOAD TO BACKGROUND ISOLATE
-      _earthquakes = await compute(_backgroundProcessor, params);
+      // Run directly in main isolate to avoid HiveObject serialization issues
+      _earthquakes = _processEarthquakes(params);
       
     } catch (e) {
-      debugPrint('Background processing error: $e');
+      debugPrint('Processing error: $e');
     } finally {
       _isProcessing = false;
       notifyListeners();
     }
   }
 
-  /// Static entry point for the Isolate
-  /// This runs in a separate thread and does not block the UI
-  static List<Earthquake> _backgroundProcessor(_ProcessingParams params) {
+  /// Synchronous processor running on main thread
+  static List<Earthquake> _processEarthquakes(_ProcessingParams params) {
     List<Earthquake> list = List.from(params.earthquakes);
     final now = DateTime.now();
 

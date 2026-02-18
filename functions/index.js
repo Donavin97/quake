@@ -155,11 +155,6 @@ const sendNotification = async (earthquake) => {
       }
     });
 
-    if (recipientTokens.length === 0) {
-      console.log('No eligible recipients for earthquake:', earthquake.id);
-      return;
-    }
-
     const messagePayload = {
       data: {
         title: 'New Earthquake Alert!',
@@ -178,44 +173,84 @@ const sendNotification = async (earthquake) => {
       }
     };
 
-    const messages = recipientTokens.map(r => ({
-      token: r.token,
-      data: messagePayload.data,
-      android: messagePayload.android,
-      apns: messagePayload.apns
-    }));
+    if (recipientTokens.length === 0) {
+      console.log('No eligible recipients found in Firestore for earthquake:', earthquake.id);
+    } else {
+      const messages = recipientTokens.map(r => ({
+        token: r.token,
+        data: messagePayload.data,
+        android: messagePayload.android,
+        apns: messagePayload.apns
+      }));
 
-    // Send messages in batches of 500 (Firebase limit for sendEachForMulticast)
-    const BATCH_SIZE = 500;
-    for (let i = 0; i < messages.length; i += BATCH_SIZE) {
-      const batch = messages.slice(i, i + BATCH_SIZE);
-      const response = await admin.messaging().sendEachForMulticast(batch);
+      // Send messages in batches of 500 (Firebase limit for sendEachForMulticast)
+      const BATCH_SIZE = 500;
+      for (let i = 0; i < messages.length; i += BATCH_SIZE) {
+        const batch = messages.slice(i, i + BATCH_SIZE);
+        const response = await admin.messaging().sendEachForMulticast(batch);
 
-      console.log(`Batch ${Math.floor(i / BATCH_SIZE) + 1} sent: ${response.successCount} successful, ${response.failureCount} failed.`);
+        console.log(`Batch ${Math.floor(i / BATCH_SIZE) + 1} sent: ${response.successCount} successful, ${response.failureCount} failed.`);
 
-      if (response.failureCount > 0) {
-        const cleanupPromises = [];
-        response.responses.forEach((resp, idx) => {
-          if (!resp.success) {
-            const invalidToken = batch[idx].token;
-            const invalidUserId = recipientTokens[i + idx].userId;
-            
-            if (resp.error.code === 'messaging/invalid-registration-token' ||
-                resp.error.code === 'messaging/registration-token-not-registered' ||
-                resp.error.code === 'messaging/unregistered') {
-              console.log(`Removing invalid FCM token for user ${invalidUserId}.`);
-              cleanupPromises.push(
-                admin.firestore().collection('users').doc(invalidUserId).update({
-                  fcmToken: admin.firestore.FieldValue.delete()
-                })
-              );
+        if (response.failureCount > 0) {
+          const cleanupPromises = [];
+          response.responses.forEach((resp, idx) => {
+            if (!resp.success) {
+              const invalidToken = batch[idx].token;
+              const invalidUserId = recipientTokens[i + idx].userId;
+              
+              if (resp.error.code === 'messaging/invalid-registration-token' ||
+                  resp.error.code === 'messaging/registration-token-not-registered' ||
+                  resp.error.code === 'messaging/unregistered') {
+                console.log(`Removing invalid FCM token for user ${invalidUserId}.`);
+                cleanupPromises.push(
+                  admin.firestore().collection('users').doc(invalidUserId).update({
+                    fcmToken: admin.firestore.FieldValue.delete()
+                  })
+                );
+              }
             }
+          });
+          if (cleanupPromises.length > 0) {
+            await Promise.all(cleanupPromises);
           }
-        });
-        if (cleanupPromises.length > 0) {
-          await Promise.all(cleanupPromises);
         }
       }
+    }
+
+    // ALSO send to topics as requested (Global and Geohash-based)
+    // This serves as a broadcast mechanism
+    try {
+      const topicMessages = [];
+      
+      // 1. Global topic
+      topicMessages.push({
+        topic: 'global',
+        data: messagePayload.data,
+        android: messagePayload.android,
+        apns: messagePayload.apns
+      });
+
+      // 2. Geohash topic (prefix of 2 chars)
+      topicMessages.push({
+        topic: `geo_${eqPrefix2}`,
+        data: messagePayload.data,
+        android: messagePayload.android,
+        apns: messagePayload.apns
+      });
+
+      // 3. Magnitude topic (e.g. minmag_5)
+      const magFloor = Math.floor(earthquakeMagnitude);
+      topicMessages.push({
+        topic: `minmag_${magFloor}`,
+        data: messagePayload.data,
+        android: messagePayload.android,
+        apns: messagePayload.apns
+      });
+
+      await Promise.all(topicMessages.map(msg => admin.messaging().send(msg)));
+      console.log(`Topic notifications sent for ${earthquake.id} (global, geo_${eqPrefix2}, minmag_${magFloor})`);
+    } catch (topicError) {
+      console.error('Error sending topic notifications:', topicError);
     }
 
   } catch (error) {

@@ -1,9 +1,11 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:math';
 
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:go_router/go_router.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -13,11 +15,8 @@ import 'navigation_service.dart';
 
 // Must be a top-level function (not a class method)
 Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
-  // If you're going to use other Firebase services in the background, such as Firestore,
-  // make sure you call `initializeApp` before using other Firebase services.
   await Firebase.initializeApp();
   
-  // Optimization: Check if Hive is already initialized or the box is open
   if (!Hive.isAdapterRegistered(0)) {
     await Hive.initFlutter();
     Hive.registerAdapter(EarthquakeAdapter());
@@ -28,7 +27,15 @@ Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
     await Hive.openBox<Earthquake>('earthquakes');
   }
 
-  BackgroundService.showNotification(message);
+  final settingsBox = await Hive.openBox('app_settings');
+  final earthquakeData = message.data['earthquake'] as String?;
+  
+  if (earthquakeData != null) {
+    final earthquake = Earthquake.fromJson(jsonDecode(earthquakeData));
+    if (await BackgroundService.shouldShowNotification(earthquake, settingsBox)) {
+      BackgroundService.showNotification(message);
+    }
+  }
 }
 
 class BackgroundService {
@@ -93,9 +100,107 @@ class BackgroundService {
     FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
 
     // Handle foreground messages
-    FirebaseMessaging.onMessage.listen((RemoteMessage message) {
-      _handleForegroundMessage(message);
+    FirebaseMessaging.onMessage.listen((RemoteMessage message) async {
+      final settingsBox = await Hive.openBox('app_settings');
+      final earthquakeData = message.data['earthquake'] as String?;
+      if (earthquakeData != null) {
+        final earthquake = Earthquake.fromJson(jsonDecode(earthquakeData));
+        if (await shouldShowNotification(earthquake, settingsBox)) {
+           _handleForegroundMessage(message);
+        }
+      }
     });
+  }
+
+  static Future<bool> shouldShowNotification(Earthquake earthquake, Box settingsBox) async {
+    final bool notificationsEnabled = settingsBox.get('notificationsEnabled', defaultValue: true);
+    if (!notificationsEnabled) return false;
+
+    final double minMagnitude = (settingsBox.get('minMagnitude', defaultValue: 0) as num).toDouble();
+    final double radius = (settingsBox.get('radius', defaultValue: 0.0) as num).toDouble();
+    
+    // 1. Global Override Check
+    final double globalOverride = (settingsBox.get('globalMinMagnitudeOverrideQuietHours', defaultValue: 0.0) as num).toDouble();
+    if (globalOverride > 0 && earthquake.magnitude >= globalOverride) {
+      return true;
+    }
+
+    // Get current position for distance-based filters
+    Position? position;
+    try {
+      position = await Geolocator.getCurrentPosition(timeLimit: const Duration(seconds: 5));
+    } catch (_) {
+      // If we can't get position, we might want to skip distance filters or allow them
+    }
+
+    double? distance;
+    if (position != null) {
+      distance = _getDistance(position.latitude, position.longitude, earthquake.latitude, earthquake.longitude);
+    }
+
+    // 2. Always Notify Radius Check
+    final bool alwaysNotifyEnabled = settingsBox.get('alwaysNotifyRadiusEnabled', defaultValue: false);
+    final double alwaysNotifyValue = (settingsBox.get('alwaysNotifyRadiusValue', defaultValue: 0.0) as num).toDouble();
+    if (alwaysNotifyEnabled && alwaysNotifyValue > 0 && distance != null && distance <= alwaysNotifyValue) {
+      return true;
+    }
+
+    // 3. Magnitude Check
+    if (earthquake.magnitude < minMagnitude) {
+      return false;
+    }
+
+    // 4. Radius Check
+    if (radius > 0 && distance != null && distance > radius) {
+      return false;
+    }
+
+    // 5. Quiet Hours Check
+    final bool quietHoursEnabled = settingsBox.get('quietHoursEnabled', defaultValue: false);
+    if (quietHoursEnabled) {
+      final now = DateTime.now();
+      if (_isDuringQuietHours(settingsBox, now)) {
+        final double emergencyMag = (settingsBox.get('emergencyMagnitudeThreshold', defaultValue: 5.0) as num).toDouble();
+        final double emergencyRad = (settingsBox.get('emergencyRadius', defaultValue: 100.0) as num).toDouble();
+        
+        if (earthquake.magnitude >= emergencyMag && distance != null && distance <= emergencyRad) {
+          return true;
+        }
+        return false;
+      }
+    }
+
+    return true;
+  }
+
+  static double _getDistance(double lat1, double lon1, double lat2, double lon2) {
+    const r = 6371; // Earth radius in km
+    final dLat = _toRadians(lat2 - lat1);
+    final dLon = _toRadians(lon2 - lon1);
+    final a = sin(dLat / 2) * sin(dLat / 2) +
+        cos(_toRadians(lat1)) * cos(_toRadians(lat2)) * sin(dLon / 2) * sin(dLon / 2);
+    final c = 2 * atan2(sqrt(a), sqrt(1 - a));
+    return r * c;
+  }
+
+  static double _toRadians(double degree) => degree * pi / 180;
+
+  static bool _isDuringQuietHours(Box settingsBox, DateTime now) {
+    final List<int> start = List<int>.from(settingsBox.get('quietHoursStart', defaultValue: [22, 0]));
+    final List<int> end = List<int>.from(settingsBox.get('quietHoursEnd', defaultValue: [6, 0]));
+    final List<int> days = List<int>.from(settingsBox.get('quietHoursDays', defaultValue: [0, 1, 2, 3, 4, 5, 6]));
+
+    if (!days.contains(now.weekday % 7)) return false;
+
+    final currentMinutes = now.hour * 60 + now.minute;
+    final startMinutes = start[0] * 60 + start[1];
+    final endMinutes = end[0] * 60 + end[1];
+
+    if (startMinutes < endMinutes) {
+      return currentMinutes >= startMinutes && currentMinutes < endMinutes;
+    } else {
+      return currentMinutes >= startMinutes || currentMinutes < endMinutes;
+    }
   }
 
   static void _handleForegroundMessage(RemoteMessage message) {
