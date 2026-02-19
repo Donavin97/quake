@@ -121,6 +121,23 @@ class _SetupScreenState extends State<SetupScreen> {
     );
   }
 
+  void _showErrorDialog(String message) {
+    if (!mounted) return;
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Error'),
+        content: Text(message),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('OK'),
+          ),
+        ],
+      ),
+    );
+  }
+
   void _showPermissionsDialog() {
     showDialog(
       context: context,
@@ -136,15 +153,18 @@ class _SetupScreenState extends State<SetupScreen> {
               onPressed: () async {
                 final locationProvider = context.read<LocationProvider>();
                 final userProvider = context.read<UserProvider>();
-                final navigator = Navigator.of(context);
-
-                await locationProvider.requestPermission();
-                await BackgroundService.initialize();
-
-                userProvider.completeSetup();
-
-                navigator.pop();
-                _nextStep();
+                
+                try {
+                  await locationProvider.requestPermission();
+                  await BackgroundService.initialize();
+                  userProvider.completeSetup();
+                  if (context.mounted) {
+                    Navigator.of(context).pop();
+                    _nextStep();
+                  }
+                } catch (e) {
+                  _showErrorDialog('Failed to initialize services: $e');
+                }
               },
             ),
           ],
@@ -180,6 +200,23 @@ class _AuthFormState extends State<AuthForm> {
   bool _passwordVisible = false; // Added
   String? _error;
 
+  void _showErrorDialog(String message) {
+    if (!mounted) return;
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Error'),
+        content: Text(message),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('OK'),
+          ),
+        ],
+      ),
+    );
+  }
+
   void _trySubmit() async {
     final isValid = _formKey.currentState!.validate();
     FocusScope.of(context).unfocus();
@@ -187,7 +224,6 @@ class _AuthFormState extends State<AuthForm> {
     if (isValid) {
       _formKey.currentState!.save();
       final authService = context.read<AuthService>();
-      final messenger = ScaffoldMessenger.of(context);
       try {
         if (_isLogin) {
           await authService.signInWithEmailAndPassword(_email, _password);
@@ -199,9 +235,7 @@ class _AuthFormState extends State<AuthForm> {
         setState(() {
           _error = e.toString();
         });
-        messenger.showSnackBar(
-          SnackBar(content: Text(_error!)),
-        );
+        _showErrorDialog(_error!);
       }
     }
   }
@@ -274,14 +308,11 @@ class _AuthFormState extends State<AuthForm> {
           ElevatedButton.icon(
             onPressed: () async {
               final authService = context.read<AuthService>();
-              final messenger = ScaffoldMessenger.of(context);
               try {
                 await authService.signInWithGoogle();
                 widget.onAuthSuccess();
               } catch (e) {
-                messenger.showSnackBar(
-                  SnackBar(content: Text(e.toString())),
-                );
+                _showErrorDialog(e.toString());
               }
             },
             icon: Image.asset(
