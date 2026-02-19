@@ -99,12 +99,17 @@ class EarthquakeProvider with ChangeNotifier {
       );
 
       // Merge new data with existing cached data
-      final Set<String> existingEarthquakeIds = _earthquakes.map((e) => e.id).toSet();
 
+
+      final List<Earthquake> earthquakesToUpdate = [];
 
       for (final earthquakeFromApi in allEarthquakes) {
-        if (!existingEarthquakeIds.contains(earthquakeFromApi.id)) {
-          // Attempt reverse geocoding for more informative region names
+        // Attempt reverse geocoding for more informative region names if needed
+        // Or if the existing one is generic. For simplicity, we always update 
+        // if it's new or if we want to ensure latest data.
+        final index = _earthquakes.indexWhere((e) => e.id == earthquakeFromApi.id);
+        
+        if (index == -1) {
           final betterPlace = await _geocodingService.reverseGeocode(
             earthquakeFromApi.latitude, 
             earthquakeFromApi.longitude
@@ -112,15 +117,19 @@ class EarthquakeProvider with ChangeNotifier {
           if (betterPlace != null) {
             earthquakeFromApi.place = betterPlace;
           }
-          newEarthquakesToAdd.add(earthquakeFromApi);
+          _earthquakes.add(earthquakeFromApi);
+        } else {
+          // Keep the existing place if it was already geocoded, or update it
+          // For now, let's just update the whole object to get latest magnitude/depth
+          _earthquakes[index] = earthquakeFromApi;
         }
+        earthquakesToUpdate.add(earthquakeFromApi);
       }
 
-      // Add new earthquakes to the main list and Hive
-      if (newEarthquakesToAdd.isNotEmpty) {
-        _earthquakes.addAll(newEarthquakesToAdd);
+      // Add/Update earthquakes in Hive
+      if (earthquakesToUpdate.isNotEmpty) {
         await _earthquakeBox.putAll(
-          {for (final eq in newEarthquakesToAdd) eq.id: eq},
+          {for (final eq in earthquakesToUpdate) eq.id: eq},
         );
       }
 

@@ -58,12 +58,20 @@ class Earthquake extends HiveObject {
   });
 
   factory Earthquake.fromJson(Map<String, dynamic> json) {
+    double parseDouble(dynamic value) {
+      if (value == null) return 0.0;
+      if (value is num) return value.toDouble();
+      if (value is String) return double.tryParse(value) ?? 0.0;
+      return 0.0;
+    }
+
     EarthquakeSource sourceEnum;
-    if (json['source'] == 'USGS') {
+    final sourceStr = (json['source'] as String? ?? '').toUpperCase();
+    if (sourceStr == 'USGS') {
       sourceEnum = EarthquakeSource.usgs;
-    } else if (json['source'] == 'EMSC') {
+    } else if (sourceStr == 'EMSC') {
       sourceEnum = EarthquakeSource.emsc;
-    } else if (json['source'] == 'SEC') {
+    } else if (sourceStr == 'SEC') {
       sourceEnum = EarthquakeSource.sec;
     } else {
       sourceEnum = EarthquakeSource.usgs; // Default value
@@ -71,12 +79,12 @@ class Earthquake extends HiveObject {
 
     return Earthquake(
       id: json['id'] ?? '',
-      magnitude: json['magnitude']?.toDouble() ?? 0.0,
+      magnitude: parseDouble(json['magnitude']),
       place: json['place'] ?? 'Unknown',
       time: DateTime.fromMillisecondsSinceEpoch(json['time'] ?? 0),
-      latitude: json['latitude']?.toDouble() ?? 0.0,
-      longitude: json['longitude']?.toDouble() ?? 0.0,
-      depth: json['depth']?.toDouble() ?? 0.0,
+      latitude: parseDouble(json['latitude']),
+      longitude: parseDouble(json['longitude']),
+      depth: parseDouble(json['depth']),
       source: sourceEnum,
       provider: json['source'] ?? 'Unknown',
     );
@@ -95,14 +103,24 @@ class Earthquake extends HiveObject {
       };
 
   factory Earthquake.fromUsgsJson(Map<String, dynamic> json) {
+    double parseDouble(dynamic value) {
+      if (value == null) return 0.0;
+      if (value is num) return value.toDouble();
+      if (value is String) return double.tryParse(value) ?? 0.0;
+      return 0.0;
+    }
+
+    final coords = json['geometry']['coordinates'] as List<dynamic>;
+    final depthValue = coords.length > 2 ? coords[2] : 0.0;
+
     return Earthquake(
       id: json['id'],
-      magnitude: json['properties']['mag']?.toDouble() ?? 0.0,
+      magnitude: parseDouble(json['properties']['mag']),
       place: json['properties']['place'] ?? 'Unknown',
       time: DateTime.fromMillisecondsSinceEpoch(json['properties']['time']),
-      latitude: json['geometry']['coordinates'][1]?.toDouble() ?? 0.0,
-      longitude: json['geometry']['coordinates'][0]?.toDouble() ?? 0.0,
-      depth: json['geometry']['coordinates'][2]?.toDouble() ?? 0.0,
+      latitude: parseDouble(coords[1]),
+      longitude: parseDouble(coords[0]),
+      depth: parseDouble(depthValue),
       source: EarthquakeSource.usgs,
       provider: 'USGS',
     );
@@ -117,29 +135,47 @@ class Earthquake extends HiveObject {
       parsedTime = DateTime.now();
     }
 
+    double parseDouble(dynamic value) {
+      if (value == null) return 0.0;
+      if (value is num) return value.toDouble();
+      if (value is String) return double.tryParse(value) ?? 0.0;
+      return 0.0;
+    }
+
+    final coords = json['geometry']['coordinates'] as List<dynamic>;
+    final depthInCoords = coords.length > 2 ? coords[2] : null;
+    final depthInProps = json['properties']['depth'];
+
     return Earthquake(
       id: json['id'],
-      magnitude: json['properties']['mag']?.toDouble() ?? 0.0,
+      magnitude: parseDouble(json['properties']['mag']),
       place: json['properties']['flynn_region'] ?? 'Unknown',
       time: parsedTime,
-      latitude: json['geometry']['coordinates'][1]?.toDouble() ?? 0.0,
-      longitude: json['geometry']['coordinates'][0]?.toDouble() ?? 0.0,
-      depth: json['properties']['depth']?.toDouble() ?? 0.0,
+      latitude: parseDouble(coords[1]),
+      longitude: parseDouble(coords[0]),
+      depth: parseDouble(depthInProps ?? depthInCoords),
       source: EarthquakeSource.emsc,
       provider: 'EMSC',
     );
   }
 
   factory Earthquake.fromSecJson(Map<String, dynamic> json) {
-    final mag = (json['mag'] as num?)?.toDouble() ?? 0.0;
+    double parseDouble(dynamic value) {
+      if (value == null) return 0.0;
+      if (value is num) return value.toDouble();
+      if (value is String) return double.tryParse(value) ?? 0.0;
+      return 0.0;
+    }
+
+    final mag = parseDouble(json['mag']);
     return Earthquake(
       id: json['eventID'],
       magnitude: double.parse(mag.toStringAsFixed(2)),
       place: json['region'] ?? 'Unknown',
       time: DateTime.parse(json['otime']).toLocal(),
-      latitude: (json['lat'] as num?)?.toDouble() ?? 0.0,
-      longitude: (json['lon'] as num?)?.toDouble() ?? 0.0,
-      depth: (json['depth'] as num?)?.toDouble() ?? 0.0,
+      latitude: parseDouble(json['lat']),
+      longitude: parseDouble(json['lon']),
+      depth: parseDouble(json['depth']),
       source: EarthquakeSource.sec,
       provider: 'SEC',
     );

@@ -50,14 +50,22 @@ class WebSocketService {
       final Map<String, dynamic> data = jsonDecode(message);
       if (data['event'] == 'quake') {
         final quakeData = data['data'];
+
+        double parseDouble(dynamic value) {
+          if (value == null) return 0.0;
+          if (value is num) return value.toDouble();
+          if (value is String) return double.tryParse(value) ?? 0.0;
+          return 0.0;
+        }
+
         final earthquake = Earthquake(
           id: quakeData['unid'],
-          magnitude: double.parse(quakeData['mag']),
+          magnitude: parseDouble(quakeData['mag']),
           place: quakeData['flynn_region'],
           time: DateTime.parse(quakeData['time']),
-          latitude: double.parse(quakeData['lat']),
-          longitude: double.parse(quakeData['lon']),
-          depth: double.parse(quakeData['depth']),
+          latitude: parseDouble(quakeData['lat']),
+          longitude: parseDouble(quakeData['lon']),
+          depth: parseDouble(quakeData['depth']),
           source: EarthquakeSource.emsc,
           provider: 'EMSC',
         );
