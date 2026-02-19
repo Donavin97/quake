@@ -109,13 +109,46 @@ class AuthService with ChangeNotifier {
     }
   }
 
+  Future<void> reauthenticateWithEmailAndPassword(String password) async {
+    try {
+      final user = _auth.currentUser;
+      if (user != null && user.email != null) {
+        final credential = EmailAuthProvider.credential(
+          email: user.email!,
+          password: password,
+        );
+        await user.reauthenticateWithCredential(credential);
+      }
+    } catch (e) {
+      rethrow;
+    }
+  }
+
+  Future<void> reauthenticateWithGoogle() async {
+    try {
+      final GoogleSignInAccount? googleUser = await _googleSignIn.signIn();
+      if (googleUser == null) {
+        // The user canceled the sign-in
+        return;
+      }
+      final GoogleSignInAuthentication googleAuth = await googleUser.authentication;
+      final AuthCredential credential = GoogleAuthProvider.credential(
+        accessToken: googleAuth.accessToken,
+        idToken: googleAuth.idToken,
+      );
+      await _auth.currentUser?.reauthenticateWithCredential(credential);
+    } catch (e) {
+      rethrow;
+    }
+  }
+
   Future<void> deleteUser() async {
     try {
       final user = _auth.currentUser;
       if (user != null) {
         final uid = user.uid;
 
-        // Delete user's preferences
+        // Delete potentially existing legacy subcollection in user doc
         await _firestore
             .collection('users')
             .doc(uid)
@@ -125,6 +158,10 @@ class AuthService with ChangeNotifier {
 
         // Delete user document from 'users' collection
         await _firestore.collection('users').doc(uid).delete();
+
+        // Delete potentially existing legacy documents
+        await _firestore.collection('user_preferences').doc(uid).delete();
+        await _firestore.collection('user_fcm_tokens').doc(uid).delete();
 
         // Delete user's felt reports
         final feltReports = await _firestore

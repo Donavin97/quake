@@ -8,23 +8,28 @@ service cloud.firestore {
 
     // Users can only read and write their own preferences
     match /user_preferences/{userId} {
-      allow read, write: if request.auth.uid == userId;
+      allow read, write, update, delete: if request.auth.uid == userId;
     }
 
     // Users can manage their own FCM token
     match /user_fcm_tokens/{userId} {
-      allow read, write: if request.auth.uid == userId;
+      allow read, write, update, delete: if request.auth.uid == userId;
     }
 
-    // Users can only read and write their own data
+    // Users can read, write, and delete their own data and any subcollections
     match /users/{userId} {
-      allow read, write: if request.auth.uid == userId;
+      allow read, write, update, delete: if request.auth.uid == userId;
+      
+      match /{document=**} {
+        allow read, write, update, delete: if request.auth.uid == userId;
+      }
     }
 
     // Felt reports are write-only for authenticated users
     match /felt_reports/{reportId} {
       allow create: if request.auth != null;
-      allow read, update, delete: if false;
+      allow read, delete: if resource.data.userId == request.auth.uid;
+      allow update: if false;
     }
 
     // Metadata is read-only for authenticated users.
