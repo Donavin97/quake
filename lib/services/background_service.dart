@@ -43,7 +43,9 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
     android: initializationSettingsAndroid,
   );
   
-  await BackgroundService.flutterLocalNotificationsPlugin.initialize(initializationSettings);
+  await BackgroundService.flutterLocalNotificationsPlugin.initialize(
+    settings: initializationSettings,
+  );
 
   final settingsBox = Hive.box('app_settings');
   final earthquakeData = message.data['earthquake'] as String?;
@@ -90,7 +92,7 @@ class BackgroundService {
       android: initializationSettingsAndroid,
     );
     await flutterLocalNotificationsPlugin.initialize(
-      initializationSettings,
+      settings: initializationSettings,
       onDidReceiveNotificationResponse: (details) async {
         if (details.payload == null) return;
 
@@ -143,7 +145,11 @@ class BackgroundService {
     // Get current position for distance-based filters
     Position? position;
     try {
-      position = await Geolocator.getCurrentPosition(timeLimit: const Duration(seconds: 5));
+      position = await Geolocator.getCurrentPosition(
+        locationSettings: const LocationSettings(
+          timeLimit: Duration(seconds: 5),
+        ),
+      );
     } catch (_) {
       // If we can't get position, we might want to skip distance filters or allow them
     }
@@ -296,19 +302,19 @@ class BackgroundService {
     final int notificationId = earthquake.id.hashCode;
 
     await flutterLocalNotificationsPlugin.show(
-      notificationId,
-      title,
-      body,
-      platformChannelSpecifics,
+      id: notificationId,
+      title: title,
+      body: body,
+      notificationDetails: platformChannelSpecifics,
       payload: payload,
     );
 
     // For Android, we also need to send a "summary" notification for the group to appear correctly
     await flutterLocalNotificationsPlugin.show(
-      0, // Summary ID is always 0
-      '',
-      '',
-      const NotificationDetails(
+      id: 0, // Summary ID is always 0
+      title: '',
+      body: '',
+      notificationDetails: const NotificationDetails(
         android: AndroidNotificationDetails(
           'earthquake_channel',
           'Earthquake Alerts',
