@@ -19,6 +19,41 @@ function getDistance(lat1, lon1, lat2, lon2) {
   return distance;
 }
 
+// Helper for reverse geocoding using Nominatim
+const reverseGeocode = async (lat, lon) => {
+  try {
+    const response = await axios.get('https://nominatim.openstreetmap.org/reverse', {
+      params: {
+        format: 'jsonv2',
+        lat: lat,
+        lon: lon,
+        zoom: 10,
+        addressdetails: 1
+      },
+      headers: {
+        'User-Agent': 'QuakeTrackApp/1.0'
+      }
+    });
+
+    if (response.status === 200 && response.data) {
+      const address = response.data.address;
+      if (address) {
+        const city = address.city || address.town || address.village || address.suburb;
+        const state = address.state || address.province;
+        const country = address.country;
+
+        if (city && state) return `${city}, ${state}, ${country}`;
+        if (state) return `${state}, ${country}`;
+        return country;
+      }
+      return response.data.display_name;
+    }
+  } catch (error) {
+    console.error(`Geocoding error for ${lat}, ${lon}:`, error.message);
+  }
+  return null;
+};
+
 // Function to check if current time is within quiet hours
 function isDuringQuietHours(preferences, currentTime, earthquakeTime) {
   if (!preferences.quietHoursEnabled) {
@@ -155,10 +190,14 @@ const sendNotification = async (earthquake) => {
       }
     });
 
+    const magnitudeText = earthquake.source === 'SEC' 
+      ? earthquake.magnitude.toFixed(2) 
+      : earthquake.magnitude.toFixed(1);
+
     const messagePayload = {
       data: {
         title: 'New Earthquake Alert!',
-        body: `Magnitude ${earthquake.magnitude.toFixed(1)} (${earthquake.source}) near ${earthquake.place}`,
+        body: `Magnitude ${magnitudeText} (${earthquake.source}) near ${earthquake.place}`,
         earthquake: JSON.stringify(earthquake),
         mapUrl: `https://www.google.com/maps/search/?api=1&query=${earthquake.latitude},${earthquake.longitude}`,
         sound: 'earthquake'
@@ -272,6 +311,13 @@ const createEarthquakeNotifier = (source, apiUrl, dataTransformer) => {
 
       for (const earthquakeData of earthquakes) {
         if (earthquakeData.time > lastTimestamp) {
+          // Geocode for SEC provider if requested
+          if (source === 'sec') {
+            const betterPlace = await reverseGeocode(earthquakeData.latitude, earthquakeData.longitude);
+            if (betterPlace) {
+              earthquakeData.place = betterPlace;
+            }
+          }
           await sendNotification(earthquakeData);
           if (earthquakeData.time > maxTimestamp) {
             maxTimestamp = earthquakeData.time;

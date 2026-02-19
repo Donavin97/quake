@@ -19,6 +19,7 @@ class SettingsProvider with ChangeNotifier {
   var _minMagnitude = 0;
   var _notificationsEnabled = true;
   var _radius = 2000.0;
+  var _listRadius = 0.0; // 0 means Global
   var _earthquakeProvider = 'usgs';
   var _subscribedTopics = <String>{};
 
@@ -39,6 +40,7 @@ class SettingsProvider with ChangeNotifier {
   int get minMagnitude => _minMagnitude;
   bool get notificationsEnabled => _notificationsEnabled;
   double get radius => _radius;
+  double get listRadius => _listRadius;
   String get earthquakeProvider => _earthquakeProvider;
 
   // New getters
@@ -74,7 +76,8 @@ class SettingsProvider with ChangeNotifier {
         _timeWindow = TimeWindow.values[preferences['timeWindow'] ?? 0];
         _minMagnitude = (preferences['minMagnitude'] as num? ?? 0).toInt();
         _notificationsEnabled = preferences['notificationsEnabled'] ?? true;
-        _radius = (preferences['radius'] as num? ?? 0).toDouble();
+        _radius = (preferences['radius'] as num? ?? 2000.0).toDouble();
+        _listRadius = (preferences['listRadius'] as num? ?? 0.0).toDouble();
         _earthquakeProvider = preferences['earthquakeProvider'] ?? 'usgs';
         _subscribedTopics = Set<String>.from(preferences['subscribedTopics'] ?? []);
 
@@ -102,6 +105,7 @@ class SettingsProvider with ChangeNotifier {
       'minMagnitude': _minMagnitude,
       'notificationsEnabled': _notificationsEnabled,
       'radius': _radius,
+      'listRadius': _listRadius,
       'quietHoursEnabled': _quietHoursEnabled,
       'quietHoursStart': _quietHoursStart,
       'quietHoursEnd': _quietHoursEnd,
@@ -125,6 +129,7 @@ class SettingsProvider with ChangeNotifier {
         'minMagnitude': _minMagnitude,
         'notificationsEnabled': _notificationsEnabled,
         'radius': _radius,
+        'listRadius': _listRadius,
         'earthquakeProvider': _earthquakeProvider,
         'subscribedTopics': _subscribedTopics.toList(),
         // Save new quiet hours preferences
@@ -177,6 +182,12 @@ class SettingsProvider with ChangeNotifier {
 
   Future<void> setRadius(double radius) async {
     _radius = radius;
+    await _savePreferences();
+    notifyListeners();
+  }
+
+  Future<void> setListRadius(double radius) async {
+    _listRadius = radius;
     await _savePreferences();
     notifyListeners();
   }

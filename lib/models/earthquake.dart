@@ -131,9 +131,10 @@ class Earthquake extends HiveObject {
   }
 
   factory Earthquake.fromSecJson(Map<String, dynamic> json) {
+    final mag = (json['mag'] as num?)?.toDouble() ?? 0.0;
     return Earthquake(
       id: json['eventID'],
-      magnitude: (json['mag'] as num?)?.toDouble() ?? 0.0,
+      magnitude: double.parse(mag.toStringAsFixed(2)),
       place: json['region'] ?? 'Unknown',
       time: DateTime.parse(json['otime']).toLocal(),
       latitude: (json['lat'] as num?)?.toDouble() ?? 0.0,
@@ -143,4 +144,5 @@ class Earthquake extends HiveObject {
       provider: 'SEC',
     );
   }
+
 }

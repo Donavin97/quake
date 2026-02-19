@@ -20,12 +20,18 @@ import 'services/navigation_service.dart';
 import 'services/services.dart';
 import 'theme.dart';
 
+import 'package:firebase_messaging/firebase_messaging.dart';
+
 void main() async {
   await runZonedGuarded(() async {
     WidgetsFlutterBinding.ensureInitialized();
     await Firebase.initializeApp(
       options: DefaultFirebaseOptions.currentPlatform,
     );
+    
+    // Register background handler BEFORE any other initialization
+    FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
+
     await Hive.initFlutter();
     Hive.registerAdapter(EarthquakeAdapter());
     Hive.registerAdapter(EarthquakeSourceAdapter());

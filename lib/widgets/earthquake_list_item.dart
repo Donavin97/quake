@@ -30,14 +30,16 @@ class EarthquakeListItem extends StatelessWidget {
     final formattedTime = DateFormat.jm().format(earthquake.time);
     final distanceInKm = distanceInMeters != null ? (distanceInMeters / 1000).toStringAsFixed(2) : 'N/A';
 
+    final magPrecision = earthquake.source == EarthquakeSource.sec ? 2 : 1;
+
     return Semantics(
-      label: 'Earthquake: ${earthquake.place}, Magnitude: ${earthquake.magnitude}, Date: $formattedDate at $formattedTime, Distance: $distanceInKm km',
+      label: 'Earthquake: ${earthquake.place}, Magnitude: ${earthquake.magnitude.toStringAsFixed(magPrecision)}, Date: $formattedDate at $formattedTime, Distance: $distanceInKm km',
       child: ListTile(
         title: Text(earthquake.place),
         subtitle: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Magnitude: ${earthquake.magnitude}'),
+            Text('Magnitude: ${earthquake.magnitude.toStringAsFixed(magPrecision)}'),
             Text('Date: $formattedDate at $formattedTime'),
             if (distanceInMeters != null)
               Text('Distance: $distanceInKm km'),

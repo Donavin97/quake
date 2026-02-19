@@ -13,9 +13,14 @@ import 'package:url_launcher/url_launcher.dart';
 import '../models/earthquake.dart';
 import 'navigation_service.dart';
 
+import '../firebase_options.dart';
+
 // Must be a top-level function (not a class method)
-Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
-  await Firebase.initializeApp();
+@pragma('vm:entry-point')
+Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
+  await Firebase.initializeApp(
+    options: DefaultFirebaseOptions.currentPlatform,
+  );
   
   if (!Hive.isAdapterRegistered(0)) {
     await Hive.initFlutter();
@@ -27,19 +32,32 @@ Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
     await Hive.openBox<Earthquake>('earthquakes');
   }
 
-  final settingsBox = await Hive.openBox('app_settings');
+  if (!Hive.isBoxOpen('app_settings')) {
+    await Hive.openBox('app_settings');
+  }
+
+  // Initialize local notifications for the background isolate
+  const AndroidInitializationSettings initializationSettingsAndroid =
+      AndroidInitializationSettings('@mipmap/ic_launcher');
+  const InitializationSettings initializationSettings = InitializationSettings(
+    android: initializationSettingsAndroid,
+  );
+  
+  await BackgroundService.flutterLocalNotificationsPlugin.initialize(initializationSettings);
+
+  final settingsBox = Hive.box('app_settings');
   final earthquakeData = message.data['earthquake'] as String?;
   
   if (earthquakeData != null) {
     final earthquake = Earthquake.fromJson(jsonDecode(earthquakeData));
     if (await BackgroundService.shouldShowNotification(earthquake, settingsBox)) {
-      BackgroundService.showNotification(message);
+      await BackgroundService.showNotification(message);
     }
   }
 }
 
 class BackgroundService {
-  static final FlutterLocalNotificationsPlugin _flutterLocalNotificationsPlugin =
+  static final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin =
       FlutterLocalNotificationsPlugin();
   static final FirebaseMessaging _firebaseMessaging = FirebaseMessaging.instance;
 
@@ -61,7 +79,7 @@ class BackgroundService {
       sound: RawResourceAndroidNotificationSound('earthquake'),
     );
 
-    await _flutterLocalNotificationsPlugin
+    await flutterLocalNotificationsPlugin
         .resolvePlatformSpecificImplementation<
             AndroidFlutterLocalNotificationsPlugin>()
         ?.createNotificationChannel(channel);
@@ -71,7 +89,7 @@ class BackgroundService {
     const InitializationSettings initializationSettings = InitializationSettings(
       android: initializationSettingsAndroid,
     );
-    await _flutterLocalNotificationsPlugin.initialize(
+    await flutterLocalNotificationsPlugin.initialize(
       initializationSettings,
       onDidReceiveNotificationResponse: (details) async {
         if (details.payload == null) return;
@@ -95,9 +113,6 @@ class BackgroundService {
         }
       },
     );
-
-    // Setup FCM
-    FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
 
     // Handle foreground messages
     FirebaseMessaging.onMessage.listen((RemoteMessage message) async {
@@ -280,7 +295,7 @@ class BackgroundService {
     // Use a unique ID based on the earthquake's timestamp or hash to prevent overwriting
     final int notificationId = earthquake.id.hashCode;
 
-    await _flutterLocalNotificationsPlugin.show(
+    await flutterLocalNotificationsPlugin.show(
       notificationId,
       title,
       body,
@@ -289,7 +304,7 @@ class BackgroundService {
     );
 
     // For Android, we also need to send a "summary" notification for the group to appear correctly
-    await _flutterLocalNotificationsPlugin.show(
+    await flutterLocalNotificationsPlugin.show(
       0, // Summary ID is always 0
       '',
       '',

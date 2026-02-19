@@ -195,7 +195,7 @@ class _DetailScreenState extends State<DetailScreen> {
     final String mapUrl = 'https://www.google.com/maps/search/?api=1&query=${_earthquake!.latitude},${_earthquake!.longitude}';
     
     final String shareText = 'Earthquake Alert!\n\n'
-        'Magnitude: ${_earthquake!.magnitude.toStringAsFixed(1)}\n'
+        'Magnitude: ${_earthquake!.magnitude.toStringAsFixed(_earthquake!.source == EarthquakeSource.sec ? 2 : 1)}\n'
         'Location: ${_earthquake!.place}\n'
         'Time: $timeStr\n'
         'Source: ${_earthquake!.source.name.toUpperCase()}\n\n'
@@ -246,7 +246,7 @@ class _DetailScreenState extends State<DetailScreen> {
               style: Theme.of(context).textTheme.headlineSmall,
             ),
             const SizedBox(height: 8),
-            Text('Magnitude: ${_earthquake!.magnitude.toStringAsFixed(2)}'),
+            Text('Magnitude: ${_earthquake!.magnitude.toStringAsFixed(_earthquake!.source == EarthquakeSource.sec ? 2 : 1)}'),
             const SizedBox(height: 8),
             Text('Time: ${DateFormat.yMMMd().add_jms().format(_earthquake!.time)}'),
             const SizedBox(height: 8),

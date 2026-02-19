@@ -20,6 +20,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   late bool _notificationsEnabled;
   late int _minMagnitude;
   late double _radius;
+  late double _listRadius;
   late String _earthquakeProvider;
 
 
@@ -33,6 +34,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _notificationsEnabled = settings.notificationsEnabled;
     _minMagnitude = settings.minMagnitude;
     _radius = settings.radius;
+    _listRadius = settings.listRadius;
     _earthquakeProvider = settings.earthquakeProvider;
 
 
@@ -45,6 +47,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     settings.setNotificationsEnabled(_notificationsEnabled);
     settings.setMinMagnitude(_minMagnitude);
     settings.setRadius(_radius);
+    settings.setListRadius(_listRadius);
     settings.setEarthquakeProvider(_earthquakeProvider);
 
 
@@ -62,13 +65,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
       ),
       body: Padding(
         padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+        child: ListView(
           children: [
             Text(
               'Theme',
               style: Theme.of(context).textTheme.titleLarge,
             ),
+            const SizedBox(height: 8),
             SegmentedButton<ThemeMode>(
               segments: const [
                 ButtonSegment(
@@ -99,6 +102,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               'Time Window for Recent Earthquakes',
               style: Theme.of(context).textTheme.titleLarge,
             ),
+            const SizedBox(height: 8),
             SegmentedButton<TimeWindow>(
               segments: const [
                 ButtonSegment(
@@ -127,6 +131,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             const SizedBox(height: 24),
             SwitchListTile(
               title: const Text('Enable Notifications'),
+              contentPadding: EdgeInsets.zero,
               value: _notificationsEnabled,
               onChanged: (value) {
                 setState(() {
@@ -136,6 +141,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ),
             ListTile(
               title: const Text('Quiet Hours & Overrides'),
+              contentPadding: EdgeInsets.zero,
               trailing: const Icon(Icons.arrow_forward_ios),
               onTap: () {
                 Navigator.of(context).push(
@@ -168,6 +174,30 @@ class _SettingsScreenState extends State<SettingsScreen> {
               },
             ),
 
+            const SizedBox(height: 16),
+            Text(
+              'List Display Radius',
+              style: Theme.of(context).textTheme.titleLarge,
+            ),
+            const SizedBox(height: 12),
+            Text(_listRadius == 0
+                ? 'Global (All Earthquakes)'
+                : 'Within ${_listRadius.round()} km'),
+            Slider(
+              value: _listRadius,
+              max: 20000, // Max radius in km
+              divisions: 200, // 0 to 20000 in steps of 100
+              label: _listRadius == 0
+                  ? 'Global'
+                  : '${_listRadius.round()} km',
+              onChanged: (value) {
+                setState(() {
+                  _listRadius = value;
+                });
+              },
+            ),
+
+            const SizedBox(height: 24),
             Text(
               'Earthquake Provider',
               style: Theme.of(context).textTheme.titleLarge,
@@ -189,13 +219,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 );
               }).toList(),
             ),
-            const Spacer(),
+            const SizedBox(height: 40),
             Center(
               child: ElevatedButton(
                 onPressed: _applySettings,
                 child: const Text('Apply Settings'),
               ),
-            )
+            ),
+            const SizedBox(height: 20),
           ],
         ),
       ),
