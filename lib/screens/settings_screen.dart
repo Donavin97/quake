@@ -153,6 +153,25 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ),
             const SizedBox(height: 24),
             Text(
+              'Minimum Magnitude',
+              style: Theme.of(context).textTheme.titleLarge,
+            ),
+            const SizedBox(height: 12),
+            Text('Notify for earthquakes magnitude $_minMagnitude and above'),
+            Slider(
+              value: _minMagnitude.toDouble(),
+              min: 0,
+              max: 9,
+              divisions: 9,
+              label: _minMagnitude.toString(),
+              onChanged: (value) {
+                setState(() {
+                  _minMagnitude = value.round();
+                });
+              },
+            ),
+            const SizedBox(height: 24),
+            Text(
               'Notification Radius',
               style: Theme.of(context).textTheme.titleLarge,
             ),
