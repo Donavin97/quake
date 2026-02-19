@@ -101,6 +101,7 @@ class SettingsProvider with ChangeNotifier {
 
   Future<void> _saveToLocalCache() async {
     final box = await Hive.openBox('app_settings');
+    final position = _locationProvider.currentPosition;
     await box.putAll({
       'minMagnitude': _minMagnitude,
       'notificationsEnabled': _notificationsEnabled,
@@ -115,6 +116,8 @@ class SettingsProvider with ChangeNotifier {
       'globalMinMagnitudeOverrideQuietHours': _globalMinMagnitudeOverrideQuietHours,
       'alwaysNotifyRadiusEnabled': _alwaysNotifyRadiusEnabled,
       'alwaysNotifyRadiusValue': _alwaysNotifyRadiusValue,
+      'lastLatitude': position?.latitude,
+      'lastLongitude': position?.longitude,
     });
   }
 

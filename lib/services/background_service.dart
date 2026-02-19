@@ -4,6 +4,7 @@ import 'dart:math';
 
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:go_router/go_router.dart';
@@ -47,13 +48,20 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
     settings: initializationSettings,
   );
 
+  // Ensure notification channel is created in the background isolate
+  await BackgroundService.setupNotificationChannel();
+
   final settingsBox = Hive.box('app_settings');
   final earthquakeData = message.data['earthquake'] as String?;
   
   if (earthquakeData != null) {
-    final earthquake = Earthquake.fromJson(jsonDecode(earthquakeData));
-    if (await BackgroundService.shouldShowNotification(earthquake, settingsBox)) {
-      await BackgroundService.showNotification(message);
+    try {
+      final earthquake = Earthquake.fromJson(jsonDecode(earthquakeData));
+      if (await BackgroundService.shouldShowNotification(earthquake, settingsBox)) {
+        await BackgroundService.showNotification(message);
+      }
+    } catch (e) {
+      debugPrint('Error in background handler: $e');
     }
   }
 }
@@ -71,8 +79,7 @@ class BackgroundService {
 
   static Stream<String> get onTokenRefresh => _firebaseMessaging.onTokenRefresh;
 
-  static Future<void> initialize() async {
-    // Setup local notifications
+  static Future<void> setupNotificationChannel() async {
     const AndroidNotificationChannel channel = AndroidNotificationChannel(
       'earthquake_channel',
       'Earthquake Alerts',
@@ -85,6 +92,11 @@ class BackgroundService {
         .resolvePlatformSpecificImplementation<
             AndroidFlutterLocalNotificationsPlugin>()
         ?.createNotificationChannel(channel);
+  }
+
+  static Future<void> initialize() async {
+    // Setup local notifications
+    await setupNotificationChannel();
 
     const AndroidInitializationSettings initializationSettingsAndroid =
         AndroidInitializationSettings('@mipmap/ic_launcher');
@@ -142,21 +154,28 @@ class BackgroundService {
       return true;
     }
 
-    // Get current position for distance-based filters
-    Position? position;
+    // Get position for distance-based filters
+    double? latitude;
+    double? longitude;
+
+    // Try to get fresh position with a short timeout
     try {
-      position = await Geolocator.getCurrentPosition(
+      final position = await Geolocator.getCurrentPosition(
         locationSettings: const LocationSettings(
-          timeLimit: Duration(seconds: 5),
+          timeLimit: Duration(seconds: 3),
         ),
       );
+      latitude = position.latitude;
+      longitude = position.longitude;
     } catch (_) {
-      // If we can't get position, we might want to skip distance filters or allow them
+      // Fallback to cached position
+      latitude = settingsBox.get('lastLatitude') as double?;
+      longitude = settingsBox.get('lastLongitude') as double?;
     }
 
     double? distance;
-    if (position != null) {
-      distance = _getDistance(position.latitude, position.longitude, earthquake.latitude, earthquake.longitude);
+    if (latitude != null && longitude != null) {
+      distance = _getDistance(latitude, longitude, earthquake.latitude, earthquake.longitude);
     }
 
     // 2. Always Notify Radius Check
@@ -172,6 +191,8 @@ class BackgroundService {
     }
 
     // 4. Radius Check
+    // If we have a radius filter but don't know the distance, we'll allow it 
+    // (fail open for safety if we can't determine location)
     if (radius > 0 && distance != null && distance > radius) {
       return false;
     }
@@ -184,8 +205,12 @@ class BackgroundService {
         final double emergencyMag = (settingsBox.get('emergencyMagnitudeThreshold', defaultValue: 5.0) as num).toDouble();
         final double emergencyRad = (settingsBox.get('emergencyRadius', defaultValue: 100.0) as num).toDouble();
         
-        if (earthquake.magnitude >= emergencyMag && distance != null && distance <= emergencyRad) {
-          return true;
+        // During quiet hours, we only notify if it's a significant event
+        // If distance is unknown, we only filter by magnitude
+        if (earthquake.magnitude >= emergencyMag) {
+          if (distance == null || distance <= emergencyRad) {
+            return true;
+          }
         }
         return false;
       }
