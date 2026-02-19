@@ -207,6 +207,7 @@ class _MapScreenState extends State<MapScreen> {
             ],
           ),
         ),
+        _buildLegend(),
         if (_isGeoJsonLoading)
           const Positioned(
             bottom: 20,
@@ -229,6 +230,84 @@ class _MapScreenState extends State<MapScreen> {
             ),
           ),
       ],
+    );
+  }
+
+  Widget _buildLegend() {
+    return Positioned(
+      bottom: 20,
+      right: 10,
+      child: Container(
+        padding: const EdgeInsets.all(10),
+        decoration: BoxDecoration(
+          color: Theme.of(context).cardColor.withAlpha(220),
+          borderRadius: BorderRadius.circular(10),
+          boxShadow: const [
+            BoxShadow(
+              color: Colors.black26,
+              blurRadius: 4,
+              offset: Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              'Magnitude',
+              style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 12,
+                  ),
+            ),
+            const SizedBox(height: 8),
+            _buildLegendItem(Colors.red, '7.0+'),
+            _buildLegendItem(Colors.orange, '5.0 - 6.9'),
+            _buildLegendItem(Colors.yellow, '3.0 - 4.9'),
+            _buildLegendItem(Colors.green, '< 3.0'),
+            if (_showPlates || _showFaults) ...[
+              const Divider(height: 16),
+              if (_showPlates)
+                _buildLegendItem(
+                  Colors.red.withAlpha(180),
+                  'Plate Boundaries',
+                  isLine: true,
+                ),
+              if (_showFaults)
+                _buildLegendItem(
+                  Colors.orange.withAlpha(150),
+                  'Fault Lines',
+                  isLine: true,
+                ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildLegendItem(Color color, String label, {bool isLine = false}) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 2.0),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 16,
+            height: isLine ? 3 : 16,
+            decoration: BoxDecoration(
+              color: color,
+              shape: isLine ? BoxShape.rectangle : BoxShape.circle,
+            ),
+          ),
+          const SizedBox(width: 8),
+          Text(
+            label,
+            style: const TextStyle(fontSize: 11),
+          ),
+        ],
+      ),
     );
   }
 
