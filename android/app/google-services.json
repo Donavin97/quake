@@ -1,6 +1,7 @@
 {
   "project_info": {
     "project_number": "349946205462",
+    "firebase_url": "https://quakewatch-89047796-c7f3c-default-rtdb.firebaseio.com",
     "project_id": "quakewatch-89047796-c7f3c",
     "storage_bucket": "quakewatch-89047796-c7f3c.firebasestorage.app"
   },
@@ -12,7 +13,36 @@
           "package_name": "com.liebgott.eqtrack"
         }
       },
-      "oauth_client": [],
+      "oauth_client": [
+        {
+          "client_id": "349946205462-5a1d29v2a2nph8hp5is24n84odsaiifc.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.liebgott.eqtrack",
+            "certificate_hash": "5e6add74ffe573e69d194c9e9cc0c7416f395d84"
+          }
+        },
+        {
+          "client_id": "349946205462-pdots9h0j05vrfp336t47i17kerhtnir.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.liebgott.eqtrack",
+            "certificate_hash": "a18e669acef3cd98be69e4dbc22a3e7482c0927e"
+          }
+        },
+        {
+          "client_id": "349946205462-rr9tehoefnpmhdo16lo5gt4b2te9rugc.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.liebgott.eqtrack",
+            "certificate_hash": "b45418e6743f47f331c51cdf091f583693335033"
+          }
+        },
+        {
+          "client_id": "349946205462-s7jssg4t9cd1dmgpjkrek1mrr81qeq7d.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
       "api_key": [
         {
           "current_key": "AIzaSyAmz3tP558eLW3EbeuQWS-R3Qc41u_CqRw"
@@ -20,7 +50,12 @@
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": []
+          "other_platform_oauth_client": [
+            {
+              "client_id": "349946205462-s7jssg4t9cd1dmgpjkrek1mrr81qeq7d.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
         }
       }
     }
