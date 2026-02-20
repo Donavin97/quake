@@ -19,6 +19,24 @@ function getDistance(lat1, lon1, lat2, lon2) {
   return distance;
 }
 
+function getBearing(lat1, lon1, lat2, lon2) {
+  const lat1Rad = lat1 * Math.PI / 180;
+  const lat2Rad = lat2 * Math.PI / 180;
+  const dLon = (lon2 - lon1) * Math.PI / 180;
+
+  const y = Math.sin(dLon) * Math.cos(lat2Rad);
+  const x = Math.cos(lat1Rad) * Math.sin(lat2Rad) -
+    Math.sin(lat1Rad) * Math.cos(lat2Rad) * Math.cos(dLon);
+  const bearing = Math.atan2(y, x) * 180 / Math.PI;
+  return (bearing + 360) % 360;
+}
+
+function bearingToDirection(bearing) {
+  const directions = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
+  const index = Math.floor(((bearing + 22.5) % 360) / 45);
+  return directions[index];
+}
+
 // Helper for reverse geocoding using Nominatim
 const reverseGeocode = async (lat, lon) => {
   try {
@@ -36,17 +54,39 @@ const reverseGeocode = async (lat, lon) => {
     });
 
     if (response.status === 200 && response.data) {
-      const address = response.data.address;
+      const data = response.data;
+      const address = data.address;
+      const featLat = parseFloat(data.lat);
+      const featLon = parseFloat(data.lon);
+
       if (address) {
         const city = address.city || address.town || address.suburb || address.village;
         const state = address.state || address.province || address.county;
         const country = address.country;
 
+        let locationName = '';
+        if (city && state) {
+          locationName = `${city}, ${state}`;
+        } else if (state) {
+          locationName = `${state}`;
+        } else {
+          locationName = country;
+        }
+
+        if (!isNaN(featLat) && !isNaN(featLon)) {
+          const distance = getDistance(featLat, featLon, lat, lon);
+          if (distance > 1.0) {
+            const bearing = getBearing(featLat, featLon, lat, lon);
+            const direction = bearingToDirection(bearing);
+            return `${Math.round(distance)} km ${direction} of ${locationName}, ${country}`;
+          }
+        }
+
         if (city && state) return `${city}, ${state}, ${country}`;
         if (state) return `${state}, ${country}`;
         return country;
       }
-      return response.data.display_name;
+      return data.display_name;
     }
   } catch (error) {
     console.error(`Geocoding error for ${lat}, ${lon}:`, error.message);
