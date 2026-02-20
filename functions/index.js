@@ -27,7 +27,7 @@ const reverseGeocode = async (lat, lon) => {
         format: 'jsonv2',
         lat: lat,
         lon: lon,
-        zoom: 10,
+        zoom: 13,
         addressdetails: 1
       },
       headers: {
@@ -38,8 +38,8 @@ const reverseGeocode = async (lat, lon) => {
     if (response.status === 200 && response.data) {
       const address = response.data.address;
       if (address) {
-        const city = address.city || address.town || address.village || address.suburb;
-        const state = address.state || address.province;
+        const city = address.city || address.town || address.suburb || address.village;
+        const state = address.state || address.province || address.county;
         const country = address.country;
 
         if (city && state) return `${city}, ${state}, ${country}`;
@@ -302,12 +302,10 @@ const createEarthquakeNotifier = (source, apiUrl, dataTransformer) => {
 
       for (const earthquakeData of earthquakes) {
         if (earthquakeData.time > lastTimestamp) {
-          // Geocode for SEC provider if requested
-          if (source === 'sec') {
-            const betterPlace = await reverseGeocode(earthquakeData.latitude, earthquakeData.longitude);
-            if (betterPlace) {
-              earthquakeData.place = betterPlace;
-            }
+          // Geocode for better place description
+          const betterPlace = await reverseGeocode(earthquakeData.latitude, earthquakeData.longitude);
+          if (betterPlace) {
+            earthquakeData.place = betterPlace;
           }
           await sendNotification(earthquakeData);
           if (earthquakeData.time > maxTimestamp) {
