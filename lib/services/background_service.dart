@@ -29,13 +29,7 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
     Hive.registerAdapter(EarthquakeSourceAdapter());
   }
   
-  if (!Hive.isBoxOpen('earthquakes')) {
-    await Hive.openBox<Earthquake>('earthquakes');
-  }
-
-  if (!Hive.isBoxOpen('app_settings')) {
-    await Hive.openBox('app_settings');
-  }
+  final Box settingsBox = await Hive.openBox('app_settings');
 
   // Initialize local notifications for the background isolate
   const AndroidInitializationSettings initializationSettingsAndroid =
@@ -51,7 +45,6 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   // Ensure notification channel is created in the background isolate
   await BackgroundService.setupNotificationChannel();
 
-  final settingsBox = Hive.box('app_settings');
   final earthquakeData = message.data['earthquake'] as String?;
   
   if (earthquakeData != null) {
@@ -145,77 +138,93 @@ class BackgroundService {
     final bool notificationsEnabled = settingsBox.get('notificationsEnabled', defaultValue: true);
     if (!notificationsEnabled) return false;
 
+    // Check for duplicates first to save resources
+    final earthquakeBox = await Hive.openBox<Earthquake>('earthquakes');
+    if (earthquakeBox.containsKey(earthquake.id)) {
+      return false; // Already processed this earthquake
+    }
+
+    // 1. Load basic filters
     final double minMagnitude = (settingsBox.get('minMagnitude', defaultValue: 0) as num).toDouble();
     final double radius = (settingsBox.get('radius', defaultValue: 0.0) as num).toDouble();
     
-    // 1. Global Override Check
-    final double globalOverride = (settingsBox.get('globalMinMagnitudeOverrideQuietHours', defaultValue: 0.0) as num).toDouble();
-    if (globalOverride > 0 && earthquake.magnitude >= globalOverride) {
-      return true;
-    }
+    // 2. Load location and calculate distance
+    double? lastLat = settingsBox.get('lastLatitude') as double?;
+    double? lastLon = settingsBox.get('lastLongitude') as double?;
+    double? distance;
 
-    // Get position for distance-based filters
-    double? latitude;
-    double? longitude;
-
-    // Try to get fresh position with a short timeout
+    // Try to get fresh position if possible, but don't hang too long
     try {
       final position = await Geolocator.getCurrentPosition(
         locationSettings: const LocationSettings(
-          timeLimit: Duration(seconds: 3),
+          timeLimit: Duration(seconds: 2),
+          accuracy: LocationAccuracy.low,
         ),
       );
-      latitude = position.latitude;
-      longitude = position.longitude;
+      lastLat = position.latitude;
+      lastLon = position.longitude;
     } catch (_) {
-      // Fallback to cached position
-      latitude = settingsBox.get('lastLatitude') as double?;
-      longitude = settingsBox.get('lastLongitude') as double?;
+      // Fallback to cached position already loaded above
     }
 
-    double? distance;
-    if (latitude != null && longitude != null) {
-      distance = _getDistance(latitude, longitude, earthquake.latitude, earthquake.longitude);
+    if (lastLat != null && lastLon != null) {
+      distance = _getDistance(lastLat, lastLon, earthquake.latitude, earthquake.longitude);
     }
 
-    // 2. Always Notify Radius Check
-    final bool alwaysNotifyEnabled = settingsBox.get('alwaysNotifyRadiusEnabled', defaultValue: false);
-    final double alwaysNotifyValue = (settingsBox.get('alwaysNotifyRadiusValue', defaultValue: 0.0) as num).toDouble();
-    if (alwaysNotifyEnabled && alwaysNotifyValue > 0 && distance != null && distance <= alwaysNotifyValue) {
-      return true;
+    // 3. Load Overrides
+    final double globalOverride = (settingsBox.get('globalMinMagnitudeOverrideQuietHours', defaultValue: 0.0) as num).toDouble();
+    final bool alwaysNotifyRadiusEnabled = settingsBox.get('alwaysNotifyRadiusEnabled', defaultValue: false);
+    final double alwaysNotifyRadiusValue = (settingsBox.get('alwaysNotifyRadiusValue', defaultValue: 0.0) as num).toDouble();
+
+    // 4. CHECK ALWAYS-NOTIFY CRITERIA (These bypass normal minMag and Quiet Hours)
+    bool isAlwaysNotify = false;
+    
+    // Global Magnitude Override (e.g. "Notify me for any 7.0+ regardless of settings")
+    if (globalOverride > 0 && earthquake.magnitude >= globalOverride) {
+      isAlwaysNotify = true;
     }
 
-    // 3. Magnitude Check
+    // Local Radius Override (e.g. "Notify me for anything within 50km regardless of settings")
+    if (alwaysNotifyRadiusEnabled && alwaysNotifyRadiusValue > 0 && distance != null && distance <= alwaysNotifyRadiusValue) {
+      isAlwaysNotify = true;
+    }
+
+    if (isAlwaysNotify) return true;
+
+    // 5. NORMAL FILTERS (Magnitude and Radius)
+    // If it doesn't meet our basic magnitude criteria, we don't notify.
     if (earthquake.magnitude < minMagnitude) {
       return false;
     }
 
-    // 4. Radius Check
-    // If we have a radius filter but don't know the distance, we'll allow it 
-    // (fail open for safety if we can't determine location)
+    // If it's too far away (and we have a radius filter), we don't notify.
+    // Note: We "fail open" if distance is unknown (allow it).
     if (radius > 0 && distance != null && distance > radius) {
       return false;
     }
 
-    // 5. Quiet Hours Check
+    // 6. QUIET HOURS CHECK
     final bool quietHoursEnabled = settingsBox.get('quietHoursEnabled', defaultValue: false);
     if (quietHoursEnabled) {
       final now = DateTime.now();
       if (_isDuringQuietHours(settingsBox, now)) {
+        // We ARE in quiet hours. Only allow if it's an "Emergency".
         final double emergencyMag = (settingsBox.get('emergencyMagnitudeThreshold', defaultValue: 5.0) as num).toDouble();
         final double emergencyRad = (settingsBox.get('emergencyRadius', defaultValue: 100.0) as num).toDouble();
         
-        // During quiet hours, we only notify if it's a significant event
-        // If distance is unknown, we only filter by magnitude
+        // Emergency criteria: magnitude is high enough AND (distance is close or unknown)
         if (earthquake.magnitude >= emergencyMag) {
           if (distance == null || distance <= emergencyRad) {
             return true;
           }
         }
+        
+        // If it's quiet hours and NOT an emergency (and NOT an Always-Notify from step 4), silence it.
         return false;
       }
     }
 
+    // 7. If we reached here, it passed all filters and it's NOT quiet hours.
     return true;
   }
 

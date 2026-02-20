@@ -45,6 +45,8 @@ class DefaultFirebaseOptions {
     appId: '1:349946205462:android:182c1177801f64925eac37',
     messagingSenderId: '349946205462',
     projectId: 'quakewatch-89047796-c7f3c',
+    databaseURL: 'https://quakewatch-89047796-c7f3c-default-rtdb.firebaseio.com',
     storageBucket: 'quakewatch-89047796-c7f3c.firebasestorage.app',
   );
+
 }

@@ -1,4 +1,4 @@
-const functions = require('firebase-functions');
+const functions = require('firebase-functions/v1');
 const admin = require('firebase-admin');
 const axios = require('axios');
 const geohash = require('ngeohash');
@@ -203,12 +203,7 @@ const sendNotification = async (earthquake) => {
         sound: 'earthquake'
       },
       android: {
-        priority: 'high'
-      },
-      apns: {
-        headers: {
-          'apns-priority': '10' // High priority for iOS
-        }
+        priority: 'high',
       }
     };
 
@@ -218,8 +213,7 @@ const sendNotification = async (earthquake) => {
       const messages = recipientTokens.map(r => ({
         token: r.token,
         data: messagePayload.data,
-        android: messagePayload.android,
-        apns: messagePayload.apns
+        android: messagePayload.android
       }));
 
       // Send messages in batches of 500 (Firebase limit for sendEach)
@@ -265,16 +259,14 @@ const sendNotification = async (earthquake) => {
       topicMessages.push({
         topic: 'global',
         data: messagePayload.data,
-        android: messagePayload.android,
-        apns: messagePayload.apns
+        android: messagePayload.android
       });
 
       // 2. Geohash topic (prefix of 2 chars)
       topicMessages.push({
         topic: `geo_${eqPrefix2}`,
         data: messagePayload.data,
-        android: messagePayload.android,
-        apns: messagePayload.apns
+        android: messagePayload.android
       });
 
       // 3. Magnitude topic (e.g. minmag_5)
@@ -282,8 +274,7 @@ const sendNotification = async (earthquake) => {
       topicMessages.push({
         topic: `minmag_${magFloor}`,
         data: messagePayload.data,
-        android: messagePayload.android,
-        apns: messagePayload.apns
+        android: messagePayload.android
       });
 
       await Promise.all(topicMessages.map(msg => admin.messaging().send(msg)));
@@ -393,6 +384,10 @@ const sources = [
   }
 ];
 
-sources.forEach(source => {
-  exports[`${source.name}Notifier`] = createEarthquakeNotifier(source.name, source.url, source.transformer);
-});
+const usgsSource = sources.find(s => s.name === 'usgs');
+const emscSource = sources.find(s => s.name === 'emsc');
+const secSource = sources.find(s => s.name === 'sec');
+
+exports.usgsNotifier = createEarthquakeNotifier(usgsSource.name, usgsSource.url, usgsSource.transformer);
+exports.emscNotifier = createEarthquakeNotifier(emscSource.name, emscSource.url, emscSource.transformer);
+exports.secNotifier = createEarthquakeNotifier(secSource.name, secSource.url, secSource.transformer);

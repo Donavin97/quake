@@ -9,10 +9,15 @@
           "order": "ASCENDING"
         },
         {
-          "fieldPath": "preferences.minMagnitude",
+          "fieldPath": "location.geohash",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "__name__",
           "order": "ASCENDING"
         }
-      ]
+      ],
+      "density": "SPARSE_ALL"
     },
     {
       "collectionGroup": "users",
@@ -23,10 +28,15 @@
           "order": "ASCENDING"
         },
         {
-          "fieldPath": "location.geohash",
+          "fieldPath": "preferences.minMagnitude",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "__name__",
           "order": "ASCENDING"
         }
-      ]
+      ],
+      "density": "SPARSE_ALL"
     },
     {
       "collectionGroup": "users",
@@ -39,8 +49,13 @@
         {
           "fieldPath": "preferences.radius",
           "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "__name__",
+          "order": "ASCENDING"
         }
-      ]
+      ],
+      "density": "SPARSE_ALL"
     }
   ],
   "fieldOverrides": []

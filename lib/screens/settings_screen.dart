@@ -160,7 +160,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
             Text('Notify for earthquakes magnitude $_minMagnitude and above'),
             Slider(
               value: _minMagnitude.toDouble(),
-              min: 0,
               max: 9,
               divisions: 9,
               label: _minMagnitude.toString(),
