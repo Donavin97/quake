@@ -72,24 +72,22 @@ class EarthquakeProvider with ChangeNotifier {
 
   void _init() async {
     _locationSubscription?.cancel();
-    _websocketSubscription?.cancel(); // Cancel previous WebSocket subscription
-    _fcmSubscription?.cancel(); // Cancel previous FCM subscription
-    _boxSubscription?.cancel(); // Cancel previous box subscription
+    _websocketSubscription?.cancel();
+    _fcmSubscription?.cancel();
+    _boxSubscription?.cancel();
 
-    // Load initial data from Hive
+    // 1. Load initial data from Hive
     _earthquakes = _earthquakeBox.values.toList();
     await _processAndRefresh();
     _geocodeMissingPlaces();
 
-    final List<Earthquake> newEarthquakesToAdd = []; // Declared here
-
     try {
       final position = _locationProvider.currentPosition;
-      // Fetch based on the larger of notification radius or list radius to ensure both filters have data
       final fetchRadius = (_settingsProvider.radius == 0 || _settingsProvider.listRadius == 0) 
           ? 0.0 
           : (_settingsProvider.radius > _settingsProvider.listRadius ? _settingsProvider.radius : _settingsProvider.listRadius);
 
+      // 2. Fetch new data from API
       final allEarthquakes = await _apiService.fetchEarthquakes(
         _settingsProvider.earthquakeProvider,
         _settingsProvider.minMagnitude.toDouble(),
@@ -99,15 +97,13 @@ class EarthquakeProvider with ChangeNotifier {
         timeWindow: _settingsProvider.timeWindow.name,
       );
 
-      // Merge new data with existing cached data
-
-
       final List<Earthquake> earthquakesToUpdate = [];
 
       for (final earthquakeFromApi in allEarthquakes) {
         final index = _earthquakes.indexWhere((e) => e.id == earthquakeFromApi.id);
         
         if (index == -1) {
+          // New earthquake: geocode it
           final betterPlace = await _geocodingService.reverseGeocode(
             earthquakeFromApi.latitude, 
             earthquakeFromApi.longitude
@@ -118,44 +114,41 @@ class EarthquakeProvider with ChangeNotifier {
           _earthquakes.add(earthquakeFromApi);
           earthquakesToUpdate.add(earthquakeFromApi);
         } else {
+          // Existing earthquake: preserve geocoded place if it exists
           final existing = _earthquakes[index];
-          // If the existing one doesn't have our new distance/direction format, try to geocode it
-          if (!existing.place.contains(' km ')) {
-             final betterPlace = await _geocodingService.reverseGeocode(
+          
+          if (existing.place.contains(' km ')) {
+            earthquakeFromApi.place = existing.place;
+          } else {
+            // If not geocoded yet, try now
+            final betterPlace = await _geocodingService.reverseGeocode(
               earthquakeFromApi.latitude, 
               earthquakeFromApi.longitude
             );
             if (betterPlace != null) {
               earthquakeFromApi.place = betterPlace;
             }
-          } else {
-            // Keep the previously geocoded place
-            earthquakeFromApi.place = existing.place;
           }
+          
           _earthquakes[index] = earthquakeFromApi;
           earthquakesToUpdate.add(earthquakeFromApi);
         }
       }
 
-      // Add/Update earthquakes in Hive
+      // 3. Persist all updates to Hive
       if (earthquakesToUpdate.isNotEmpty) {
         await _earthquakeBox.putAll(
           {for (final eq in earthquakesToUpdate) eq.id: eq},
         );
       }
 
-      // Perform background processing
       await _processAndRefresh();
-      
       _lastUpdated = DateTime.now();
       _error = null;
     } catch (e) {
       _error = e.toString();
     } finally {
-      // Notify listeners only if there were actual changes or new data was fetched
-      if (newEarthquakesToAdd.isNotEmpty || _error != null) {
-        notifyListeners();
-      }
+      notifyListeners();
     }
 
     _locationSubscription = _locationProvider.locationStream.listen((position) {
