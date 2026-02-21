@@ -29,6 +29,7 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
     Hive.registerAdapter(EarthquakeSourceAdapter());
   }
   
+  await Hive.openBox<Earthquake>('earthquakes');
   final Box settingsBox = await Hive.openBox('app_settings');
 
   // Initialize local notifications for the background isolate
@@ -115,7 +116,7 @@ class BackgroundService {
           final earthquake = Earthquake.fromJson(payloadData['earthquake']);
           final context = NavigationService.navigatorKey.currentContext;
           if (context != null) {
-            GoRouter.of(context).go('/details/${earthquake.id}');
+            GoRouter.of(context).go('/details/${Uri.encodeComponent(earthquake.id)}');
           }
         }
       },

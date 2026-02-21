@@ -47,7 +47,7 @@ class AppRouter {
                     return DetailScreen(earthquake: earthquake);
                   } else {
                     final id = state.pathParameters['id']!;
-                    return DetailScreen(earthquakeId: id);
+                    return DetailScreen(earthquakeId: Uri.decodeComponent(id));
                   }
                 },
               ),

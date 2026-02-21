@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_crashlytics/firebase_crashlytics.dart';
@@ -44,7 +45,18 @@ void main() async {
     final String? launchPayload =
         notificationAppLaunchDetails?.notificationResponse?.payload;
     if (launchPayload != null) {
-      NavigationService.initialRoute = '/details/$launchPayload';
+      try {
+        final Map<String, dynamic> payloadData = jsonDecode(launchPayload);
+        final earthquakeData = payloadData['earthquake'];
+        if (earthquakeData != null) {
+          final String id = earthquakeData['id']?.toString() ?? '';
+          if (id.isNotEmpty) {
+            NavigationService.initialRoute = '/details/${Uri.encodeComponent(id)}';
+          }
+        }
+      } catch (e) {
+        debugPrint('Error parsing notification launch payload: $e');
+      }
     }
 
     FlutterError.onError = FirebaseCrashlytics.instance.recordFlutterError;

@@ -368,14 +368,15 @@ const sources = [
       return data.features.map(earthquake => {
         const { properties, geometry, id } = earthquake;
         const { mag, place, time } = properties;
-        const [longitude, latitude] = geometry.coordinates;
+        const [longitude, latitude, depth] = geometry.coordinates;
         return {
           id: id,
-          magnitude: mag,
+          magnitude: parseFloat(mag),
           place: place,
           time: time,
-          latitude: latitude,
-          longitude: longitude,
+          latitude: parseFloat(latitude),
+          longitude: parseFloat(longitude),
+          depth: parseFloat(depth || 0),
           source: 'USGS',
         };
       });
@@ -387,16 +388,17 @@ const sources = [
     transformer: (data) => {
       return data.features.map(earthquake => {
         const { properties, geometry, id } = earthquake;
-        const { mag, flynn_region, time } = properties;
+        const { mag, flynn_region, time, depth } = properties;
         const [longitude, latitude] = geometry.coordinates;
         const timeInMillis = Date.parse(time);
         return {
           id: id,
-          magnitude: mag,
+          magnitude: parseFloat(mag),
           place: flynn_region,
           time: timeInMillis,
-          latitude: latitude,
-          longitude: longitude,
+          latitude: parseFloat(latitude),
+          longitude: parseFloat(longitude),
+          depth: parseFloat(depth || 0),
           source: 'EMSC'
         };
       });
@@ -410,11 +412,12 @@ const sources = [
       return data.seiscomp.events.map(event => {
         return {
           id: event.eventID,
-          magnitude: event.mag,
+          magnitude: parseFloat(event.mag),
           place: event.region,
           time: Date.parse(event.otime),
-          latitude: event.lat,
-          longitude: event.lon,
+          latitude: parseFloat(event.lat),
+          longitude: parseFloat(event.lon),
+          depth: parseFloat(event.depth || 0),
           source: 'SEC'
         };
       });
