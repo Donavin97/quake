@@ -230,6 +230,10 @@ class _DetailScreenState extends State<DetailScreen> {
       );
     }
 
+    final String displayPlace = _earthquake!.place.contains(' km ') 
+        ? 'Near ${_earthquake!.place}' 
+        : _earthquake!.place;
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Earthquake Details'),
@@ -247,7 +251,7 @@ class _DetailScreenState extends State<DetailScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              _earthquake!.place,
+              displayPlace,
               style: Theme.of(context).textTheme.headlineSmall,
             ),
             const SizedBox(height: 8),
@@ -265,7 +269,7 @@ class _DetailScreenState extends State<DetailScreen> {
             if (distance != null)
               Padding(
                 padding: const EdgeInsets.only(top: 8.0),
-                child: Text('Distance: ${distance!.toStringAsFixed(2)} km from your location'),
+                child: Text('Distance: ${distance!.toStringAsFixed(2)} km from your current location'),
               ),
             const SizedBox(height: 20),
             if (_isReporting)

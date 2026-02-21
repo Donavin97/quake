@@ -31,18 +31,19 @@ class EarthquakeListItem extends StatelessWidget {
     final distanceInKm = distanceInMeters != null ? (distanceInMeters / 1000).toStringAsFixed(2) : 'N/A';
 
     final magPrecision = earthquake.source == EarthquakeSource.sec ? 2 : 1;
+    final displayPlace = earthquake.place.contains(' km ') ? 'Near ${earthquake.place}' : earthquake.place;
 
     return Semantics(
-      label: 'Earthquake: ${earthquake.place}, Magnitude: ${earthquake.magnitude.toStringAsFixed(magPrecision)}, Date: $formattedDate at $formattedTime, Distance: $distanceInKm km',
+      label: 'Earthquake: $displayPlace, Magnitude: ${earthquake.magnitude.toStringAsFixed(magPrecision)}, Date: $formattedDate at $formattedTime, Distance: $distanceInKm km',
       child: ListTile(
-        title: Text(earthquake.place),
+        title: Text(displayPlace),
         subtitle: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text('Magnitude: ${earthquake.magnitude.toStringAsFixed(magPrecision)}'),
             Text('Date: $formattedDate at $formattedTime'),
             if (distanceInMeters != null)
-              Text('Distance: $distanceInKm km'),
+              Text('Distance from you: $distanceInKm km'),
           ],
         ),
         onTap: () {

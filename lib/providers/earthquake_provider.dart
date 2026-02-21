@@ -79,6 +79,7 @@ class EarthquakeProvider with ChangeNotifier {
     // Load initial data from Hive
     _earthquakes = _earthquakeBox.values.toList();
     await _processAndRefresh();
+    _geocodeMissingPlaces();
 
     final List<Earthquake> newEarthquakesToAdd = []; // Declared here
 
@@ -104,9 +105,6 @@ class EarthquakeProvider with ChangeNotifier {
       final List<Earthquake> earthquakesToUpdate = [];
 
       for (final earthquakeFromApi in allEarthquakes) {
-        // Attempt reverse geocoding for more informative region names if needed
-        // Or if the existing one is generic. For simplicity, we always update 
-        // if it's new or if we want to ensure latest data.
         final index = _earthquakes.indexWhere((e) => e.id == earthquakeFromApi.id);
         
         if (index == -1) {
@@ -118,12 +116,25 @@ class EarthquakeProvider with ChangeNotifier {
             earthquakeFromApi.place = betterPlace;
           }
           _earthquakes.add(earthquakeFromApi);
+          earthquakesToUpdate.add(earthquakeFromApi);
         } else {
-          // Keep the existing place if it was already geocoded, or update it
-          // For now, let's just update the whole object to get latest magnitude/depth
+          final existing = _earthquakes[index];
+          // If the existing one doesn't have our new distance/direction format, try to geocode it
+          if (!existing.place.contains(' km ')) {
+             final betterPlace = await _geocodingService.reverseGeocode(
+              earthquakeFromApi.latitude, 
+              earthquakeFromApi.longitude
+            );
+            if (betterPlace != null) {
+              earthquakeFromApi.place = betterPlace;
+            }
+          } else {
+            // Keep the previously geocoded place
+            earthquakeFromApi.place = existing.place;
+          }
           _earthquakes[index] = earthquakeFromApi;
+          earthquakesToUpdate.add(earthquakeFromApi);
         }
-        earthquakesToUpdate.add(earthquakeFromApi);
       }
 
       // Add/Update earthquakes in Hive
@@ -336,6 +347,27 @@ class EarthquakeProvider with ChangeNotifier {
     });
 
     return list;
+  }
+
+  Future<void> _geocodeMissingPlaces() async {
+    // We only geocode the most recent 50 to avoid massive API hits on startup
+    final listToGeocode = _earthquakes.where((eq) => !eq.place.contains(' km ')).toList();
+    listToGeocode.sort((a, b) => b.time.compareTo(a.time));
+    
+    final targets = listToGeocode.take(50).toList();
+
+    for (final eq in targets) {
+      if (!eq.place.contains(' km ')) {
+        final betterPlace = await _geocodingService.reverseGeocode(eq.latitude, eq.longitude);
+        if (betterPlace != null) {
+          eq.place = betterPlace;
+          await _earthquakeBox.put(eq.id, eq);
+          notifyListeners();
+        }
+        // Small delay to respect Nominatim rate limit (1 req/sec recommended)
+        await Future.delayed(const Duration(milliseconds: 1000));
+      }
+    }
   }
 
   void _addNewEarthquake(Earthquake newEarthquake) async {
