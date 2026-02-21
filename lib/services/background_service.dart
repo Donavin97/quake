@@ -115,7 +115,7 @@ class BackgroundService {
           final earthquake = Earthquake.fromJson(payloadData['earthquake']);
           final context = NavigationService.navigatorKey.currentContext;
           if (context != null) {
-            GoRouter.of(context).go('/details/${earthquake.id}', extra: earthquake);
+            GoRouter.of(context).go('/details/${earthquake.id}');
           }
         }
       },
