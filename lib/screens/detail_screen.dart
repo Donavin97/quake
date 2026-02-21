@@ -202,9 +202,11 @@ class _DetailScreenState extends State<DetailScreen> {
         'Epicenter: $mapUrl\n\n'
         'Shared via QuakeTrack';
 
-    Share.share(
-      shareText,
-      subject: 'Earthquake in ${_earthquake!.place}',
+    SharePlus.instance.share(
+      ShareParams(
+        text: shareText,
+        subject: 'Earthquake in ${_earthquake!.place}',
+      ),
     );
   }
 

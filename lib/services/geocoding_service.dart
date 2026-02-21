@@ -32,7 +32,7 @@ class GeocodingService {
 
         if (address != null) {
           final city = address['city'] ?? address['town'] ?? address['village'] ?? address['suburb'];
-          final state = address['state'] ?? address['province'] ?? address['county'];
+          final state = address['county'] ?? address['state'] ?? address['province'];
           final country = address['country'];
 
           String locationName = '';

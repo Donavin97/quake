@@ -1,7 +1,4 @@
-import 'dart:convert';
-
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:go_router/go_router.dart';
 import 'package:latlong2/latlong.dart' as latlong;
@@ -22,13 +19,10 @@ class _MapScreenState extends State<MapScreen> {
   late final EarthquakeProvider _earthquakeProvider;
   late final LocationProvider _locationProvider;
   List<Marker> _markers = [];
-  List<Polyline> _plates = [];
-  List<Polyline> _faults = [];
   final MapController _mapController = MapController();
 
   bool _showPlates = true;
   bool _showFaults = true;
-  bool _isGeoJsonLoading = false;
 
   @override
   void initState() {
@@ -38,7 +32,6 @@ class _MapScreenState extends State<MapScreen> {
     _earthquakeProvider.addListener(_updateMarkers);
     _locationProvider.addListener(_updateMapCenter);
     _updateMarkers();
-    _loadGeoJson();
   }
 
   @override
@@ -55,70 +48,6 @@ class _MapScreenState extends State<MapScreen> {
         latlong.LatLng(currentPosition.latitude, currentPosition.longitude),
         _mapController.camera.zoom,
       );
-    }
-  }
-
-  Future<void> _loadGeoJson() async {
-    setState(() {
-      _isGeoJsonLoading = true;
-    });
-
-    try {
-      // Load Plates
-      final platesString = await rootBundle.loadString('assets/plates.json');
-      final platesJson = json.decode(platesString);
-      final platesFeatures = platesJson['features'] as List;
-
-      // Load Faults
-      final faultsString = await rootBundle.loadString('assets/faults.json');
-      final faultsJson = json.decode(faultsString);
-      final faultsFeatures = faultsJson['features'] as List;
-
-      if (!mounted) return;
-
-      final List<Polyline> loadedPlates = [];
-      for (final feature in platesFeatures) {
-        final geometry = feature['geometry'];
-        if (geometry['type'] == 'LineString') {
-          final coordinates = geometry['coordinates'] as List;
-          final points = coordinates.map<latlong.LatLng>((coords) {
-            return latlong.LatLng(coords[1].toDouble(), coords[0].toDouble());
-          }).toList();
-          loadedPlates.add(Polyline(
-            points: points,
-            color: Colors.red.withAlpha(180),
-            strokeWidth: 2.0,
-          ));
-        }
-      }
-
-      final List<Polyline> loadedFaults = [];
-      for (final feature in faultsFeatures) {
-        final geometry = feature['geometry'];
-        if (geometry['type'] == 'LineString') {
-          final coordinates = geometry['coordinates'] as List;
-          final points = coordinates.map<latlong.LatLng>((coords) {
-            return latlong.LatLng(coords[1].toDouble(), coords[0].toDouble());
-          }).toList();
-          loadedFaults.add(Polyline(
-            points: points,
-            color: Colors.orange.withAlpha(150),
-          ));
-        }
-      }
-
-      setState(() {
-        _plates = loadedPlates;
-        _faults = loadedFaults;
-        _isGeoJsonLoading = false;
-      });
-    } catch (e) {
-      debugPrint('Error loading geological data: $e');
-      if (mounted) {
-        setState(() {
-          _isGeoJsonLoading = false;
-        });
-      }
     }
   }
 
@@ -173,14 +102,32 @@ class _MapScreenState extends State<MapScreen> {
               urlTemplate: 'https://{s}.tile.openstreetmap.fr/hot/{z}/{x}/{y}.png',
               userAgentPackageName: 'com.liebgott.quaketrack',
             ),
-            if (_showPlates) PolylineLayer(polylines: _plates),
-            if (_showFaults) PolylineLayer(polylines: _faults),
+            if (_showPlates)
+              TileLayer(
+                wmsOptions: WMSTileLayerOptions(
+                  baseUrl: 'https://edumaps.esri.ca/ArcGIS/services/MapServices/TectonicPlates/MapServer/WMSServer',
+                  layers: const ['0'],
+                ),
+                userAgentPackageName: 'com.liebgott.quaketrack',
+              ),
+            if (_showFaults)
+              TileLayer(
+                wmsOptions: WMSTileLayerOptions(
+                  baseUrl: 'https://edumaps.esri.ca/ArcGIS/services/MapServices/TectonicPlates/MapServer/WMSServer',
+                  layers: const ['1'],
+                ),
+                userAgentPackageName: 'com.liebgott.quaketrack',
+              ),
             MarkerLayer(markers: _markers),
             RichAttributionWidget(
               attributions: [
                 TextSourceAttribution(
                   'OpenStreetMap contributors',
                   onTap: () => launchUrl(Uri.parse('https://openstreetmap.org/copyright')),
+                ),
+                TextSourceAttribution(
+                  'Esri Canada',
+                  onTap: () => launchUrl(Uri.parse('http://edumaps.esri.ca')),
                 ),
               ],
             ),
@@ -190,45 +137,27 @@ class _MapScreenState extends State<MapScreen> {
           top: 10,
           right: 10,
           child: Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
             children: [
-              FloatingActionButton.small(
+              FloatingActionButton.extended(
                 heroTag: 'platesToggle',
                 onPressed: () => setState(() => _showPlates = !_showPlates),
                 backgroundColor: _showPlates ? Colors.red : Colors.white,
-                child: Icon(Icons.public, color: _showPlates ? Colors.white : Colors.red),
+                icon: Icon(Icons.public, color: _showPlates ? Colors.white : Colors.red),
+                label: Text('Plates', style: TextStyle(color: _showPlates ? Colors.white : Colors.red)),
               ),
               const SizedBox(height: 8),
-              FloatingActionButton.small(
+              FloatingActionButton.extended(
                 heroTag: 'faultsToggle',
                 onPressed: () => setState(() => _showFaults = !_showFaults),
                 backgroundColor: _showFaults ? Colors.orange : Colors.white,
-                child: Icon(Icons.reorder, color: _showFaults ? Colors.white : Colors.orange),
+                icon: Icon(Icons.reorder, color: _showFaults ? Colors.white : Colors.orange),
+                label: Text('Faults', style: TextStyle(color: _showFaults ? Colors.white : Colors.orange)),
               ),
             ],
           ),
         ),
         _buildLegend(),
-        if (_isGeoJsonLoading)
-          const Positioned(
-            bottom: 20,
-            left: 20,
-            child: Card(
-              child: Padding(
-                padding: EdgeInsets.all(8.0),
-                child: Row(
-                  children: [
-                    SizedBox(
-                      width: 15,
-                      height: 15,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    ),
-                    SizedBox(width: 10),
-                    Text('Loading geological data...', style: TextStyle(fontSize: 12)),
-                  ],
-                ),
-              ),
-            ),
-          ),
       ],
     );
   }
