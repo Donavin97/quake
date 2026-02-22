@@ -1,8 +1,8 @@
+import 'dart:async'; // Added
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
-import 'package:flutter_map_marker_cluster/flutter_map_marker_cluster.dart'; // Added
 import 'package:go_router/go_router.dart';
-import 'package:latlong2/latlong.dart' as latlong;
+import 'package:latlong2/latlong.dart';
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -21,24 +21,39 @@ class _MapScreenState extends State<MapScreen> {
   late final LocationProvider _locationProvider;
   List<Marker> _markers = [];
   final MapController _mapController = MapController();
+  late LatLngBounds _currentVisibleBounds; // To store current visible bounds
 
   bool _showPlates = true;
   bool _showFaults = true;
+
+  // For debouncing map updates
+  Timer? _debounce;
+  final Duration _debounceDuration = const Duration(milliseconds: 300);
 
   @override
   void initState() {
     super.initState();
     _earthquakeProvider = context.read<EarthquakeProvider>();
     _locationProvider = context.read<LocationProvider>();
-    _earthquakeProvider.addListener(_updateMarkers);
+
+    _earthquakeProvider.addListener(_onEarthquakesChanged);
     _locationProvider.addListener(_updateMapCenter);
-    _updateMarkers();
+
+    // Initialize bounds to a default (world view)
+    _currentVisibleBounds = LatLngBounds(
+      const LatLng(-90, -180),
+      const LatLng(90, 180),
+    );
+    _filterAndDisplayMarkers(); // Initial marker display
+
+    // No need to call _updateMarkers directly anymore as it will be triggered by _filterAndDisplayMarkers
   }
 
   @override
   void dispose() {
-    _earthquakeProvider.removeListener(_updateMarkers);
+    _earthquakeProvider.removeListener(_onEarthquakesChanged);
     _locationProvider.removeListener(_updateMapCenter);
+    _debounce?.cancel(); // Cancel debounce timer
     super.dispose();
   }
 
@@ -46,7 +61,7 @@ class _MapScreenState extends State<MapScreen> {
     final currentPosition = _locationProvider.currentPosition;
     if (currentPosition != null && _mapController.camera.center.latitude == 0) {
       _mapController.move(
-        latlong.LatLng(currentPosition.latitude, currentPosition.longitude),
+        LatLng(currentPosition.latitude, currentPosition.longitude),
         _mapController.camera.zoom,
       );
     }
@@ -56,7 +71,7 @@ class _MapScreenState extends State<MapScreen> {
     final currentPosition = _locationProvider.currentPosition;
     if (currentPosition != null) {
       _mapController.move(
-        latlong.LatLng(currentPosition.latitude, currentPosition.longitude),
+        LatLng(currentPosition.latitude, currentPosition.longitude),
         7.0, // Zoom level for country-level detail
       );
     } else {
@@ -68,21 +83,41 @@ class _MapScreenState extends State<MapScreen> {
 
   void _zoomOutToGlobalView() {
     _mapController.move(
-      latlong.LatLng(0.0, 0.0), // Center of the world
+      LatLng(0.0, 0.0), // Center of the world
       2.0, // Zoom level for global view
     );
   }
 
-  void _updateMarkers() {
+  void _onEarthquakesChanged() {
+    _filterAndDisplayMarkers();
+  }
+
+  void _onMapEvent(MapEvent mapEvent) {
+    // Update bounds and filter if the map moved (any event, debounce will handle frequency)
+    // The previous explicit checks for MapEventMoveEnd/MapEventZoomEnd were causing errors.
+    _currentVisibleBounds = _mapController.camera.visibleBounds;
+    if (_debounce?.isActive ?? false) _debounce?.cancel();
+    _debounce = Timer(_debounceDuration, () {
+      _filterAndDisplayMarkers();
+    });
+  }
+
+  void _filterAndDisplayMarkers() {
     final earthquakes = _earthquakeProvider.earthquakes;
     if (!mounted) return;
+
+    final filteredEarthquakes = earthquakes.where((eq) {
+      final point = LatLng(eq.latitude, eq.longitude);
+      return _currentVisibleBounds.contains(point);
+    }).toList();
+
     setState(() {
-      _markers = earthquakes.map((earthquake) {
+      _markers = filteredEarthquakes.map((earthquake) {
         final magnitude = earthquake.magnitude;
         return Marker(
           width: 40.0,
           height: 40.0,
-          point: latlong.LatLng(earthquake.latitude, earthquake.longitude),
+          point: LatLng(earthquake.latitude, earthquake.longitude),
           child: GestureDetector(
             onTap: () => context.go('/details/${earthquake.id}', extra: earthquake),
             child: Stack(
@@ -126,7 +161,7 @@ class _MapScreenState extends State<MapScreen> {
     return Colors.red.withAlpha(180);
   }
 
-  Widget _buildMap(latlong.LatLng initialCenter) {
+  Widget _buildMap(LatLng initialCenter) {
     return Stack(
       children: [
         FlutterMap(
@@ -134,6 +169,7 @@ class _MapScreenState extends State<MapScreen> {
           options: MapOptions(
             initialCenter: initialCenter,
             initialZoom: 4,
+            onMapEvent: _onMapEvent, // Added map event listener
           ),
           children: [
             TileLayer(
@@ -156,27 +192,7 @@ class _MapScreenState extends State<MapScreen> {
                 ),
                 userAgentPackageName: 'com.liebgott.quaketrack',
               ),
-            MarkerClusterLayerWidget(
-              options: MarkerClusterLayerOptions(
-                maxClusterRadius: 120, // A good default for typical use cases
-                size: const Size(40, 40),
-                builder: (context, markers) {
-                  return Container(
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(20),
-                      color: Colors.blue,
-                    ),
-                    child: Center(
-                      child: Text(
-                        markers.length.toString(),
-                        style: const TextStyle(color: Colors.white),
-                      ),
-                    ),
-                  );
-                },
-                markers: _markers,
-              ),
-            ),
+            MarkerLayer(markers: _markers),
             RichAttributionWidget(
               attributions: [
                 TextSourceAttribution(
@@ -321,7 +337,7 @@ class _MapScreenState extends State<MapScreen> {
         final currentPosition = locationProvider.currentPosition;
         if (currentPosition != null) {
           return _buildMap(
-            latlong.LatLng(currentPosition.latitude, currentPosition.longitude),
+            LatLng(currentPosition.latitude, currentPosition.longitude),
           );
         } else {
           return const Center(
