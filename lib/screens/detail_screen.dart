@@ -115,9 +115,10 @@ class _DetailScreenState extends State<DetailScreen> {
                     min: 1,
                     max: 10,
                     divisions: 9,
-                    onChanged: (value) {
+                    label: currentLevel.toString(), // Add label to show current value
+                    onChanged: (double value) { // Explicitly type value as double
                       setState(() {
-                        currentLevel = value.toInt();
+                        currentLevel = value.round(); // Use round to avoid floating point issues if any
                       });
                     },
                   ),

@@ -51,6 +51,27 @@ class _MapScreenState extends State<MapScreen> {
     }
   }
 
+  void _zoomInToUserLocation() {
+    final currentPosition = _locationProvider.currentPosition;
+    if (currentPosition != null) {
+      _mapController.move(
+        latlong.LatLng(currentPosition.latitude, currentPosition.longitude),
+        7.0, // Zoom level for country-level detail
+      );
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('User location not available.')),
+      );
+    }
+  }
+
+  void _zoomOutToGlobalView() {
+    _mapController.move(
+      latlong.LatLng(0.0, 0.0), // Center of the world
+      2.0, // Zoom level for global view
+    );
+  }
+
   void _updateMarkers() {
     final earthquakes = _earthquakeProvider.earthquakes;
     if (!mounted) return;
@@ -139,6 +160,22 @@ class _MapScreenState extends State<MapScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
+              FloatingActionButton.extended(
+                heroTag: 'zoomInButton',
+                onPressed: _zoomInToUserLocation,
+                backgroundColor: Theme.of(context).primaryColor,
+                icon: const Icon(Icons.zoom_in),
+                label: const Text('Zoom In'),
+              ),
+              const SizedBox(height: 8),
+              FloatingActionButton.extended(
+                heroTag: 'zoomOutButton',
+                onPressed: _zoomOutToGlobalView,
+                backgroundColor: Theme.of(context).primaryColor,
+                icon: const Icon(Icons.zoom_out),
+                label: const Text('Zoom Out'),
+              ),
+              const SizedBox(height: 8),
               FloatingActionButton.extended(
                 heroTag: 'platesToggle',
                 onPressed: () => setState(() => _showPlates = !_showPlates),
