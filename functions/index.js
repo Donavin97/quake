@@ -45,7 +45,8 @@ const reverseGeocode = async (lat, lon) => {
         format: 'jsonv2',
         lat: lat,
         lon: lon,
-        addressdetails: 1
+        addressdetails: 1,
+        'accept-language': 'en' // Request results in English
       },
       headers: {
         'User-Agent': 'QuakeTrackApp/1.0'

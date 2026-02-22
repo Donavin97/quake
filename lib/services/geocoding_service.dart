@@ -30,6 +30,7 @@ class GeocodingService {
           'lat': eqLat.toString(),
           'lon': eqLon.toString(),
           'addressdetails': 1,
+          'accept-language': 'en', // Request results in English
         },
         options: Options(
           headers: {
