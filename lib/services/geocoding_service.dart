@@ -79,7 +79,7 @@ class GeocodingService {
               locationName += ', $finalCountry';
             }
           } else if (finalState.isNotEmpty) {
-            locationName = '$finalState';
+            locationName = finalState;
             if (finalCountry.isNotEmpty && finalCountry != finalState) {
               locationName += ', $finalCountry';
             }
@@ -96,9 +96,7 @@ class GeocodingService {
             }
           }
 
-          if (result == null) { // Only set if not already set by distance logic
-            result = locationName; // Use the constructed locationName
-          }
+          result ??= locationName; // Use the constructed locationName
         }
         
         result ??= data['display_name'];

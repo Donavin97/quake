@@ -59,32 +59,57 @@ const reverseGeocode = async (lat, lon) => {
       const featLon = parseFloat(data.lon);
 
       if (address) {
-        const city = address.suburb || address.town || address.city || address.village;
-        const state = address.county || address.state || address.province;
-        const country = address.country;
-
-        let locationName = '';
-        if (city && state) {
-          locationName = `${city}, ${state}`;
-        } else if (state) {
-          locationName = `${state}`;
-        } else {
-          locationName = country;
-        }
-
-        if (!isNaN(featLat) && !isNaN(featLon)) {
-          const distance = getDistance(featLat, featLon, lat, lon);
-          if (distance > 1.0) {
-            const bearing = getBearing(featLat, featLon, lat, lon);
-            const direction = bearingToDirection(bearing);
-            return `${Math.round(distance)} km ${direction} of ${locationName}, ${country}`;
-          }
-        }
-
-        if (city && state) return `${city}, ${state}, ${country}`;
-        if (state) return `${state}, ${country}`;
-        return country;
-      }
+                    let locationName = '';
+                    let primaryPlace = null;
+        
+                    // Ordered list of keys to check for the most specific "place"
+                    const placeKeys = [
+                      'industrial', 'amenity', 'building',
+                      'hamlet', 'isolated_dwelling', 'suburb', 'village', 'town', 'city',
+                      'county', 'state', 'province', 'country'
+                    ];
+        
+                    for (const key of placeKeys) {
+                      if (address[key] && typeof address[key] === 'string' && address[key].length > 0) {
+                        primaryPlace = address[key];
+                        break;
+                      }
+                    }
+        
+                    const finalState = address.county || address.state || address.province || '';
+                    const finalCountry = address.country || '';
+        
+                    if (primaryPlace && primaryPlace.length > 0) {
+                      locationName = primaryPlace;
+                      // Append state/province if different from primaryPlace and not empty
+                      if (finalState.length > 0 && !locationName.includes(finalState)) {
+                        locationName += `, ${finalState}`;
+                      }
+                      // Append country if different from state/province and not empty
+                      if (finalCountry.length > 0 && !locationName.includes(finalCountry)) {
+                        locationName += `, ${finalCountry}`;
+                      }
+                    } else if (finalState.length > 0) {
+                      locationName = `${finalState}`;
+                      if (finalCountry.length > 0 && finalCountry !== finalState) {
+                        locationName += `, ${finalCountry}`;
+                      }
+                    } else {
+                      locationName = finalCountry.length > 0 ? finalCountry : 'Unknown';
+                    }
+        
+                    let result = null;
+                    if (!isNaN(featLat) && !isNaN(featLon)) {
+                      const distance = getDistance(featLat, featLon, lat, lon);
+                      if (distance > 1.0) {
+                        const bearing = getBearing(featLat, featLon, lat, lon);
+                        const direction = bearingToDirection(bearing);
+                        result = `${Math.round(distance)} km ${direction} of ${locationName}`;
+                      }
+                    }
+        
+                    result = result ?? locationName; // Use the constructed locationName if result is null
+                    return result;      }
       return data.display_name;
     }
   } catch (error) {

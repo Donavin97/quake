@@ -115,7 +115,7 @@ class EarthquakeProvider with ChangeNotifier {
           earthquakesToUpdate.add(earthquakeFromApi);
         } else {
           // Existing earthquake: preserve geocoded place if it exists
-          final existing = _earthquakes[index];
+
           
           // Always attempt to geocode and replace the place if a better one is found.
           // The goal is for reverse geocoded names to always replace API names.
