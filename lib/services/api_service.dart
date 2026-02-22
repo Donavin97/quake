@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart'; // Added this import
 
 import '../models/earthquake.dart';
 import '../exceptions/api_exception.dart'; // New import
@@ -64,7 +65,8 @@ class ApiService {
     }
 
     final results = await Future.wait(futures);
-    return results.expand((element) => element).toList();
+    final allEarthquakes = results.expand((element) => element);
+    return allEarthquakes.toSet().toList();
   }
 
   Future<List<Earthquake>> _fetchFromSource({
@@ -125,9 +127,11 @@ class ApiService {
         throw ApiException('Failed to load $providerName earthquakes', statusCode: response.statusCode);
       }
     } on DioException catch (e) {
-      throw _handleDioError(e);
+      debugPrint('Error fetching from $providerName (DioException): ${_handleDioError(e)}');
+      return [];
     } catch (e) {
-      throw UnknownApiException('An unexpected error occurred: $e');
+      debugPrint('Error fetching from $providerName (UnknownApiException): $e');
+      return [];
     }
   }
 

@@ -37,6 +37,7 @@ void main() async {
     Hive.registerAdapter(EarthquakeAdapter());
     Hive.registerAdapter(EarthquakeSourceAdapter());
     await Hive.openBox<Earthquake>('earthquakes');
+    await Hive.openBox<String>('geocodingCache');
 
     await BackgroundService.initialize();
 

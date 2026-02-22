@@ -1,12 +1,27 @@
 import 'dart:math';
 import 'package:dio/dio.dart';
+import 'package:hive_flutter/hive_flutter.dart';
+
+const String _geocodingCacheBox = 'geocodingCache';
 
 class GeocodingService {
   final Dio _dio;
+  late final Box<String> _cacheBox;
 
-  GeocodingService({Dio? dio}) : _dio = dio ?? Dio();
+  GeocodingService({Dio? dio, Box<String>? cacheBox})
+      : _dio = dio ?? Dio() {
+    _cacheBox = cacheBox ?? Hive.box(_geocodingCacheBox);
+  }
 
   Future<String?> reverseGeocode(double eqLat, double eqLon) async {
+    final cacheKey = '${eqLat.toStringAsFixed(5)}_${eqLon.toStringAsFixed(5)}';
+
+    // Try to retrieve from cache first
+    final cachedResult = _cacheBox.get(cacheKey);
+    if (cachedResult != null) {
+      return cachedResult;
+    }
+
     try {
       final response = await _dio.get(
         'https://nominatim.openstreetmap.org/reverse',
@@ -14,7 +29,6 @@ class GeocodingService {
           'format': 'jsonv2',
           'lat': eqLat.toString(),
           'lon': eqLon.toString(),
-          'zoom': 13,
           'addressdetails': 1,
         },
         options: Options(
@@ -30,8 +44,9 @@ class GeocodingService {
         final featLat = double.tryParse(data['lat']?.toString() ?? '');
         final featLon = double.tryParse(data['lon']?.toString() ?? '');
 
+        String? result;
         if (address != null) {
-          final city = address['city'] ?? address['town'] ?? address['village'] ?? address['suburb'];
+          final city = address['suburb'] ?? address['town'] ?? address['city'] ?? address['village'];
           final state = address['county'] ?? address['state'] ?? address['province'];
           final country = address['country'];
 
@@ -49,19 +64,27 @@ class GeocodingService {
             if (distance > 1.0) {
               final bearing = _calculateBearing(featLat, featLon, eqLat, eqLon);
               final direction = _bearingToDirection(bearing);
-              return '${distance.toStringAsFixed(0)} km $direction of $locationName, $country';
+              result = '${distance.toStringAsFixed(0)} km $direction of $locationName, $country';
             }
           }
 
-          if (city != null && state != null) {
-            return '$city, $state, $country';
-          } else if (state != null) {
-            return '$state, $country';
-          } else {
-            return country;
+          if (result == null) { // Only set if not already set by distance logic
+            if (city != null && state != null) {
+              result = '$city, $state, $country';
+            } else if (state != null) {
+              result = '$state, $country';
+            } else {
+              result = country;
+            }
           }
         }
-        return data['display_name'];
+        
+        result ??= data['display_name'];
+
+        if (result != null) {
+          _cacheBox.put(cacheKey, result);
+        }
+        return result;
       }
     } catch (e) {
       // ignore

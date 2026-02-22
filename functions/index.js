@@ -45,7 +45,6 @@ const reverseGeocode = async (lat, lon) => {
         format: 'jsonv2',
         lat: lat,
         lon: lon,
-        zoom: 13,
         addressdetails: 1
       },
       headers: {
@@ -60,8 +59,8 @@ const reverseGeocode = async (lat, lon) => {
       const featLon = parseFloat(data.lon);
 
       if (address) {
-        const city = address.city || address.town || address.suburb || address.village;
-        const state = address.state || address.province || address.county;
+        const city = address.suburb || address.town || address.city || address.village;
+        const state = address.county || address.state || address.province;
         const country = address.country;
 
         let locationName = '';

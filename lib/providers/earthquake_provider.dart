@@ -117,17 +117,14 @@ class EarthquakeProvider with ChangeNotifier {
           // Existing earthquake: preserve geocoded place if it exists
           final existing = _earthquakes[index];
           
-          if (existing.place.contains(' km ')) {
-            earthquakeFromApi.place = existing.place;
-          } else {
-            // If not geocoded yet, try now
-            final betterPlace = await _geocodingService.reverseGeocode(
-              earthquakeFromApi.latitude, 
-              earthquakeFromApi.longitude
-            );
-            if (betterPlace != null) {
-              earthquakeFromApi.place = betterPlace;
-            }
+          // Always attempt to geocode and replace the place if a better one is found.
+          // The goal is for reverse geocoded names to always replace API names.
+          final betterPlace = await _geocodingService.reverseGeocode(
+            earthquakeFromApi.latitude, 
+            earthquakeFromApi.longitude
+          );
+          if (betterPlace != null) {
+            earthquakeFromApi.place = betterPlace;
           }
           
           _earthquakes[index] = earthquakeFromApi;
