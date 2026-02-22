@@ -46,17 +46,45 @@ class GeocodingService {
 
         String? result;
         if (address != null) {
-          final city = address['suburb'] ?? address['town'] ?? address['city'] ?? address['village'];
-          final state = address['county'] ?? address['state'] ?? address['province'];
-          final country = address['country'];
-
           String locationName = '';
-          if (city != null && state != null) {
-            locationName = '$city, $state';
-          } else if (state != null) {
-            locationName = '$state';
+          String? primaryPlace;
+
+          // Ordered list of keys to check for the most specific "place"
+          // Prioritize industrial/amenity/building for features like mines,
+          // then smaller populated places, up to larger cities.
+          final List<String> placeKeys = [
+            'industrial', 'amenity', 'building', 
+            'hamlet', 'isolated_dwelling', 'suburb', 'village', 'town', 'city',
+            'county', 'state', 'province', 'country'
+          ];
+
+          for (final key in placeKeys) {
+            if (address.containsKey(key) && address[key] is String && (address[key] as String).isNotEmpty) {
+              primaryPlace = address[key];
+              break;
+            }
+          }
+
+          final String finalState = address['county'] ?? address['state'] ?? address['province'] ?? '';
+          final String finalCountry = address['country'] ?? '';
+
+          if (primaryPlace != null && primaryPlace.isNotEmpty) {
+            locationName = primaryPlace;
+            // Append state/province if different from primaryPlace and not empty
+            if (finalState.isNotEmpty && !locationName.contains(finalState)) {
+              locationName += ', $finalState';
+            }
+            // Append country if different from state/province and not empty
+            if (finalCountry.isNotEmpty && !locationName.contains(finalCountry)) {
+              locationName += ', $finalCountry';
+            }
+          } else if (finalState.isNotEmpty) {
+            locationName = '$finalState';
+            if (finalCountry.isNotEmpty && finalCountry != finalState) {
+              locationName += ', $finalCountry';
+            }
           } else {
-            locationName = country ?? 'Unknown';
+            locationName = finalCountry.isNotEmpty ? finalCountry : 'Unknown';
           }
 
           if (featLat != null && featLon != null) {
@@ -64,18 +92,12 @@ class GeocodingService {
             if (distance > 1.0) {
               final bearing = _calculateBearing(featLat, featLon, eqLat, eqLon);
               final direction = _bearingToDirection(bearing);
-              result = '${distance.toStringAsFixed(0)} km $direction of $locationName, $country';
+              result = '${distance.toStringAsFixed(0)} km $direction of $locationName';
             }
           }
 
           if (result == null) { // Only set if not already set by distance logic
-            if (city != null && state != null) {
-              result = '$city, $state, $country';
-            } else if (state != null) {
-              result = '$state, $country';
-            } else {
-              result = country;
-            }
+            result = locationName; // Use the constructed locationName
           }
         }
         
