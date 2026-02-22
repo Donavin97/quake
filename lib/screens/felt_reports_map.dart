@@ -137,6 +137,15 @@ class _FeltReportsMapState extends State<FeltReportsMap> with SingleTickerProvid
                           borderColor: Colors.red,
                           borderStrokeWidth: 2,
                         ),
+                        // Theoretical maximum shaking distance
+                        CircleMarker(
+                          point: LatLng(widget.earthquake.latitude, widget.earthquake.longitude),
+                          radius: widget.earthquake.magnitude * _maxBaseRadius, // Scales with magnitude
+                          useRadiusInMeter: true,
+                          color: Colors.blue.withAlpha(30), // Light blue, semi-transparent
+                          borderColor: Colors.blue,
+                          borderStrokeWidth: 1,
+                        ),
                         // Animated ripples
                         ...List.generate(_rippleCount, (index) {
                           return CircleMarker(
@@ -151,18 +160,43 @@ class _FeltReportsMapState extends State<FeltReportsMap> with SingleTickerProvid
                       ],
                     ),
                     MarkerLayer(
-                      markers: _feltReports.map((report) {
-                        return Marker(
-                          width: 40.0,
-                          height: 40.0,
-                          point: LatLng(report.location.latitude, report.location.longitude),
-                          child: Icon(
-                            Icons.location_on,
-                            color: FeltReport.getIntensityColor(report.intensity),
-                            size: 30,
+                      markers: [
+                        // Earthquake epicenter magnitude marker
+                        Marker(
+                          width: 60.0, // Larger width for magnitude text
+                          height: 60.0, // Larger height for magnitude text
+                          point: LatLng(widget.earthquake.latitude, widget.earthquake.longitude),
+                          child: Container(
+                            alignment: Alignment.center,
+                            decoration: BoxDecoration(
+                              color: Colors.red.withAlpha(150), // Semi-transparent red background
+                              shape: BoxShape.circle,
+                              border: Border.all(color: Colors.white, width: 2),
+                            ),
+                            child: Text(
+                              widget.earthquake.magnitude.toStringAsFixed(1),
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 16, // Fixed font size for clarity
+                              ),
+                            ),
                           ),
-                        );
-                      }).toList(),
+                        ),
+                        // Felt report markers
+                        ..._feltReports.map((report) {
+                          return Marker(
+                            width: 40.0,
+                            height: 40.0,
+                            point: LatLng(report.location.latitude, report.location.longitude),
+                            child: Icon(
+                              Icons.location_on,
+                              color: FeltReport.getIntensityColor(report.intensity),
+                              size: 30,
+                            ),
+                          );
+                        }),
+                      ],
                     ),
                   ],
                 ),
@@ -210,6 +244,28 @@ class _FeltReportsMapState extends State<FeltReportsMap> with SingleTickerProvid
                     );
                   }).reversed,
                 ],
+              ),
+            ),
+          ),
+          Positioned(
+            bottom: 20,
+            left: 16,
+            child: Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: Theme.of(context).cardColor.withAlpha(230),
+                borderRadius: BorderRadius.circular(8),
+                boxShadow: const [
+                  BoxShadow(
+                    color: Colors.black26,
+                    blurRadius: 4,
+                    offset: Offset(0, 2),
+                  ),
+                ],
+              ),
+              child: Text(
+                'Theoretical Shaking Radius: ${(widget.earthquake.magnitude * _maxBaseRadius / 1000).toStringAsFixed(0)} km',
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(fontWeight: FontWeight.bold),
               ),
             ),
           ),

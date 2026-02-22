@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
+import 'package:flutter_map_marker_cluster/flutter_map_marker_cluster.dart'; // Added
 import 'package:go_router/go_router.dart';
 import 'package:latlong2/latlong.dart' as latlong;
 import 'package:provider/provider.dart';
@@ -84,10 +85,26 @@ class _MapScreenState extends State<MapScreen> {
           point: latlong.LatLng(earthquake.latitude, earthquake.longitude),
           child: GestureDetector(
             onTap: () => context.go('/details/${earthquake.id}', extra: earthquake),
-            child: Icon(
-              Icons.circle,
-              color: _getMarkerColorForMagnitude(magnitude),
-              size: _getMarkerSize(magnitude),
+            child: Stack(
+              alignment: Alignment.center,
+              children: [
+                Container(
+                  width: _getMarkerSize(magnitude),
+                  height: _getMarkerSize(magnitude),
+                  decoration: BoxDecoration(
+                    color: _getMarkerColorForMagnitude(magnitude),
+                    shape: BoxShape.circle,
+                  ),
+                ),
+                Text(
+                  magnitude.toStringAsFixed(1), // Display magnitude with 1 decimal place
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: _getMarkerSize(magnitude) / 3, // Scale text size with marker size
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
             ),
           ),
         );
@@ -139,7 +156,27 @@ class _MapScreenState extends State<MapScreen> {
                 ),
                 userAgentPackageName: 'com.liebgott.quaketrack',
               ),
-            MarkerLayer(markers: _markers),
+            MarkerClusterLayerWidget(
+              options: MarkerClusterLayerOptions(
+                maxClusterRadius: 120, // A good default for typical use cases
+                size: const Size(40, 40),
+                builder: (context, markers) {
+                  return Container(
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(20),
+                      color: Colors.blue,
+                    ),
+                    child: Center(
+                      child: Text(
+                        markers.length.toString(),
+                        style: const TextStyle(color: Colors.white),
+                      ),
+                    ),
+                  );
+                },
+                markers: _markers,
+              ),
+            ),
             RichAttributionWidget(
               attributions: [
                 TextSourceAttribution(
