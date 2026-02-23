@@ -25,6 +25,7 @@ class DetailScreen extends StatefulWidget {
 class _DetailScreenState extends State<DetailScreen> {
   Earthquake? _earthquake;
   double? distance;
+  double? _theoreticalFeltRadius; // Added
   bool _isReporting = false;
   final FeltReportService _feltReportService = FeltReportService();
   bool _isLoading = false;
@@ -35,9 +36,17 @@ class _DetailScreenState extends State<DetailScreen> {
     if (widget.earthquake != null) {
       _earthquake = widget.earthquake;
       _calculateDistance();
+      _calculateTheoreticalFeltRadius(); // New call
     } else if (widget.earthquakeId != null) {
       _loadEarthquakeFromHive();
     }
+  }
+
+  void _calculateTheoreticalFeltRadius() {
+    if (_earthquake == null) return;
+    setState(() {
+      _theoreticalFeltRadius = _earthquake!.theoreticalFeltRadius;
+    });
   }
 
   Future<void> _loadEarthquakeFromHive() async {
@@ -52,6 +61,7 @@ class _DetailScreenState extends State<DetailScreen> {
           _earthquake = earthquake;
         });
         await _calculateDistance();
+        _calculateTheoreticalFeltRadius(); // New call
       }
     } finally {
       setState(() {
@@ -271,6 +281,11 @@ class _DetailScreenState extends State<DetailScreen> {
               Padding(
                 padding: const EdgeInsets.only(top: 8.0),
                 child: Text('Distance: ${distance!.toStringAsFixed(2)} km from your current location'),
+              ),
+            if (_theoreticalFeltRadius != null)
+              Padding(
+                padding: const EdgeInsets.only(top: 8.0),
+                child: Text('Theoretical Felt Radius: ${_theoreticalFeltRadius!.toStringAsFixed(0)} km'),
               ),
             const SizedBox(height: 20),
             if (_isReporting)

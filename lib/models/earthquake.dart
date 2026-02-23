@@ -1,3 +1,4 @@
+import 'dart:math';
 import 'package:hive/hive.dart';
 
 part 'earthquake.g.dart';
@@ -56,6 +57,12 @@ class Earthquake extends HiveObject {
     required this.depth,
     this.distance,
   });
+
+  /// Calculates the theoretical radius (in km) where the earthquake might be felt.
+  /// Formula: R = exp(0.666 * magnitude + 1.6) * (1 + depth / 100)
+  double get theoreticalFeltRadius {
+    return exp(0.666 * magnitude + 1.6) * (1 + depth / 100.0);
+  }
 
   factory Earthquake.fromJson(Map<String, dynamic> json) {
     double parseDouble(dynamic value) {

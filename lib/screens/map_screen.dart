@@ -180,7 +180,7 @@ class _MapScreenState extends State<MapScreen> {
               TileLayer(
                 wmsOptions: WMSTileLayerOptions(
                   baseUrl: 'https://edumaps.esri.ca/ArcGIS/services/MapServices/TectonicPlates/MapServer/WMSServer',
-                  layers: const ['0'],
+                  layers: ['0'],
                 ),
                 userAgentPackageName: 'com.liebgott.quaketrack',
               ),
@@ -188,7 +188,7 @@ class _MapScreenState extends State<MapScreen> {
               TileLayer(
                 wmsOptions: WMSTileLayerOptions(
                   baseUrl: 'https://edumaps.esri.ca/ArcGIS/services/MapServices/TectonicPlates/MapServer/WMSServer',
-                  layers: const ['1'],
+                  layers: ['1'],
                 ),
                 userAgentPackageName: 'com.liebgott.quaketrack',
               ),
