@@ -148,6 +148,15 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           await settingsProvider.setNotificationsEnabled(true); // This saves and updates subscriptions
           if (!mounted) return;
         }
+        // Show a message to the user that notifications are already enabled
+        if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: const Text('Notification permissions are already enabled.'),
+                action: SnackBarAction(label: 'Settings', onPressed: () => _openAppSettingsForNotifications()),
+              ),
+            );
+          }
     }
     _askedNotificationPermission = true;
   }
