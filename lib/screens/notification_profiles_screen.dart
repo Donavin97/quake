@@ -37,6 +37,7 @@ class NotificationProfilesScreen extends StatelessWidget {
                     context.go('/settings/notification_profile_detail/${profile.id}');
                   },
                   trailing: IconButton(
+                    tooltip: 'Delete Profile', // Add this line
                     icon: const Icon(Icons.delete, color: Colors.red),
                     onPressed: () async {
                       // Confirm deletion
@@ -74,6 +75,7 @@ class NotificationProfilesScreen extends StatelessWidget {
               },
             ),
       floatingActionButton: FloatingActionButton(
+        tooltip: 'Add New Profile', // Add this line
         onPressed: () async {
           // Create a new default profile
           const uuid = Uuid();

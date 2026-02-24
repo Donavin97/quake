@@ -99,6 +99,7 @@ class _NotificationProfileDetailScreenState extends State<NotificationProfileDet
         title: Text(_profile.name),
         actions: [
           IconButton(
+            tooltip: 'Save Profile Settings', // Add this line
             icon: const Icon(Icons.save),
             onPressed: _saveProfile,
           ),
