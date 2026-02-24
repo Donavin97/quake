@@ -20,21 +20,7 @@ class LocationProvider with ChangeNotifier {
   bool get isPermissionGranted => _permissionGranted;
   Stream<Position> get locationStream => _locationStreamController.stream;
 
-  LocationProvider() {
-    _initPermissionCheck();
-  }
-
-  Future<void> _initPermissionCheck() async {
-    await checkPermission(); // Check current status
-    if (!_permissionGranted) {
-      // If not granted, try to request
-      await requestPermission();
-    }
-    // After checking/requesting, try to determine position if permission is granted
-    if (_permissionGranted) {
-      determinePosition();
-    }
-  }
+  LocationProvider();
 
   Future<void> determinePosition() async {
     _isLoading = true;

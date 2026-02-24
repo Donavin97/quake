@@ -99,18 +99,6 @@ class SettingsProvider with ChangeNotifier {
       _earthquakeProvider = _userPreferences.earthquakeProvider;
       _subscribedTopics = Set<String>.from(_userPreferences.subscribedTopics);
 
-      // --- New: Check Notification Permissions on load ---
-      if (_userPreferences.notificationsEnabled) {
-        final AuthorizationStatus status = await BackgroundService.requestPermission();
-        // If user explicitly denied, update _userPreferences to reflect this
-        if (status == AuthorizationStatus.denied) {
-          _userPreferences = _userPreferences.copyWith(notificationsEnabled: false);
-          // Don't call _savePreferences() here, it will be called later if needed
-          // The next notifyListeners() will trigger UI update to show notifications are off
-        }
-      }
-      // --- End New ---
-
     } else {
       _userPreferences = UserPreferences(); // Reset to default if no user
       _activeNotificationProfile = null;

@@ -298,6 +298,11 @@ class BackgroundService {
     return settings.authorizationStatus;
   }
 
+  static Future<AuthorizationStatus> getNotificationStatus() async {
+    final NotificationSettings settings = await _firebaseMessaging.getNotificationSettings();
+    return settings.authorizationStatus;
+  }
+
   static Future<void> showNotification(RemoteMessage message) async {
     final title = message.data['title'] as String?;
     final body = message.data['body'] as String?;

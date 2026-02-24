@@ -1,15 +1,19 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
+import 'package:google_mobile_ads/google_mobile_ads.dart';
+import 'package:firebase_messaging/firebase_messaging.dart'; // For AuthorizationStatus
+import 'package:geolocator/geolocator.dart'; // For Geolocator.openAppSettings
+import 'package:url_launcher/url_launcher.dart'; // For opening app settings
 
 import '../models/sort_criterion.dart';
 import '../providers/earthquake_provider.dart';
 import '../providers/location_provider.dart';
+import '../providers/settings_provider.dart'; // Explicitly import SettingsProvider
 import '../services/services.dart';
 import 'list_screen.dart';
 import 'map_screen.dart';
 import 'settings_screen.dart';
-import 'package:google_mobile_ads/google_mobile_ads.dart'; // Import google_mobile_ads
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -18,12 +22,12 @@ class HomeScreen extends StatefulWidget {
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
-
-
-class _HomeScreenState extends State<HomeScreen> {
+class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   int _currentIndex = 0;
   late BannerAd _bannerAd;
   bool _isAdLoaded = false;
+  bool _askedLocationPermission = false;
+  bool _askedNotificationPermission = false;
 
   void _navigateTo(int index) {
     setState(() {
@@ -34,8 +38,8 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void initState() {
     super.initState();
-    final locationProvider = Provider.of<LocationProvider>(context, listen: false);
-    locationProvider.determinePosition();
+    WidgetsBinding.instance.addObserver(this); // Add observer
+    _requestPermissions(context); // Request permissions after widget is built
 
     _bannerAd = BannerAd(
       adUnitId: 'ca-app-pub-7112901918437892/4314697520', // User's Ad Unit ID
@@ -56,8 +60,87 @@ class _HomeScreenState extends State<HomeScreen> {
     _bannerAd.load();
   }
 
+  Future<void> _requestPermissions(BuildContext context) async {
+    final locationProvider = Provider.of<LocationProvider>(context, listen: false);
+    final settingsProvider = Provider.of<SettingsProvider>(context, listen: false);
+
+    // --- Location Permissions ---
+    if (!_askedLocationPermission) {
+      await locationProvider.checkPermission();
+      if (!locationProvider.isPermissionGranted) {
+        // If not granted, try to request
+        await locationProvider.requestPermission();
+        if (locationProvider.isPermissionGranted) {
+          // If granted after request, determine position
+          locationProvider.determinePosition();
+        } else {
+          // Still not granted, show a message or guide to settings
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: const Text('Location permission is required for radius-based alerts and list filtering.'),
+                action: SnackBarAction(label: 'Settings', onPressed: () => Geolocator.openAppSettings()),
+              ),
+            );
+          }
+        }
+      } else {
+        // Permission already granted, just determine position
+        locationProvider.determinePosition();
+      }
+      _askedLocationPermission = true;
+    }
+
+    // --- Notification Permissions ---
+    if (!_askedNotificationPermission) {
+      // Check if notifications are enabled in user preferences
+      // Note: settingsProvider.notificationsEnabled might be true from preferences,
+      // but actual OS permission might be denied after reinstallation.
+      final AuthorizationStatus currentStatus = await BackgroundService.getNotificationStatus(); // Get current OS status
+      if (currentStatus == AuthorizationStatus.denied || currentStatus == AuthorizationStatus.notDetermined) {
+        final AuthorizationStatus status = await BackgroundService.requestPermission();
+        if (status == AuthorizationStatus.denied) {
+          // User denied permissions permanently, update internal state
+          await settingsProvider.setNotificationsEnabled(false); // This saves and notifies
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: const Text('Notification permission is required for earthquake alerts.'),
+                action: SnackBarAction(label: 'Settings', onPressed: () => _openAppSettingsForNotifications()), // Use helper
+              ),
+            );
+          }
+        } else if (status == AuthorizationStatus.authorized || status == AuthorizationStatus.provisional) {
+          // If granted or provisional, ensure subscriptions are updated
+          await settingsProvider.setNotificationsEnabled(true); // This saves and updates subscriptions
+        }
+      } else if (currentStatus == AuthorizationStatus.authorized || currentStatus == AuthorizationStatus.provisional) {
+          // Permissions already granted at OS level, ensure app state is enabled
+          if (!settingsProvider.notificationsEnabled) {
+            await settingsProvider.setNotificationsEnabled(true); // This saves and updates subscriptions
+          }
+      }
+      _askedNotificationPermission = true;
+    }
+  }
+
+  Future<void> _openAppSettingsForNotifications() async {
+    // This is a generic way to open app settings. Behavior can vary by platform.
+    // A more robust solution might use platform-specific intents or packages like `app_settings`.
+    await launchUrl(Uri.parse('app-settings:'));
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      // When app resumes from background, re-check permissions
+      _requestPermissions(context);
+    }
+  }
+
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this); // Remove observer
     _bannerAd.dispose();
     super.dispose();
   }
