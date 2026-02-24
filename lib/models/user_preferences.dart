@@ -1,63 +1,89 @@
+import 'notification_profile.dart'; // Import the new NotificationProfile model
+import 'time_window.dart'; // Import TimeWindow for global setting
+
 class UserPreferences {
-  final double minMagnitude;
   final bool notificationsEnabled;
-  final double radius;
-  final bool quietHoursEnabled;
-  final List<int> quietHoursStart; // [hour, minute]
-  final List<int> quietHoursEnd;   // [hour, minute]
-  final List<int> quietHoursDays;  // [0-6] for Sunday-Saturday
-  final double emergencyMagnitudeThreshold;
-  final double emergencyRadius; // in kilometers
-  final double globalMinMagnitudeOverrideQuietHours; // 0.0 to disable
-  final bool alwaysNotifyRadiusEnabled;
-  final double alwaysNotifyRadiusValue; // 0.0 to disable
+  final List<NotificationProfile> notificationProfiles; // New field for multiple profiles
+
+  // Truly global settings not tied to a specific notification profile
+  final int themeMode; // ThemeMode.index
+  final TimeWindow timeWindow;
+  final String earthquakeProvider;
+  final List<String> subscribedTopics;
 
   UserPreferences({
-    this.minMagnitude = 4.5,
     this.notificationsEnabled = true,
-    this.radius = 0,
-    this.quietHoursEnabled = false,
-    this.quietHoursStart = const [22, 0], // Default 10 PM
-    this.quietHoursEnd = const [6, 0],   // Default 6 AM
-    this.quietHoursDays = const [0, 1, 2, 3, 4, 5, 6], // Default all days
-    this.emergencyMagnitudeThreshold = 5.0,
-    this.emergencyRadius = 100.0,
-    this.globalMinMagnitudeOverrideQuietHours = 0.0,
-    this.alwaysNotifyRadiusEnabled = false,
-    this.alwaysNotifyRadiusValue = 0.0,
-  });
+    List<NotificationProfile>? notificationProfiles,
+    this.themeMode = 0, // Default to system theme
+    this.timeWindow = TimeWindow.day,
+    this.earthquakeProvider = 'usgs',
+    this.subscribedTopics = const [],
+  }) : this.notificationProfiles = notificationProfiles ?? [];
 
   factory UserPreferences.fromMap(Map<String, dynamic> data) {
+    List<NotificationProfile> profiles = [];
+    if (data['notificationProfiles'] != null) {
+      profiles = (data['notificationProfiles'] as List)
+          .map((i) => NotificationProfile.fromJson(i as Map<String, dynamic>))
+          .toList();
+    }
+
+    // Backward compatibility: if no profiles exist, create one from old settings
+    if (profiles.isEmpty) {
+      profiles.add(NotificationProfile(
+        id: 'default', // Assign a default ID
+        name: 'Default Profile',
+        latitude: (data['location']?['latitude'] as num?)?.toDouble() ?? 0.0,
+        longitude: (data['location']?['longitude'] as num?)?.toDouble() ?? 0.0,
+        radius: (data['radius'] as num?)?.toDouble() ?? 0,
+        minMagnitude: (data['minMagnitude'] as num?)?.toDouble() ?? 4.5,
+        quietHoursEnabled: data['quietHoursEnabled'] as bool? ?? false,
+        quietHoursStart: (data['quietHoursStart'] as List<dynamic>?)?.map((e) => e as int).toList() ?? const [22, 0],
+        quietHoursEnd: (data['quietHoursEnd'] as List<dynamic>?)?.map((e) => e as int).toList() ?? const [6, 0],
+        quietHoursDays: (data['quietHoursDays'] as List<dynamic>?)?.map((e) => e as int).toList() ?? const [0, 1, 2, 3, 4, 5, 6],
+        alwaysNotifyRadiusEnabled: data['alwaysNotifyRadiusEnabled'] as bool? ?? false,
+        alwaysNotifyRadiusValue: (data['alwaysNotifyRadiusValue'] as num?)?.toDouble() ?? 0.0,
+        emergencyMagnitudeThreshold: (data['emergencyMagnitudeThreshold'] as num?)?.toDouble() ?? 5.0,
+        emergencyRadius: (data['emergencyRadius'] as num?)?.toDouble() ?? 100.0,
+      ));
+    }
+
     return UserPreferences(
-      minMagnitude: (data['minMagnitude'] as num?)?.toDouble() ?? 4.5,
       notificationsEnabled: data['notificationsEnabled'] as bool? ?? true,
-      radius: (data['radius'] as num?)?.toDouble() ?? 0,
-      quietHoursEnabled: data['quietHoursEnabled'] as bool? ?? false,
-      quietHoursStart: (data['quietHoursStart'] as List<dynamic>?)?.map((e) => e as int).toList() ?? const [22, 0],
-      quietHoursEnd: (data['quietHoursEnd'] as List<dynamic>?)?.map((e) => e as int).toList() ?? const [6, 0],
-      quietHoursDays: (data['quietHoursDays'] as List<dynamic>?)?.map((e) => e as int).toList() ?? const [0, 1, 2, 3, 4, 5, 6],
-      emergencyMagnitudeThreshold: (data['emergencyMagnitudeThreshold'] as num?)?.toDouble() ?? 5.0,
-      emergencyRadius: (data['emergencyRadius'] as num?)?.toDouble() ?? 100.0,
-      globalMinMagnitudeOverrideQuietHours: (data['globalMinMagnitudeOverrideQuietHours'] as num?)?.toDouble() ?? 0.0,
-      alwaysNotifyRadiusEnabled: data['alwaysNotifyRadiusEnabled'] as bool? ?? false,
-      alwaysNotifyRadiusValue: (data['alwaysNotifyRadiusValue'] as num?)?.toDouble() ?? 0.0,
+      notificationProfiles: profiles,
+      themeMode: data['themeMode'] as int? ?? 0,
+      timeWindow: TimeWindow.values[data['timeWindow'] as int? ?? 0],
+      earthquakeProvider: data['earthquakeProvider'] as String? ?? 'usgs',
+      subscribedTopics: (data['subscribedTopics'] as List<dynamic>?)?.map((e) => e as String).toList() ?? [],
     );
   }
 
   Map<String, dynamic> toMap() {
     return {
-      'minMagnitude': minMagnitude,
       'notificationsEnabled': notificationsEnabled,
-      'radius': radius,
-      'quietHoursEnabled': quietHoursEnabled,
-      'quietHoursStart': quietHoursStart,
-      'quietHoursEnd': quietHoursEnd,
-      'quietHoursDays': quietHoursDays,
-      'emergencyMagnitudeThreshold': emergencyMagnitudeThreshold,
-      'emergencyRadius': emergencyRadius,
-      'globalMinMagnitudeOverrideQuietHours': globalMinMagnitudeOverrideQuietHours,
-      'alwaysNotifyRadiusEnabled': alwaysNotifyRadiusEnabled,
-      'alwaysNotifyRadiusValue': alwaysNotifyRadiusValue,
+      'notificationProfiles': notificationProfiles.map((p) => p.toJson()).toList(),
+      'themeMode': themeMode,
+      'timeWindow': timeWindow.index,
+      'earthquakeProvider': earthquakeProvider,
+      'subscribedTopics': subscribedTopics,
     };
+  }
+
+  UserPreferences copyWith({
+    bool? notificationsEnabled,
+    List<NotificationProfile>? notificationProfiles,
+    int? themeMode,
+    TimeWindow? timeWindow,
+    String? earthquakeProvider,
+    List<String>? subscribedTopics,
+  }) {
+    return UserPreferences(
+      notificationsEnabled: notificationsEnabled ?? this.notificationsEnabled,
+      notificationProfiles: notificationProfiles ?? [...this.notificationProfiles],
+      themeMode: themeMode ?? this.themeMode,
+      timeWindow: timeWindow ?? this.timeWindow,
+      earthquakeProvider: earthquakeProvider ?? this.earthquakeProvider,
+      subscribedTopics: subscribedTopics ?? [...this.subscribedTopics],
+    );
   }
 }

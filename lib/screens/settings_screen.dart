@@ -2,10 +2,10 @@
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:go_router/go_router.dart'; // Import GoRouter
 
 import '../models/time_window.dart';
 import '../providers/settings_provider.dart';
-import '../screens/quiet_settings_screen.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -18,12 +18,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   late ThemeMode _themeMode;
   late TimeWindow _timeWindow;
   late bool _notificationsEnabled;
-  late int _minMagnitude;
-  late double _radius;
-  late double _listRadius;
   late String _earthquakeProvider;
-
-
 
   @override
   void didChangeDependencies() {
@@ -32,12 +27,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _themeMode = settings.themeMode;
     _timeWindow = settings.timeWindow;
     _notificationsEnabled = settings.notificationsEnabled;
-    _minMagnitude = settings.minMagnitude;
-    _radius = settings.radius;
-    _listRadius = settings.listRadius;
     _earthquakeProvider = settings.earthquakeProvider;
-
-
   }
 
   void _applySettings() {
@@ -45,12 +35,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     settings.setThemeMode(_themeMode);
     settings.setTimeWindow(_timeWindow);
     settings.setNotificationsEnabled(_notificationsEnabled);
-    settings.setMinMagnitude(_minMagnitude);
-    settings.setRadius(_radius);
-    settings.setListRadius(_listRadius);
     settings.setEarthquakeProvider(_earthquakeProvider);
-
-
 
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('Settings Applied')),
@@ -140,81 +125,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
               },
             ),
             ListTile(
-              title: const Text('Quiet Hours & Overrides'),
+              title: const Text('Manage Notification Profiles'),
               contentPadding: EdgeInsets.zero,
               trailing: const Icon(Icons.arrow_forward_ios),
               onTap: () {
-                Navigator.of(context).push(
-                  MaterialPageRoute(
-                    builder: (context) => const QuietSettingsScreen(),
-                  ),
-                );
+                GoRouter.of(context).go('/settings/notification_profiles');
               },
             ),
-            const SizedBox(height: 24),
-            Text(
-              'Minimum Magnitude',
-              style: Theme.of(context).textTheme.titleLarge,
-            ),
-            const SizedBox(height: 12),
-            Text('Notify for earthquakes magnitude $_minMagnitude and above'),
-            Slider(
-              value: _minMagnitude.toDouble(),
-              max: 9,
-              divisions: 9,
-              label: _minMagnitude.toString(),
-              onChanged: (value) {
-                setState(() {
-                  _minMagnitude = value.round();
-                });
-              },
-            ),
-            const SizedBox(height: 24),
-            Text(
-              'Notification Radius',
-              style: Theme.of(context).textTheme.titleLarge,
-            ),
-            const SizedBox(height: 12),
-            Text(_radius == 0
-                ? 'Global (All Earthquakes)'
-                : 'Within ${_radius.round()} km'),
-            Slider(
-              value: _radius,
-              max: 20000, // Max radius in km
-              divisions: 200, // 0 to 20000 in steps of 100
-              label: _radius == 0
-                  ? 'Global'
-                  : '${_radius.round()} km',
-              onChanged: (value) {
-                setState(() {
-                  _radius = value;
-                });
-              },
-            ),
-
-            const SizedBox(height: 16),
-            Text(
-              'List Display Radius',
-              style: Theme.of(context).textTheme.titleLarge,
-            ),
-            const SizedBox(height: 12),
-            Text(_listRadius == 0
-                ? 'Global (All Earthquakes)'
-                : 'Within ${_listRadius.round()} km'),
-            Slider(
-              value: _listRadius,
-              max: 20000, // Max radius in km
-              divisions: 200, // 0 to 20000 in steps of 100
-              label: _listRadius == 0
-                  ? 'Global'
-                  : '${_listRadius.round()} km',
-              onChanged: (value) {
-                setState(() {
-                  _listRadius = value;
-                });
-              },
-            ),
-
             const SizedBox(height: 24),
             Text(
               'Earthquake Provider',

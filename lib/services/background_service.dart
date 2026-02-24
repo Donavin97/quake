@@ -280,8 +280,22 @@ class BackgroundService {
     showNotification(message);
   }
 
-  static Future<void> requestPermission() async {
-    await _firebaseMessaging.requestPermission();
+  static Future<AuthorizationStatus> requestPermission() async {
+    NotificationSettings settings = await _firebaseMessaging.getNotificationSettings();
+
+    if (settings.authorizationStatus == AuthorizationStatus.authorized) {
+      return AuthorizationStatus.authorized; // Already granted
+    }
+
+    if (settings.authorizationStatus == AuthorizationStatus.denied) {
+      // User has denied permanently. We cannot request again from here.
+      // The UI should guide the user to app settings.
+      return AuthorizationStatus.denied;
+    }
+
+    // AuthorizationStatus.notDetermined or AuthorizationStatus.provisional or others
+    settings = await _firebaseMessaging.requestPermission();
+    return settings.authorizationStatus;
   }
 
   static Future<void> showNotification(RemoteMessage message) async {

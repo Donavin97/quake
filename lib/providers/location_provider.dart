@@ -44,12 +44,6 @@ class LocationProvider with ChangeNotifier {
   }
 
   Future<void> checkPermission() async {
-    final prefs = await SharedPreferences.getInstance();
-    if (prefs.getBool('location_permission_granted') ?? false) {
-      _permissionGranted = true;
-      notifyListeners();
-      return;
-    }
     final LocationPermission permission = await _locationService.checkPermission();
     await _updatePermissionStatus(permission);
   }

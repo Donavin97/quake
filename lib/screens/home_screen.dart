@@ -9,6 +9,7 @@ import '../services/services.dart';
 import 'list_screen.dart';
 import 'map_screen.dart';
 import 'settings_screen.dart';
+import 'package:google_mobile_ads/google_mobile_ads.dart'; // Import google_mobile_ads
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -17,8 +18,12 @@ class HomeScreen extends StatefulWidget {
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
+
+
 class _HomeScreenState extends State<HomeScreen> {
   int _currentIndex = 0;
+  late BannerAd _bannerAd;
+  bool _isAdLoaded = false;
 
   void _navigateTo(int index) {
     setState(() {
@@ -31,6 +36,30 @@ class _HomeScreenState extends State<HomeScreen> {
     super.initState();
     final locationProvider = Provider.of<LocationProvider>(context, listen: false);
     locationProvider.determinePosition();
+
+    _bannerAd = BannerAd(
+      adUnitId: 'ca-app-pub-7112901918437892/4314697520', // User's Ad Unit ID
+      size: AdSize.banner,
+      request: const AdRequest(),
+      listener: BannerAdListener(
+        onAdLoaded: (ad) {
+          setState(() {
+            _isAdLoaded = true;
+          });
+        },
+        onAdFailedToLoad: (ad, err) {
+          debugPrint('Failed to load a banner ad: ${err.message}');
+          ad.dispose();
+        },
+      ),
+    );
+    _bannerAd.load();
+  }
+
+  @override
+  void dispose() {
+    _bannerAd.dispose();
+    super.dispose();
   }
 
   @override
@@ -89,7 +118,17 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
         ],
       ),
-      body: screens[_currentIndex],
+      body: Column(
+        children: [
+          Expanded(child: screens[_currentIndex]),
+          if (_isAdLoaded)
+            SizedBox(
+              width: _bannerAd.size.width.toDouble(),
+              height: _bannerAd.size.height.toDouble(),
+              child: AdWidget(ad: _bannerAd),
+            ),
+        ],
+      ),
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: _currentIndex,
         onTap: (index) async {

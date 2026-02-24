@@ -22,6 +22,7 @@ import 'services/services.dart';
 import 'theme.dart';
 
 import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:google_mobile_ads/google_mobile_ads.dart'; // Import google_mobile_ads
 
 void main() async {
   await runZonedGuarded(() async {
@@ -29,6 +30,8 @@ void main() async {
     await Firebase.initializeApp(
       options: DefaultFirebaseOptions.currentPlatform,
     );
+    // Initialize Mobile Ads SDK
+    MobileAds.instance.initialize();
     
     // Register background handler BEFORE any other initialization
     FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);

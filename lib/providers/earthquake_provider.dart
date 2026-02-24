@@ -97,6 +97,23 @@ class EarthquakeProvider with ChangeNotifier {
         timeWindow: _settingsProvider.timeWindow.name,
       );
 
+      final Set<String> apiEarthquakeIds = allEarthquakes.map((e) => e.id).toSet();
+      final List<String> idsToRemove = [];
+
+      // Identify earthquakes in local storage that are no longer in the API response
+      for (final localEarthquake in _earthquakes) {
+        if (!apiEarthquakeIds.contains(localEarthquake.id)) {
+          idsToRemove.add(localEarthquake.id);
+        }
+      }
+
+      // Remove from Hive and in-memory list
+      if (idsToRemove.isNotEmpty) {
+        await _earthquakeBox.deleteAll(idsToRemove);
+        _earthquakes.removeWhere((eq) => idsToRemove.contains(eq.id));
+        debugPrint('Removed ${idsToRemove.length} earthquakes from Hive and in-memory list.');
+      }
+
       final List<Earthquake> earthquakesToUpdate = [];
 
       for (final earthquakeFromApi in allEarthquakes) {

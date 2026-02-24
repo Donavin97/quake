@@ -7,6 +7,8 @@ import 'screens/detail_screen.dart';
 import 'screens/home_screen.dart';
 import 'screens/profile_screen.dart';
 import 'screens/setup_screen.dart';
+import 'screens/notification_profiles_screen.dart'; // Import NotificationProfilesScreen
+import 'screens/notification_profile_detail_screen.dart'; // Import NotificationProfileDetailScreen
 import 'services/navigation_service.dart';
 
 class AppRouter {
@@ -54,6 +56,18 @@ class AppRouter {
               GoRoute(
                 path: 'profile',
                 builder: (context, state) => const ProfileScreen(),
+              ),
+              GoRoute(
+                path: 'settings/notification_profiles',
+                builder: (context, state) => const NotificationProfilesScreen(),
+              ),
+              GoRoute(
+                path: 'settings/notification_profile_detail/:id',
+                builder: (context, state) {
+                  final profileId = state.pathParameters['id']!;
+                  // We'll retrieve the profile from the SettingsProvider in the detail screen
+                  return NotificationProfileDetailScreen(profileId: profileId);
+                },
               ),
             ],
           ),

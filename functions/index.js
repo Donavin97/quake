@@ -119,43 +119,91 @@ const reverseGeocode = async (lat, lon) => {
   return null;
 };
 
-// Function to check if current time is within quiet hours
-function isDuringQuietHours(preferences, currentTime, earthquakeTime) {
-  if (!preferences.quietHoursEnabled) {
-    return false; // Quiet hours not enabled
+// Function to check if current time is within quiet hours for a specific profile
+function isDuringQuietHoursForProfile(profile, currentTime) {
+  if (!profile.quietHoursEnabled) {
+    return false; // Quiet hours not enabled for this profile
   }
 
   const currentHour = currentTime.getHours();
   const currentMinute = currentTime.getMinutes();
   const currentDay = currentTime.getDay(); // 0 = Sunday, 6 = Saturday
 
-  const quietStartHour = preferences.quietHoursStart[0];
-  const quietStartMinute = preferences.quietHoursStart[1];
-  const quietEndHour = preferences.quietHoursEnd[0];
-  const quietEndMinute = preferences.quietHoursEnd[1];
-  const quietDays = preferences.quietHoursDays;
+  const quietStartHour = profile.quietHoursStart[0];
+  const quietStartMinute = profile.quietHoursStart[1];
+  const quietEndHour = profile.quietHoursEnd[0];
+  const quietEndMinute = profile.quietHoursEnd[1];
+  const quietDays = profile.quietHoursDays;
 
-  // Check if today is a quiet day
-  // quietDays from preferences is an array of numbers [0,1,2,3,4,5,6]
   if (!quietDays.includes(currentDay)) {
-    return false; // Not a quiet day
+    return false; // Not a quiet day for this profile
   }
 
-  // Convert current time to minutes from midnight
   const currentTotalMinutes = currentHour * 60 + currentMinute;
   const quietStartTotalMinutes = quietStartHour * 60 + quietStartMinute;
   const quietEndTotalMinutes = quietEndHour * 60 + quietEndMinute;
 
   if (quietStartTotalMinutes < quietEndTotalMinutes) {
-    // Quiet hours are within the same day (e.g., 08:00 - 17:00)
     return currentTotalMinutes >= quietStartTotalMinutes && currentTotalMinutes < quietEndTotalMinutes;
   } else {
-    // Quiet hours span across midnight (e.g., 22:00 - 06:00)
     return currentTotalMinutes >= quietStartTotalMinutes || currentTotalMinutes < quietEndTotalMinutes;
   }
 }
 
+// Helper function to determine if a notification should be sent for a given profile
+function shouldSendNotificationForProfile(earthquake, userLocation, profile, currentTime) {
+  const earthquakeMagnitude = earthquake.magnitude;
+  const earthquakeLatitude = earthquake.latitude;
+  const earthquakeLongitude = earthquake.longitude;
+  
+  if (earthquakeMagnitude < profile.minMagnitude) {
+    // Check if global magnitude override applies
+    if (!(profile.globalMinMagnitudeOverrideQuietHours > 0 && earthquakeMagnitude >= profile.globalMinMagnitudeOverrideQuietHours)) {
+      return false; // Magnitude too low for this profile
+    }
+  }
 
+  let shouldSend = false;
+
+  // 1. Check for Global Minimum Magnitude Override (for this profile)
+  if (profile.globalMinMagnitudeOverrideQuietHours > 0 && earthquakeMagnitude >= profile.globalMinMagnitudeOverrideQuietHours) {
+    shouldSend = true;
+  }
+
+  // 2. Check for Always Notify Radius (for this profile)
+  if (!shouldSend && profile.alwaysNotifyRadiusEnabled && profile.alwaysNotifyRadiusValue > 0 && userLocation) {
+    const distance = getDistance(userLocation.latitude, userLocation.longitude, earthquakeLatitude, earthquakeLongitude);
+    if (distance <= profile.alwaysNotifyRadiusValue) {
+      shouldSend = true;
+    }
+  }
+
+  // 3. Regular Radius check (if radius is set and not worldwide for this profile)
+  if (!shouldSend && profile.radius > 0 && userLocation) {
+    const distance = getDistance(userLocation.latitude, userLocation.longitude, earthquakeLatitude, earthquakeLongitude);
+    if (distance > profile.radius) {
+      return false; // Outside requested notification radius for this profile
+    }
+  }
+  
+  // 4. Quiet Hours / Emergency Logic (for this profile)
+  if (!shouldSend) {
+    if (isDuringQuietHoursForProfile(profile, currentTime)) {
+      if (earthquakeMagnitude >= profile.emergencyMagnitudeThreshold && userLocation) {
+        const distance = getDistance(userLocation.latitude, userLocation.longitude, earthquakeLatitude, earthquakeLongitude);
+        if (distance <= profile.emergencyRadius) {
+          shouldSend = true;
+        }
+      } else {
+        shouldSend = false; // During quiet hours, and not an emergency for this profile
+      }
+    } else {
+      shouldSend = true; // Not during quiet hours for this profile
+    }
+  }
+
+  return shouldSend;
+}
 
 const sendNotification = async (earthquake) => {
   try {
@@ -171,86 +219,87 @@ const sendNotification = async (earthquake) => {
     console.log(`Processing notification for ${earthquake.id}. Magnitude: ${earthquakeMagnitude}. Geohash: ${eqHash} (Prefix: ${eqPrefix2})`);
 
     const usersCollection = admin.firestore().collection('users');
+    // For now, we keep the geohash query based on a single user location if available.
+    // More advanced logic might involve querying based on all profile locations.
     const baseQuery = usersCollection.where('preferences.notificationsEnabled', '==', true);
 
-    // We perform two queries in parallel to catch both local and global users
-    // Query 1: Local users (using geohash range for prefix)
-    const localQuery = baseQuery
-      .where('location.geohash', '>=', eqPrefix2)
-      .where('location.geohash', '<=', eqPrefix2 + '\uf8ff')
-      .get();
-
-    // Query 2: Global users (radius set to 0)
-    const globalQuery = baseQuery
-      .where('preferences.radius', '==', 0)
-      .get();
-
-    const [localSnapshot, globalSnapshot] = await Promise.all([localQuery, globalQuery]);
-
-    // Use a Map to deduplicate users by ID
-    const uniqueUsers = new Map();
+    const usersSnapshot = await baseQuery.get();
     
-    localSnapshot.forEach(doc => uniqueUsers.set(doc.id, doc.data()));
-    globalSnapshot.forEach(doc => uniqueUsers.set(doc.id, doc.data()));
-
-    console.log(`Found ${uniqueUsers.size} potential recipients (${localSnapshot.size} local, ${globalSnapshot.size} global).`);
-
     const recipientTokens = [];
 
-    uniqueUsers.forEach((userData, userId) => {
-      const preferences = userData.preferences;
+    usersSnapshot.forEach(doc => {
+      const userData = doc.data();
+      const userId = doc.id;
       const fcmToken = userData.fcmToken;
-      const userLocation = userData.location;
+      const userLocation = userData.location; // Assuming a primary user location if profiles have specific ones
 
-      if (!fcmToken) return;
-
-      // Filter by magnitude first (most common filter)
-      if (earthquakeMagnitude < (preferences.minMagnitude || 0)) {
-        // Check if global magnitude override applies
-        if (!(preferences.globalMinMagnitudeOverrideQuietHours > 0 && earthquakeMagnitude >= preferences.globalMinMagnitudeOverrideQuietHours)) {
-          return; 
-        }
-      }
+      if (!fcmToken || !userData.preferences) return;
 
       const currentTime = new Date();
-      let shouldSendNotification = false;
+      let notifyUser = false;
 
-      // 1. Check for Global Minimum Magnitude Override
-      if (preferences.globalMinMagnitudeOverrideQuietHours > 0 && earthquakeMagnitude >= preferences.globalMinMagnitudeOverrideQuietHours) {
-        shouldSendNotification = true;
-      }
+      // Check if user has notification profiles
+      if (userData.preferences.notificationProfiles && userData.preferences.notificationProfiles.length > 0) {
+        for (const profile of userData.preferences.notificationProfiles) {
+            // Adjust userLocation for the profile's location if it has one.
+            // For now, using the profile's lat/lon as the 'userLocation' for that check
+            const profileLocation = { latitude: profile.latitude, longitude: profile.longitude, geohash: geohash.encode(profile.latitude, profile.longitude, 10) };
 
-      // 2. Check for Always Notify Radius
-      if (!shouldSendNotification && preferences.alwaysNotifyRadiusEnabled && preferences.alwaysNotifyRadiusValue > 0 && userLocation) {
-        const distance = getDistance(userLocation.latitude, userLocation.longitude, earthquakeLatitude, earthquakeLongitude);
-        if (distance <= preferences.alwaysNotifyRadiusValue) {
-          shouldSendNotification = true;
-        }
-      }
+            // Only consider profiles that are enabled (implicitly via minMagnitude > 0, or by a dedicated flag)
+            // If the profile has a radius of 0, it means worldwide for that profile.
+            // If its minMagnitude is 0, it means all magnitudes.
 
-      // 3. Regular Radius check (if radius is set and not worldwide)
-      if (!shouldSendNotification && preferences.radius > 0 && userLocation) {
-        const distance = getDistance(userLocation.latitude, userLocation.longitude, earthquakeLatitude, earthquakeLongitude);
-        if (distance > preferences.radius) {
-          return; // Outside requested notification radius
-        }
-      }
-
-      // 4. Quiet Hours / Emergency Logic
-      if (!shouldSendNotification) {
-        if (isDuringQuietHours(preferences, currentTime, earthquakeTime)) {
-          if (earthquakeMagnitude >= preferences.emergencyMagnitudeThreshold && userLocation) {
-            const distance = getDistance(userLocation.latitude, userLocation.longitude, earthquakeLatitude, earthquakeLongitude);
-            if (distance <= preferences.emergencyRadius) {
-              shouldSendNotification = true;
+            if (shouldSendNotificationForProfile(earthquake, profileLocation, profile, currentTime)) {
+                notifyUser = true;
+                break; // One matching profile is enough to send a notification
             }
-          }
-        } else {
-          shouldSendNotification = true;
         }
-      }
+      } else {
+        // Fallback to old preferences logic for backward compatibility
+        // This block is essentially the old notification logic applied to the single 'preferences' object
+        const preferences = userData.preferences;
 
-      if (shouldSendNotification) {
+        if (earthquakeMagnitude < (preferences.minMagnitude || 0)) {
+          if (!(preferences.globalMinMagnitudeOverrideQuietHours > 0 && earthquakeMagnitude >= preferences.globalMinMagnitudeOverrideQuietHours)) {
+            return;
+          }
+        }
+
+        let shouldSend = false;
+        if (preferences.globalMinMagnitudeOverrideQuietHours > 0 && earthquakeMagnitude >= preferences.globalMinMagnitudeOverrideQuietHours) {
+          shouldSend = true;
+        }
+
+        if (!shouldSend && preferences.alwaysNotifyRadiusEnabled && preferences.alwaysNotifyRadiusValue > 0 && userLocation) {
+          const distance = getDistance(userLocation.latitude, userLocation.longitude, earthquakeLatitude, earthquakeLongitude);
+          if (distance <= preferences.alwaysNotifyRadiusValue) {
+            shouldSend = true;
+          }
+        }
+
+        if (!shouldSend && preferences.radius > 0 && userLocation) {
+          const distance = getDistance(userLocation.latitude, userLocation.longitude, earthquakeLatitude, earthquakeLongitude);
+          if (distance > preferences.radius) {
+            return;
+          }
+        }
+
+        if (!shouldSend) {
+          if (isDuringQuietHours(preferences, currentTime, earthquakeTime)) {
+            if (earthquakeMagnitude >= preferences.emergencyMagnitudeThreshold && userLocation) {
+              const distance = getDistance(userLocation.latitude, userLocation.longitude, earthquakeLatitude, earthquakeLongitude);
+              if (distance <= preferences.emergencyRadius) {
+                shouldSend = true;
+              }
+            }
+          } else {
+            shouldSend = true;
+          }
+        }
+        notifyUser = shouldSend;
+      }
+      
+      if (notifyUser) {
         recipientTokens.push({ token: fcmToken, userId: userId });
       }
     });
