@@ -61,69 +61,13 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   }
 
   Future<void> _requestPermissions(BuildContext context) async {
-    final locationProvider = Provider.of<LocationProvider>(context, listen: false);
-    final settingsProvider = Provider.of<SettingsProvider>(context, listen: false);
+    // 1. Request Location Permissions first
+    await _requestLocationPermissions(context);
+    if (!mounted) return;
 
-    // --- Location Permissions ---
-    if (!_askedLocationPermission) {
-      await locationProvider.checkPermission();
-      if (!locationProvider.isPermissionGranted) {
-        // If not granted, try to request
-        await locationProvider.requestPermission();
-        if (!mounted) return; // Add check here
-        if (locationProvider.isPermissionGranted) {
-          // If granted after request, determine position
-          locationProvider.determinePosition();
-        } else {
-          // Still not granted, show a message or guide to settings
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: const Text('Location permission is required for radius-based alerts and list filtering.'),
-                action: SnackBarAction(label: 'Settings', onPressed: () => Geolocator.openAppSettings()),
-              ),
-            );
-          }
-        }
-      } else {
-        // Permission already granted, just determine position
-        locationProvider.determinePosition();
-      }
-      _askedLocationPermission = true;
-    }
-
-    // --- Notification Permissions ---
-    if (!_askedNotificationPermission) {
-      // Check if notifications are enabled in user preferences
-      // Note: settingsProvider.notificationsEnabled might be true from preferences,
-      // but actual OS permission might be denied after reinstallation.
-      final AuthorizationStatus currentStatus = await BackgroundService.getNotificationStatus(); // Get current OS status
-      if (currentStatus == AuthorizationStatus.denied || currentStatus == AuthorizationStatus.notDetermined) {
-        final AuthorizationStatus status = await BackgroundService.requestPermission();
-        if (status == AuthorizationStatus.denied) {
-          // User denied permissions permanently, update internal state
-          await settingsProvider.setNotificationsEnabled(false); // This saves and notifies
-          if (!mounted) return; // Add check here
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: const Text('Notification permission is required for earthquake alerts.'),
-                action: SnackBarAction(label: 'Settings', onPressed: () => _openAppSettingsForNotifications()), // Use helper
-              ),
-            );
-          }
-        } else if (status == AuthorizationStatus.authorized || status == AuthorizationStatus.provisional) {
-          // If granted or provisional, ensure subscriptions are updated
-          await settingsProvider.setNotificationsEnabled(true); // This saves and updates subscriptions
-        }
-      } else if (currentStatus == AuthorizationStatus.authorized || currentStatus == AuthorizationStatus.provisional) {
-          // Permissions already granted at OS level, ensure app state is enabled
-          if (!settingsProvider.notificationsEnabled) {
-            await settingsProvider.setNotificationsEnabled(true); // This saves and updates subscriptions
-          }
-      }
-      _askedNotificationPermission = true;
-    }
+    // 2. Then request Notification Permissions
+    await _requestNotificationPermissions(context);
+    if (!mounted) return;
   }
 
   Future<void> _openAppSettingsForNotifications() async {
@@ -131,6 +75,82 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     // A more robust solution might use platform-specific intents or packages like `app_settings`.
     await launchUrl(Uri.parse('app-settings:'));
   }
+
+  // --- Helper Methods for Permissions ---
+  Future<void> _requestLocationPermissions(BuildContext context) async {
+    if (!mounted) return; // Add check here
+    if (_askedLocationPermission) return; // Already asked in this session
+
+    final locationProvider = Provider.of<LocationProvider>(context, listen: false);
+    
+    await locationProvider.checkPermission();
+    if (!mounted) return;
+    if (!locationProvider.isPermissionGranted) {
+      // If not granted, try to request
+      await locationProvider.requestPermission();
+      if (!mounted) return;
+      if (locationProvider.isPermissionGranted) {
+        // If granted after request, determine position
+        locationProvider.determinePosition();
+      } else {
+        // Still not granted, show a message or guide to settings
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: const Text('Location permission is required for radius-based alerts and list filtering.'),
+              action: SnackBarAction(label: 'Settings', onPressed: () => Geolocator.openAppSettings()),
+            ),
+          );
+        }
+      }
+    } else {
+      // Permission already granted, just determine position
+      locationProvider.determinePosition();
+    }
+    _askedLocationPermission = true;
+  }
+
+  Future<void> _requestNotificationPermissions(BuildContext context) async {
+    if (!mounted) return; // Add check here
+    if (_askedNotificationPermission) return; // Already asked in this session
+
+    final settingsProvider = Provider.of<SettingsProvider>(context, listen: false);
+
+    // Check if notifications are enabled in user preferences
+    // Note: settingsProvider.notificationsEnabled might be true from preferences,
+    // but actual OS permission might be denied after reinstallation.
+    final AuthorizationStatus currentStatus = await BackgroundService.getNotificationStatus(); // Get current OS status
+    if (!mounted) return;
+    if (currentStatus == AuthorizationStatus.denied || currentStatus == AuthorizationStatus.notDetermined) {
+      final AuthorizationStatus status = await BackgroundService.requestPermission();
+      if (!mounted) return;
+      if (status == AuthorizationStatus.denied) {
+        // User denied permissions permanently, update internal state
+        await settingsProvider.setNotificationsEnabled(false); // This saves and notifies
+        if (!mounted) return;
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: const Text('Notification permission is required for earthquake alerts.'),
+              action: SnackBarAction(label: 'Settings', onPressed: () => _openAppSettingsForNotifications()), // Use helper
+            ),
+          );
+        }
+      } else if (status == AuthorizationStatus.authorized || status == AuthorizationStatus.provisional) {
+        // If granted or provisional, ensure subscriptions are updated
+        await settingsProvider.setNotificationsEnabled(true); // This saves and updates subscriptions
+        if (!mounted) return;
+      }
+    } else if (currentStatus == AuthorizationStatus.authorized || currentStatus == AuthorizationStatus.provisional) {
+        // Permissions already granted at OS level, ensure app state is enabled
+        if (!settingsProvider.notificationsEnabled) {
+          await settingsProvider.setNotificationsEnabled(true); // This saves and updates subscriptions
+          if (!mounted) return;
+        }
+    }
+    _askedNotificationPermission = true;
+  }
+
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
