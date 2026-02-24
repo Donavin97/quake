@@ -499,7 +499,7 @@ const sources = [
   },
   {
     name: 'sec',
-    url: 'http://quakewatch.freeddns.org:8080/fdsnws/event/1/query?limit=5&format=json',
+    url: 'http://quakewatch.freeddns.org:8080/fdsnws/event/1/query?limit=50&format=json',
     transformer: (data) => {
       if (!data.seiscomp || !data.seiscomp.events) return [];
       return data.seiscomp.events.map(event => {

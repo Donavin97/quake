@@ -281,20 +281,11 @@ class BackgroundService {
   }
 
   static Future<AuthorizationStatus> requestPermission() async {
-    NotificationSettings settings = await _firebaseMessaging.getNotificationSettings();
-
-    if (settings.authorizationStatus == AuthorizationStatus.authorized) {
-      return AuthorizationStatus.authorized; // Already granted
-    }
-
-    if (settings.authorizationStatus == AuthorizationStatus.denied) {
-      // User has denied permanently. We cannot request again from here.
-      // The UI should guide the user to app settings.
-      return AuthorizationStatus.denied;
-    }
-
-    // AuthorizationStatus.notDetermined or AuthorizationStatus.provisional or others
-    settings = await _firebaseMessaging.requestPermission();
+    // Always attempt to request permission.
+    // This will show the system prompt if permission is not yet granted/explicitly denied.
+    // If already granted, it typically just returns 'authorized' without showing a dialog again (OS dependent).
+    // If permanently denied, it will return 'denied' without showing a dialog.
+    NotificationSettings settings = await _firebaseMessaging.requestPermission();
     return settings.authorizationStatus;
   }
 
