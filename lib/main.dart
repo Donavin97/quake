@@ -10,6 +10,7 @@ import 'package:hive_flutter/hive_flutter.dart';
 
 import 'firebase_options.dart';
 import 'models/earthquake.dart';
+import 'models/notification_profile.dart'; // Import NotificationProfile
 import 'providers/disclaimer_provider.dart';
 import 'providers/earthquake_provider.dart';
 import 'providers/location_provider.dart';
@@ -105,13 +106,23 @@ class MyApp extends StatelessWidget {
         ),
         ChangeNotifierProxyProvider2<SettingsProvider, LocationProvider,
             EarthquakeProvider>(
-          create: (context) => EarthquakeProvider(
-            context.read<ApiService>(),
-            context.read<WebSocketService>(),
-            context.read<SettingsProvider>(),
-            context.read<LocationProvider>(),
-            context.read<GeocodingService>(),
-          ),
+          create: (context) {
+            final settings = context.read<SettingsProvider>();
+            // Ensure settings are loaded before accessing notificationProfiles
+            // _loadPreferences in SettingsProvider should ensure notificationProfiles is never empty
+            final initialFilterProfile = settings.notificationProfiles.isNotEmpty
+                ? settings.notificationProfiles.first
+                : NotificationProfile(id: 'default_temp', name: 'Default', latitude: 0, longitude: 0, radius: 0, minMagnitude: 0); // Fallback
+
+            return EarthquakeProvider(
+              context.read<ApiService>(),
+              context.read<WebSocketService>(),
+              settings, // Pass settings instance
+              context.read<LocationProvider>(),
+              context.read<GeocodingService>(),
+              initialFilterProfile, // New parameter
+            );
+          },
           update: (context, settings, location, previous) =>
               previous!..updateSettings(settings),
         ),

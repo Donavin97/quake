@@ -10,6 +10,7 @@ import '../models/time_window.dart';
 import '../services/api_service.dart';
 import '../services/websocket_service.dart';
 import '../services/geocoding_service.dart'; // Import GeocodingService
+import '../models/notification_profile.dart'; // Import NotificationProfile
 import 'location_provider.dart';
 import 'settings_provider.dart';
 
@@ -22,6 +23,8 @@ class _ProcessingParams {
   final SortCriterion sortCriterion;
   final String selectedProvider;
   final double listRadius;
+  final double latitude;
+  final double longitude;
 
   _ProcessingParams({
     required this.earthquakes,
@@ -31,6 +34,8 @@ class _ProcessingParams {
     required this.sortCriterion,
     required this.selectedProvider,
     required this.listRadius,
+    required this.latitude,
+    required this.longitude,
   });
 }
 
@@ -39,7 +44,7 @@ class EarthquakeProvider with ChangeNotifier {
   final WebSocketService _webSocketService;
   final LocationProvider _locationProvider;
   final GeocodingService _geocodingService;
-  late SettingsProvider _settingsProvider;
+  late SettingsProvider _settingsProvider; // Keep for global settings like theme, provider choices
   StreamSubscription<Position>? _locationSubscription;
   StreamSubscription<Earthquake>? _websocketSubscription;
   StreamSubscription<Earthquake>? _fcmSubscription;
@@ -52,11 +57,14 @@ class EarthquakeProvider with ChangeNotifier {
   late Box<Earthquake> _earthquakeBox;
   bool _isProcessing = false;
 
+  NotificationProfile _filterNotificationProfile; // New field for selected profile
+
   List<Earthquake> get earthquakes => _earthquakes;
   String? get error => _error;
   DateTime? get lastUpdated => _lastUpdated;
   SortCriterion get sortCriterion => _sortCriterion;
   bool get isProcessing => _isProcessing;
+  NotificationProfile get filterNotificationProfile => _filterNotificationProfile;
 
   EarthquakeProvider(
     this._apiService,
@@ -64,7 +72,8 @@ class EarthquakeProvider with ChangeNotifier {
     this._settingsProvider,
     this._locationProvider,
     this._geocodingService,
-  ) {
+    NotificationProfile initialFilterProfile, // New parameter
+  ) : _filterNotificationProfile = initialFilterProfile {
     _earthquakeBox = Hive.box<Earthquake>('earthquakes');
     _init();
   }
@@ -82,19 +91,21 @@ class EarthquakeProvider with ChangeNotifier {
     _geocodeMissingPlaces();
 
     try {
-      final position = _locationProvider.currentPosition;
-      final fetchRadius = (_settingsProvider.radius == 0 || _settingsProvider.listRadius == 0) 
-          ? 0.0 
-          : (_settingsProvider.radius > _settingsProvider.listRadius ? _settingsProvider.radius : _settingsProvider.listRadius);
+      // Use location from the filter profile for API fetch, or user's current if profile radius is 0
+      final double fetchLatitude = _filterNotificationProfile.latitude;
+      final double fetchLongitude = _filterNotificationProfile.longitude;
+      final double fetchRadius = _filterNotificationProfile.radius;
+      final double fetchMinMagnitude = _filterNotificationProfile.minMagnitude;
+      final TimeWindow fetchTimeWindow = _settingsProvider.timeWindow; // Time window remains global for now
 
       // 2. Fetch new data from API
       final allEarthquakes = await _apiService.fetchEarthquakes(
-        _settingsProvider.earthquakeProvider,
-        _settingsProvider.minMagnitude.toDouble(),
+        _settingsProvider.earthquakeProvider, // Earthquake provider remains global
+        fetchMinMagnitude,
         fetchRadius,
-        position?.latitude,
-        position?.longitude,
-        timeWindow: _settingsProvider.timeWindow.name,
+        fetchLatitude,
+        fetchLongitude,
+        timeWindow: fetchTimeWindow.name,
       );
 
       final Set<String> apiEarthquakeIds = allEarthquakes.map((e) => e.id).toSet();
@@ -217,12 +228,14 @@ class EarthquakeProvider with ChangeNotifier {
     try {
       final params = _ProcessingParams(
         earthquakes: _earthquakes,
-        userPosition: _locationProvider.currentPosition,
-        timeWindow: _settingsProvider.timeWindow,
-        minMagnitude: _settingsProvider.minMagnitude,
+        userPosition: _locationProvider.currentPosition, // User's actual position for distance calculation
+        timeWindow: _settingsProvider.timeWindow, // Global time window for now
+        minMagnitude: _filterNotificationProfile.minMagnitude.toInt(), // From selected profile
         sortCriterion: _sortCriterion,
-        selectedProvider: _settingsProvider.earthquakeProvider,
-        listRadius: _settingsProvider.listRadius,
+        selectedProvider: _settingsProvider.earthquakeProvider, // Global provider for now
+        listRadius: _filterNotificationProfile.radius, // From selected profile
+        latitude: _filterNotificationProfile.latitude, // Profile's location
+        longitude: _filterNotificationProfile.longitude, // Profile's location
       );
 
       // Run directly in main isolate to avoid HiveObject serialization issues
@@ -254,18 +267,15 @@ class EarthquakeProvider with ChangeNotifier {
       }).toList();
     }
 
-    // 2. Calculate distances and Basic Filter
+    // 2. Calculate distances relative to the profile's location (params.latitude, params.longitude)
+    //    and apply basic filters.
     for (final eq in list) {
-      if (params.userPosition != null) {
-        eq.distance = Geolocator.distanceBetween(
-          params.userPosition!.latitude,
-          params.userPosition!.longitude,
-          eq.latitude,
-          eq.longitude,
-        );
-      } else {
-        eq.distance = double.maxFinite;
-      }
+      eq.distance = Geolocator.distanceBetween(
+        params.latitude, // Profile's latitude
+        params.longitude, // Profile's longitude
+        eq.latitude,
+        eq.longitude,
+      );
     }
 
     list = list.where((eq) {
@@ -385,6 +395,12 @@ class EarthquakeProvider with ChangeNotifier {
       await _processAndRefresh();
       _lastUpdated = DateTime.now();
     }
+  }
+
+  void setFilterProfile(NotificationProfile profile) {
+    _filterNotificationProfile = profile;
+    _init(); // Re-fetch and re-process with new profile settings
+    notifyListeners();
   }
 
   void refresh() {

@@ -70,6 +70,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       if (!locationProvider.isPermissionGranted) {
         // If not granted, try to request
         await locationProvider.requestPermission();
+        if (!mounted) return; // Add check here
         if (locationProvider.isPermissionGranted) {
           // If granted after request, determine position
           locationProvider.determinePosition();
@@ -102,6 +103,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         if (status == AuthorizationStatus.denied) {
           // User denied permissions permanently, update internal state
           await settingsProvider.setNotificationsEnabled(false); // This saves and notifies
+          if (!mounted) return; // Add check here
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
