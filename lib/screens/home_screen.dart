@@ -116,14 +116,15 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
     final settingsProvider = Provider.of<SettingsProvider>(context, listen: false);
 
-    // Check if notifications are enabled in user preferences
-    // Note: settingsProvider.notificationsEnabled might be true from preferences,
-    // but actual OS permission might be denied after reinstallation.
-    final AuthorizationStatus currentStatus = await BackgroundService.getNotificationStatus(); // Get current OS status
+    // Get current OS notification permission status
+    final AuthorizationStatus currentStatus = await BackgroundService.getNotificationStatus();
     if (!mounted) return;
+
+    // If OS permission is denied or not determined, request it
     if (currentStatus == AuthorizationStatus.denied || currentStatus == AuthorizationStatus.notDetermined) {
       final AuthorizationStatus status = await BackgroundService.requestPermission();
       if (!mounted) return;
+
       if (status == AuthorizationStatus.denied) {
         // User denied permissions permanently, update internal state
         await settingsProvider.setNotificationsEnabled(false); // This saves and notifies
@@ -132,12 +133,12 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: const Text('Notification permission is required for earthquake alerts.'),
-              action: SnackBarAction(label: 'Settings', onPressed: () => _openAppSettingsForNotifications()), // Use helper
+              action: SnackBarAction(label: 'Settings', onPressed: () => _openAppSettingsForNotifications()),
             ),
           );
         }
       } else if (status == AuthorizationStatus.authorized || status == AuthorizationStatus.provisional) {
-        // If granted or provisional, ensure subscriptions are updated
+        // If granted or provisional, ensure app state is enabled
         await settingsProvider.setNotificationsEnabled(true); // This saves and updates subscriptions
         if (!mounted) return;
       }
