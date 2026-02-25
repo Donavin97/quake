@@ -210,7 +210,6 @@ const sendNotification = async (earthquake) => {
     const earthquakeMagnitude = earthquake.magnitude;
     const earthquakeLatitude = earthquake.latitude;
     const earthquakeLongitude = earthquake.longitude;
-    const earthquakeTime = new Date(earthquake.time);
     
     // Calculate earthquake geohash
     const eqHash = geohash.encode(earthquakeLatitude, earthquakeLongitude, 10);
@@ -235,6 +234,7 @@ const sendNotification = async (earthquake) => {
 
       if (!fcmToken || !userData.preferences) return;
 
+      const preferences = userData.preferences;
       const currentTime = new Date();
       const matchingProfiles = []; // Collect all profiles that match for this user
 
@@ -250,7 +250,6 @@ const sendNotification = async (earthquake) => {
         }
       } else {
         // Fallback to old preferences logic for backward compatibility
-        const preferences = userData.preferences;
         let shouldSend = false;
 
         if (earthquakeMagnitude < (preferences.minMagnitude || 0)) {
@@ -285,7 +284,7 @@ const sendNotification = async (earthquake) => {
 
             // Quiet Hours / Emergency Logic
             if (shouldSend) {
-                if (isDuringQuietHours(preferences, currentTime, earthquakeTime)) {
+                if (isDuringQuietHoursForProfile(preferences, currentTime)) {
                     if (earthquakeMagnitude >= preferences.emergencyMagnitudeThreshold && userLocation) {
                         const distance = getDistance(userLocation.latitude, userLocation.longitude, earthquakeLatitude, earthquakeLongitude);
                         if (distance <= preferences.emergencyRadius) {
@@ -361,7 +360,6 @@ const sendNotification = async (earthquake) => {
           const cleanupPromises = [];
           response.responses.forEach((resp, idx) => {
             if (!resp.success) {
-              const invalidToken = batch[idx].token;
               const invalidUserId = recipientTokens[i + idx].userId;
               
               if (resp.error.code === 'messaging/invalid-registration-token' ||

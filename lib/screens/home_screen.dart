@@ -129,14 +129,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         // User denied permissions permanently, update internal state
         await settingsProvider.setNotificationsEnabled(false); // This saves and notifies
         if (!mounted) return;
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: const Text('Notification permission is required for earthquake alerts.'),
-              action: SnackBarAction(label: 'Settings', onPressed: () => _openAppSettingsForNotifications()),
-            ),
-          );
-        }
       } else if (status == AuthorizationStatus.authorized || status == AuthorizationStatus.provisional) {
         // If granted or provisional, ensure app state is enabled
         await settingsProvider.setNotificationsEnabled(true); // This saves and updates subscriptions
@@ -148,15 +140,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           await settingsProvider.setNotificationsEnabled(true); // This saves and updates subscriptions
           if (!mounted) return;
         }
-        // Show a message to the user that notifications are already enabled
-        if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: const Text('Notification permissions are already enabled.'),
-                action: SnackBarAction(label: 'Settings', onPressed: () => _openAppSettingsForNotifications()),
-              ),
-            );
-          }
     }
     _askedNotificationPermission = true;
   }
