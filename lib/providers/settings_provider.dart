@@ -9,7 +9,6 @@ import '../services/background_service.dart';
 import '../services/user_service.dart';
 import '../models/user_preferences.dart'; // Import UserPreferences
 import '../models/notification_profile.dart'; // Import NotificationProfile
-import 'package:geolocator/geolocator.dart'; // Import Position
 import 'location_provider.dart';
 
 class SettingsProvider with ChangeNotifier {
@@ -372,28 +371,17 @@ class SettingsProvider with ChangeNotifier {
       newTopics.add('minmag_$i');
     }
 
-    // Determine position for geohash topics. Use current position if available,
-    // otherwise use the location of the active profile (or the first profile).
-    Position? positionForGeohash = _locationProvider.currentPosition;
-    if (positionForGeohash == null && _activeNotificationProfile != null) {
-      positionForGeohash = Position(
-        latitude: _activeNotificationProfile!.latitude,
-        longitude: _activeNotificationProfile!.longitude,
-        timestamp: DateTime.now(), accuracy: 0.0, altitude: 0.0, heading: 0.0, speed: 0.0, speedAccuracy: 0.0,
-        altitudeAccuracy: 0.0, headingAccuracy: 0.0, // Added required parameters
-      );
-    } else if (positionForGeohash == null && _userPreferences.notificationProfiles.isNotEmpty) {
-       positionForGeohash = Position(
-        latitude: _userPreferences.notificationProfiles.first.latitude,
-        longitude: _userPreferences.notificationProfiles.first.longitude,
-        timestamp: DateTime.now(), accuracy: 0.0, altitude: 0.0, heading: 0.0, speed: 0.0, speedAccuracy: 0.0,
-        altitudeAccuracy: 0.0, headingAccuracy: 0.0, // Added required parameters
-      );
+    // 1. Current Position Geohash
+    final currentPosition = _locationProvider.currentPosition;
+    if (currentPosition != null) {
+      final geohash = GeoHasher().encode(currentPosition.longitude, currentPosition.latitude);
+      newTopics.add('geo_${geohash.substring(0, 1)}');
+      newTopics.add('geo_${geohash.substring(0, 2)}');
     }
 
-
-    if (positionForGeohash != null) {
-      final geohash = GeoHasher().encode(positionForGeohash.longitude, positionForGeohash.latitude);
+    // 2. Geohashes for ALL Notification Profiles
+    for (final profile in _userPreferences.notificationProfiles) {
+      final geohash = GeoHasher().encode(profile.longitude, profile.latitude);
       // Use 1 and 2 character prefixes for broad and local geohash topics
       newTopics.add('geo_${geohash.substring(0, 1)}');
       newTopics.add('geo_${geohash.substring(0, 2)}');

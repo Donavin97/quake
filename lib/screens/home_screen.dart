@@ -4,7 +4,6 @@ import 'package:provider/provider.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'package:firebase_messaging/firebase_messaging.dart'; // For AuthorizationStatus
 import 'package:geolocator/geolocator.dart'; // For Geolocator.openAppSettings
-import 'package:url_launcher/url_launcher.dart'; // For opening app settings
 
 import '../models/sort_criterion.dart';
 import '../providers/earthquake_provider.dart';
@@ -39,7 +38,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this); // Add observer
-    _requestPermissions(context); // Request permissions after widget is built
+    _requestPermissions(); // Request permissions after widget is built
 
     _bannerAd = BannerAd(
       adUnitId: 'ca-app-pub-7112901918437892/4314697520', // User's Ad Unit ID
@@ -60,25 +59,19 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     _bannerAd.load();
   }
 
-  Future<void> _requestPermissions(BuildContext context) async {
+  Future<void> _requestPermissions() async {
     // 1. Request Location Permissions first
-    await _requestLocationPermissions(context);
+    await _requestLocationPermissions();
     if (!mounted) return;
 
     // 2. Then request Notification Permissions
-    await _requestNotificationPermissions(context);
+    await _requestNotificationPermissions();
     if (!mounted) return;
   }
 
-  Future<void> _openAppSettingsForNotifications() async {
-    // This is a generic way to open app settings. Behavior can vary by platform.
-    // A more robust solution might use platform-specific intents or packages like `app_settings`.
-    await launchUrl(Uri.parse('app-settings:'));
-  }
-
   // --- Helper Methods for Permissions ---
-  Future<void> _requestLocationPermissions(BuildContext context) async {
-    if (!mounted) return; // Add check here
+  Future<void> _requestLocationPermissions() async {
+    if (!mounted) return; // Already asked in this session
     if (_askedLocationPermission) return; // Already asked in this session
 
     final locationProvider = Provider.of<LocationProvider>(context, listen: false);
@@ -94,14 +87,12 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         locationProvider.determinePosition();
       } else {
         // Still not granted, show a message or guide to settings
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: const Text('Location permission is required for radius-based alerts and list filtering.'),
-              action: SnackBarAction(label: 'Settings', onPressed: () => Geolocator.openAppSettings()),
-            ),
-          );
-        }
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('Location permission is required for radius-based alerts and list filtering.'),
+            action: SnackBarAction(label: 'Settings', onPressed: () => Geolocator.openAppSettings()),
+          ),
+        );
       }
     } else {
       // Permission already granted, just determine position
@@ -110,8 +101,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     _askedLocationPermission = true;
   }
 
-  Future<void> _requestNotificationPermissions(BuildContext context) async {
-    if (!mounted) return; // Add check here
+  Future<void> _requestNotificationPermissions() async {
+    if (!mounted) return; // Already asked in this session
     if (_askedNotificationPermission) return; // Already asked in this session
 
     final settingsProvider = Provider.of<SettingsProvider>(context, listen: false);
@@ -149,7 +140,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
       // When app resumes from background, re-check permissions
-      _requestPermissions(context);
+      _requestPermissions();
     }
   }
 
