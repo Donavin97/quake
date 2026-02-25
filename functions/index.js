@@ -347,7 +347,8 @@ const sendNotification = async (earthquake) => {
         token: r.token,
         data: {
             ...messagePayload.data,
-            body: `Magnitude ${magnitudeText} (${earthquake.source}) near ${earthquake.place}. ${r.notificationBody}` // Use specific body
+            body: `Magnitude ${magnitudeText} (${earthquake.source}) near ${earthquake.place}. ${r.notificationBody}`, // Use specific body
+            isTargeted: 'true' // Explicitly mark as targeted for client-side priority
         },
         android: messagePayload.android
       }));
