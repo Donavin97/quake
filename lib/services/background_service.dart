@@ -12,6 +12,7 @@ import 'package:hive_flutter/hive_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../models/earthquake.dart';
+import '../models/notification_profile.dart'; // Import
 import 'navigation_service.dart';
 
 import '../firebase_options.dart';
@@ -27,6 +28,9 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
     await Hive.initFlutter();
     Hive.registerAdapter(EarthquakeAdapter());
     Hive.registerAdapter(EarthquakeSourceAdapter());
+  }
+  if (!Hive.isAdapterRegistered(3)) {
+    Hive.registerAdapter(NotificationProfileAdapter());
   }
   
   await Hive.openBox<Earthquake>('earthquakes');
@@ -51,7 +55,7 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   if (earthquakeData != null) {
     try {
       final earthquake = Earthquake.fromJson(jsonDecode(earthquakeData));
-      if (await BackgroundService.shouldShowNotification(earthquake, settingsBox)) {
+      if (await BackgroundService.shouldShowNotification(earthquake, settingsBox, data: message.data)) {
         await BackgroundService.showNotification(message);
       }
     } catch (e) {
@@ -128,14 +132,14 @@ class BackgroundService {
       final earthquakeData = message.data['earthquake'] as String?;
       if (earthquakeData != null) {
         final earthquake = Earthquake.fromJson(jsonDecode(earthquakeData));
-        if (await shouldShowNotification(earthquake, settingsBox)) {
+        if (await shouldShowNotification(earthquake, settingsBox, data: message.data)) {
            _handleForegroundMessage(message);
         }
       }
     });
   }
 
-  static Future<bool> shouldShowNotification(Earthquake earthquake, Box settingsBox) async {
+  static Future<bool> shouldShowNotification(Earthquake earthquake, Box settingsBox, {Map<String, dynamic>? data}) async {
     final bool notificationsEnabled = settingsBox.get('notificationsEnabled', defaultValue: true);
     if (!notificationsEnabled) return false;
 
@@ -145,88 +149,111 @@ class BackgroundService {
       return false; // Already processed this earthquake
     }
 
-    // 1. Load basic filters
-    final double minMagnitude = (settingsBox.get('minMagnitude', defaultValue: 0) as num).toDouble();
-    final double radius = (settingsBox.get('radius', defaultValue: 0.0) as num).toDouble();
-    
-    // 2. Load location and calculate distance
-    double? lastLat = settingsBox.get('lastLatitude') as double?;
-    double? lastLon = settingsBox.get('lastLongitude') as double?;
-    double? distance;
+    // 0. Server Override (Direct Notification)
+    if (data != null && data['isTargeted'] == 'true') {
+      return true;
+    }
 
-    // Try to get fresh position if possible, but don't hang too long
+    // 1. Get User Location (Last Known or Current)
+    double? userLat = settingsBox.get('lastLatitude') as double?;
+    double? userLon = settingsBox.get('lastLongitude') as double?;
     try {
       final position = await Geolocator.getCurrentPosition(
-        locationSettings: const LocationSettings(
-          timeLimit: Duration(seconds: 2),
-          accuracy: LocationAccuracy.low,
-        ),
+        locationSettings: const LocationSettings(timeLimit: Duration(seconds: 2), accuracy: LocationAccuracy.low),
       );
-      lastLat = position.latitude;
-      lastLon = position.longitude;
-    } catch (_) {
-      // Fallback to cached position already loaded above
-    }
+      userLat = position.latitude;
+      userLon = position.longitude;
+    } catch (_) {}
 
-    if (lastLat != null && lastLon != null) {
-      distance = _getDistance(lastLat, lastLon, earthquake.latitude, earthquake.longitude);
-    }
+    // 2. Load Profiles
+    List<NotificationProfile> profilesToCheck = [];
+    final storedProfiles = settingsBox.get('notificationProfiles');
 
-    // 3. Load Overrides
-    final double globalOverride = (settingsBox.get('globalMinMagnitudeOverrideQuietHours', defaultValue: 0.0) as num).toDouble();
-    final bool alwaysNotifyRadiusEnabled = settingsBox.get('alwaysNotifyRadiusEnabled', defaultValue: false);
-    final double alwaysNotifyRadiusValue = (settingsBox.get('alwaysNotifyRadiusValue', defaultValue: 0.0) as num).toDouble();
-
-    // 4. CHECK ALWAYS-NOTIFY CRITERIA (These bypass normal minMag and Quiet Hours)
-    bool isAlwaysNotify = false;
+    if (storedProfiles != null && storedProfiles is List && storedProfiles.isNotEmpty) {
+      // Cast safely
+      profilesToCheck = storedProfiles.whereType<NotificationProfile>().toList();
+    } 
     
-    // Global Magnitude Override (e.g. "Notify me for any 7.0+ regardless of settings")
-    if (globalOverride > 0 && earthquake.magnitude >= globalOverride) {
-      isAlwaysNotify = true;
+    // Fallback: If no profiles found (e.g. legacy data), create a temporary profile from root settings
+    if (profilesToCheck.isEmpty) {
+      profilesToCheck.add(NotificationProfile(
+        id: 'legacy',
+        name: 'Legacy Profile',
+        latitude: userLat ?? 0.0,
+        longitude: userLon ?? 0.0,
+        radius: (settingsBox.get('radius', defaultValue: 0.0) as num).toDouble(),
+        minMagnitude: (settingsBox.get('minMagnitude', defaultValue: 0) as num).toDouble(),
+        quietHoursEnabled: settingsBox.get('quietHoursEnabled', defaultValue: false),
+        quietHoursStart: List<int>.from(settingsBox.get('quietHoursStart', defaultValue: [22, 0])),
+        quietHoursEnd: List<int>.from(settingsBox.get('quietHoursEnd', defaultValue: [6, 0])),
+        quietHoursDays: List<int>.from(settingsBox.get('quietHoursDays', defaultValue: [0, 1, 2, 3, 4, 5, 6])),
+        alwaysNotifyRadiusEnabled: settingsBox.get('alwaysNotifyRadiusEnabled', defaultValue: false),
+        alwaysNotifyRadiusValue: (settingsBox.get('alwaysNotifyRadiusValue', defaultValue: 0.0) as num).toDouble(),
+        emergencyMagnitudeThreshold: (settingsBox.get('emergencyMagnitudeThreshold', defaultValue: 5.0) as num).toDouble(),
+        emergencyRadius: (settingsBox.get('emergencyRadius', defaultValue: 100.0) as num).toDouble(),
+        globalMinMagnitudeOverrideQuietHours: (settingsBox.get('globalMinMagnitudeOverrideQuietHours', defaultValue: 0.0) as num).toDouble(),
+      ));
     }
 
-    // Local Radius Override (e.g. "Notify me for anything within 50km regardless of settings")
-    if (alwaysNotifyRadiusEnabled && alwaysNotifyRadiusValue > 0 && distance != null && distance <= alwaysNotifyRadiusValue) {
-      isAlwaysNotify = true;
-    }
-
-    if (isAlwaysNotify) return true;
-
-    // 5. NORMAL FILTERS (Magnitude and Radius)
-    // If it doesn't meet our basic magnitude criteria, we don't notify.
-    if (earthquake.magnitude < minMagnitude) {
-      return false;
-    }
-
-    // If it's too far away (and we have a radius filter), we don't notify.
-    // Note: We "fail open" if distance is unknown (allow it).
-    if (radius > 0 && distance != null && distance > radius) {
-      return false;
-    }
-
-    // 6. QUIET HOURS CHECK
-    final bool quietHoursEnabled = settingsBox.get('quietHoursEnabled', defaultValue: false);
-    if (quietHoursEnabled) {
-      final now = DateTime.now();
-      if (_isDuringQuietHours(settingsBox, now)) {
-        // We ARE in quiet hours. Only allow if it's an "Emergency".
-        final double emergencyMag = (settingsBox.get('emergencyMagnitudeThreshold', defaultValue: 5.0) as num).toDouble();
-        final double emergencyRad = (settingsBox.get('emergencyRadius', defaultValue: 100.0) as num).toDouble();
-        
-        // Emergency criteria: magnitude is high enough AND (distance is close or unknown)
-        if (earthquake.magnitude >= emergencyMag) {
-          if (distance == null || distance <= emergencyRad) {
-            return true;
-          }
-        }
-        
-        // If it's quiet hours and NOT an emergency (and NOT an Always-Notify from step 4), silence it.
-        return false;
+    // 3. Iterate Profiles
+    for (final profile in profilesToCheck) {
+      if (_checkProfile(earthquake, profile, userLat, userLon)) {
+        return true; // Match found!
       }
     }
 
-    // 7. If we reached here, it passed all filters and it's NOT quiet hours.
-    return true;
+    return false;
+  }
+
+  static bool _checkProfile(Earthquake earthquake, NotificationProfile profile, double? userLat, double? userLon) {
+    // 1. Distance Calculation
+    // Use profile location if set, otherwise fallback to user location (mobile profile)
+    double refLat = (profile.latitude != 0.0 || profile.longitude != 0.0) ? profile.latitude : (userLat ?? 0.0);
+    double refLon = (profile.latitude != 0.0 || profile.longitude != 0.0) ? profile.longitude : (userLon ?? 0.0);
+    
+    final double distance = _getDistance(refLat, refLon, earthquake.latitude, earthquake.longitude);
+    
+    // 2. Always Notify Checks
+    if (profile.globalMinMagnitudeOverrideQuietHours > 0 && earthquake.magnitude >= profile.globalMinMagnitudeOverrideQuietHours) {
+        return true;
+    }
+    if (profile.alwaysNotifyRadiusEnabled && profile.alwaysNotifyRadiusValue > 0 && distance <= profile.alwaysNotifyRadiusValue) {
+        return true;
+    }
+
+    // 3. Normal Filters
+    if (earthquake.magnitude < profile.minMagnitude) return false;
+    
+    // Radius check: Only if radius > 0 (not worldwide)
+    if (profile.radius > 0 && distance > profile.radius) return false;
+
+    // 4. Quiet Hours
+    if (profile.quietHoursEnabled) {
+        final now = DateTime.now();
+        if (_isDuringQuietHoursForProfile(profile, now)) {
+             // Emergency Override check
+             if (earthquake.magnitude >= profile.emergencyMagnitudeThreshold) {
+                 if (distance <= profile.emergencyRadius) return true;
+             }
+             return false; // Suppressed by quiet hours
+        }
+    }
+    
+    return true; // Passed all checks
+  }
+
+  static bool _isDuringQuietHoursForProfile(NotificationProfile profile, DateTime now) {
+    if (!profile.quietHoursDays.contains(now.weekday % 7)) return false;
+
+    final currentMinutes = now.hour * 60 + now.minute;
+    final startMinutes = profile.quietHoursStart[0] * 60 + profile.quietHoursStart[1];
+    final endMinutes = profile.quietHoursEnd[0] * 60 + profile.quietHoursEnd[1];
+
+    if (startMinutes < endMinutes) {
+      return currentMinutes >= startMinutes && currentMinutes < endMinutes;
+    } else {
+      return currentMinutes >= startMinutes || currentMinutes < endMinutes;
+    }
   }
 
   static double _getDistance(double lat1, double lon1, double lat2, double lon2) {
@@ -240,24 +267,6 @@ class BackgroundService {
   }
 
   static double _toRadians(double degree) => degree * pi / 180;
-
-  static bool _isDuringQuietHours(Box settingsBox, DateTime now) {
-    final List<int> start = List<int>.from(settingsBox.get('quietHoursStart', defaultValue: [22, 0]));
-    final List<int> end = List<int>.from(settingsBox.get('quietHoursEnd', defaultValue: [6, 0]));
-    final List<int> days = List<int>.from(settingsBox.get('quietHoursDays', defaultValue: [0, 1, 2, 3, 4, 5, 6]));
-
-    if (!days.contains(now.weekday % 7)) return false;
-
-    final currentMinutes = now.hour * 60 + now.minute;
-    final startMinutes = start[0] * 60 + start[1];
-    final endMinutes = end[0] * 60 + end[1];
-
-    if (startMinutes < endMinutes) {
-      return currentMinutes >= startMinutes && currentMinutes < endMinutes;
-    } else {
-      return currentMinutes >= startMinutes || currentMinutes < endMinutes;
-    }
-  }
 
   static void _handleForegroundMessage(RemoteMessage message) {
     final earthquakeData = message.data['earthquake'] as String?;

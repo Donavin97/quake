@@ -126,6 +126,7 @@ class SettingsProvider with ChangeNotifier {
       'alwaysNotifyRadiusValue': _activeNotificationProfile?.alwaysNotifyRadiusValue ?? 0.0,
       'lastLatitude': position?.latitude,
       'lastLongitude': position?.longitude,
+      'notificationProfiles': _userPreferences.notificationProfiles, // Save full list
     });
   }
 
