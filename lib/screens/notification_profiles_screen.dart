@@ -91,6 +91,7 @@ class NotificationProfilesScreen extends StatelessWidget {
             minMagnitude: 4.5,
           );
           await settingsProvider.addProfile(newProfile);
+          if (!context.mounted) return;
           settingsProvider.setActiveNotificationProfile(newProfile); // Set new profile as active
           context.go('/settings/notification_profile_detail/$newProfileId'); // Navigate to edit
         },
