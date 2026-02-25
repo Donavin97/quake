@@ -56,6 +56,7 @@ class EarthquakeProvider with ChangeNotifier {
   SortCriterion _sortCriterion = SortCriterion.date;
   late Box<Earthquake> _earthquakeBox;
   bool _isProcessing = false;
+  final Set<String> _pendingGeocoding = {}; // Track IDs being geocoded
 
   NotificationProfile _filterNotificationProfile; // New field for selected profile
 
@@ -131,32 +132,28 @@ class EarthquakeProvider with ChangeNotifier {
         final index = _earthquakes.indexWhere((e) => e.id == earthquakeFromApi.id);
         
         if (index == -1) {
-          // New earthquake: geocode it
-          final betterPlace = await _geocodingService.reverseGeocode(
-            earthquakeFromApi.latitude, 
-            earthquakeFromApi.longitude
-          );
-          if (betterPlace != null) {
-            earthquakeFromApi.place = betterPlace;
-          }
+          // New earthquake: add to list immediately with API place
           _earthquakes.add(earthquakeFromApi);
           earthquakesToUpdate.add(earthquakeFromApi);
-        } else {
-          // Existing earthquake: preserve geocoded place if it exists
-
           
-          // Always attempt to geocode and replace the place if a better one is found.
-          // The goal is for reverse geocoded names to always replace API names.
-          final betterPlace = await _geocodingService.reverseGeocode(
-            earthquakeFromApi.latitude, 
-            earthquakeFromApi.longitude
-          );
-          if (betterPlace != null) {
-            earthquakeFromApi.place = betterPlace;
+          // Trigger background geocoding
+          _geocodeIndividual(earthquakeFromApi);
+        } else {
+          // Existing earthquake: update fields but preserve locally geocoded place if it seems better
+          final localEq = _earthquakes[index];
+          
+          // If local has a km-based geocoded name, keep it for now
+          if (localEq.place.contains(' km ') && !earthquakeFromApi.place.contains(' km ')) {
+            earthquakeFromApi.place = localEq.place;
           }
           
           _earthquakes[index] = earthquakeFromApi;
           earthquakesToUpdate.add(earthquakeFromApi);
+
+          // Still attempt to update geocoding in background if needed
+          if (!earthquakeFromApi.place.contains(' km ')) {
+             _geocodeIndividual(earthquakeFromApi);
+          }
         }
       }
 
@@ -182,15 +179,9 @@ class EarthquakeProvider with ChangeNotifier {
 
     // Subscribe to WebSocket stream
     _websocketSubscription = _webSocketService.earthquakeStream.listen((newEarthquake) async {
-      // Attempt reverse geocoding for WebSocket earthquakes too
-      final betterPlace = await _geocodingService.reverseGeocode(
-        newEarthquake.latitude, 
-        newEarthquake.longitude
-      );
-      if (betterPlace != null) {
-        newEarthquake.place = betterPlace;
-      }
       _addNewEarthquake(newEarthquake);
+      // Trigger background geocoding
+      _geocodeIndividual(newEarthquake);
     });
 
     // Subscribe to Hive box changes (handles background updates and foreground FCM writes)
@@ -374,16 +365,34 @@ class EarthquakeProvider with ChangeNotifier {
     final targets = listToGeocode.take(50).toList();
 
     for (final eq in targets) {
-      if (!eq.place.contains(' km ')) {
-        final betterPlace = await _geocodingService.reverseGeocode(eq.latitude, eq.longitude);
-        if (betterPlace != null) {
-          eq.place = betterPlace;
-          await _earthquakeBox.put(eq.id, eq);
-          notifyListeners();
-        }
+      if (!eq.place.contains(' km ') && !_pendingGeocoding.contains(eq.id)) {
+        await _geocodeIndividual(eq);
         // Small delay to respect Nominatim rate limit (1 req/sec recommended)
         await Future.delayed(const Duration(milliseconds: 1000));
       }
+    }
+  }
+
+  /// Geocodes a single earthquake in the background and updates UI/Hive
+  Future<void> _geocodeIndividual(Earthquake eq) async {
+    if (_pendingGeocoding.contains(eq.id)) return;
+    
+    _pendingGeocoding.add(eq.id);
+    try {
+      final betterPlace = await _geocodingService.reverseGeocode(eq.latitude, eq.longitude);
+      if (betterPlace != null && betterPlace != eq.place) {
+        eq.place = betterPlace;
+        await _earthquakeBox.put(eq.id, eq);
+        
+        // Find in memory list and update if present
+        final idx = _earthquakes.indexWhere((e) => e.id == eq.id);
+        if (idx != -1) {
+          _earthquakes[idx] = eq;
+        }
+        notifyListeners();
+      }
+    } finally {
+      _pendingGeocoding.remove(eq.id);
     }
   }
 
