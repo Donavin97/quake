@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 
 import '../models/notification_profile.dart';
 import '../providers/settings_provider.dart';
+import '../providers/location_provider.dart'; // Import LocationProvider
 
 class NotificationProfileDetailScreen extends StatefulWidget {
   final String profileId;
@@ -144,27 +145,58 @@ class _NotificationProfileDetailScreenState extends State<NotificationProfileDet
                 },
               ),
               // Latitude and Longitude fields
-              TextFormField(
-                controller: _latitudeController,
-                decoration: const InputDecoration(labelText: 'Latitude'),
-                keyboardType: TextInputType.number,
-                validator: (value) {
-                  if (value == null || value.isEmpty || double.tryParse(value) == null) {
-                    return 'Please enter a valid number';
-                  }
-                  return null;
-                },
-              ),
-              TextFormField(
-                controller: _longitudeController,
-                decoration: const InputDecoration(labelText: 'Longitude'),
-                keyboardType: TextInputType.number,
-                validator: (value) {
-                  if (value == null || value.isEmpty || double.tryParse(value) == null) {
-                    return 'Please enter a valid number';
-                  }
-                  return null;
-                },
+              Row(
+                children: [
+                  Expanded(
+                    child: TextFormField(
+                      controller: _latitudeController,
+                      decoration: const InputDecoration(labelText: 'Latitude'),
+                      keyboardType: TextInputType.number,
+                      validator: (value) {
+                        if (value == null || value.isEmpty || double.tryParse(value) == null) {
+                          return 'Please enter a valid number';
+                        }
+                        return null;
+                      },
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: TextFormField(
+                      controller: _longitudeController,
+                      decoration: const InputDecoration(labelText: 'Longitude'),
+                      keyboardType: TextInputType.number,
+                      validator: (value) {
+                        if (value == null || value.isEmpty || double.tryParse(value) == null) {
+                          return 'Please enter a valid number';
+                        }
+                        return null;
+                      },
+                    ),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.my_location),
+                    tooltip: 'Use Current Location',
+                    onPressed: () async {
+                      final locationProvider = Provider.of<LocationProvider>(context, listen: false);
+                      await locationProvider.determinePosition();
+                      final position = locationProvider.currentPosition;
+                      if (position != null) {
+                        setState(() {
+                          _latitudeController.text = position.latitude.toString();
+                          _longitudeController.text = position.longitude.toString();
+                        });
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Updated to current location')),
+                        );
+                      } else {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Could not determine location')),
+                        );
+                      }
+                    },
+                  ),
+                ],
               ),
               // Quiet Hours Enabled
               SwitchListTile(

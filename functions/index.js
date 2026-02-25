@@ -243,7 +243,11 @@ const sendNotification = async (earthquake) => {
         for (const profile of preferences.notificationProfiles) {
             const profileLocation = { latitude: profile.latitude, longitude: profile.longitude, geohash: geohash.encode(profile.latitude, profile.longitude, 10) };
 
+            // Debug logging for profile check
+            console.log(`Checking profile '${profile.name}' for user ${userId}. EqMag: ${earthquakeMagnitude}, MinMag: ${profile.minMagnitude}, Radius: ${profile.radius}`);
+
             if (shouldSendNotificationForProfile(earthquake, profileLocation, profile, currentTime)) {
+                console.log(`MATCHED profile '${profile.name}' for user ${userId}.`);
                 matchingProfiles.push(profile.name); // Collect matching profile name
                 // DO NOT BREAK: Continue checking other profiles
             }
