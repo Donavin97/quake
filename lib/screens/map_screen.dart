@@ -89,6 +89,7 @@ class _MapScreenState extends State<MapScreen> {
   }
 
   void _onEarthquakesChanged() {
+    if (!mounted) return;
     _filterAndDisplayMarkers();
   }
 

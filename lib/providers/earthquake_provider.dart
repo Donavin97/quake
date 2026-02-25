@@ -56,6 +56,7 @@ class EarthquakeProvider with ChangeNotifier {
   SortCriterion _sortCriterion = SortCriterion.date;
   late Box<Earthquake> _earthquakeBox;
   bool _isProcessing = false;
+  bool _isInitializing = false;
   final Set<String> _pendingGeocoding = {}; // Track IDs being geocoded
 
   NotificationProfile _filterNotificationProfile; // New field for selected profile
@@ -81,6 +82,9 @@ class EarthquakeProvider with ChangeNotifier {
 
 
   void _init() async {
+    if (_isInitializing) return;
+    _isInitializing = true;
+
     _locationSubscription?.cancel();
     _websocketSubscription?.cancel();
     _fcmSubscription?.cancel();
@@ -170,6 +174,7 @@ class EarthquakeProvider with ChangeNotifier {
     } catch (e) {
       _error = e.toString();
     } finally {
+      _isInitializing = false;
       notifyListeners();
     }
 
