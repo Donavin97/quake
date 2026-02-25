@@ -156,10 +156,10 @@ class _NotificationProfileDetailScreenState extends State<NotificationProfileDet
                             validator: (v) => double.tryParse(v ?? '') == null ? 'Invalid' : null,
                           ),
                         ),
-                                                IconButton(
-                                                  icon: const Icon(Icons.my_location),
-                                                  onPressed: () async {
-                                                    final lp = Provider.of<LocationProvider>(context, listen: false);
+                                                                        IconButton(
+                                                                          icon: const Icon(Icons.my_location),
+                                                                          tooltip: 'Use Current Location',
+                                                                          onPressed: () async {                                                    final lp = Provider.of<LocationProvider>(context, listen: false);
                                                     await lp.determinePosition();
                                                     if (!mounted) return;
                                                     if (lp.currentPosition != null) {
