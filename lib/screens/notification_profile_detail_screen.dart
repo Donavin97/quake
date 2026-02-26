@@ -60,9 +60,9 @@ class _NotificationProfileDetailScreenState extends State<NotificationProfileDet
     _minMagnitude = _profile!.minMagnitude.clamp(0, 9);
     _radius = _profile!.radius.clamp(0, 5000);
     _quietHoursEnabled = _profile!.quietHoursEnabled;
-    _quietHoursStart = List.from(_profile!.quietHoursStart ?? []);
-    _quietHoursEnd = List.from(_profile!.quietHoursEnd ?? []);
-    _quietHoursDays = List.from(_profile!.quietHoursDays ?? []);
+    _quietHoursStart = List.from(_profile!.quietHoursStart);
+    _quietHoursEnd = List.from(_profile!.quietHoursEnd);
+    _quietHoursDays = List.from(_profile!.quietHoursDays);
     _alwaysNotifyRadiusEnabled = _profile!.alwaysNotifyRadiusEnabled;
     _alwaysNotifyRadiusValue = _profile!.alwaysNotifyRadiusValue.clamp(0, 500);
     _emergencyMagnitudeThreshold = _profile!.emergencyMagnitudeThreshold.clamp(0, 9);
@@ -374,24 +374,23 @@ class _NotificationProfileDetailScreenState extends State<NotificationProfileDet
                               return Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  ExcludeSemantics(child: Text(label, style: const TextStyle(fontWeight: FontWeight.w500))),
-                                  Semantics(
-                                    label: label,
-                                    child: Slider(
-                                      value: safeValue,
-                                      min: min,
-                                      max: max,
-                                      divisions: divisions,
-                                      label: safeValue.toStringAsFixed(1),
-                                      onChanged: onChanged,
-                                                  semanticFormatterCallback: (double newValue) {
-                                                    return '$label: ${newValue.toStringAsFixed(1)}'; 
-                                                  },                                    ),
-                                  ),
-                                ],
-                              );
-                            }                        
-                          Widget _buildDayPicker() {
+                                                                                              ExcludeSemantics(child: Text(label, style: const TextStyle(fontWeight: FontWeight.w500))),
+                                                                                              Semantics(
+                                                                                                label: label,
+                                                                                                child: Slider(
+                                                                                                  value: safeValue,
+                                                                                                  min: min,
+                                                                                                  max: max,
+                                                                                                  divisions: divisions,
+                                                                                                  label: safeValue.toStringAsFixed(1),
+                                                                                                  onChanged: onChanged,
+                                                                                                              semanticFormatterCallback: (double newValue) {
+                                                                                                                return '$label: ${newValue.toStringAsFixed(1)}'; 
+                                                                                                              },                                    ),
+                                                                                                  ),
+                                                                                                ],
+                                                                                              );
+                                                                                            }                          Widget _buildDayPicker() {
                             final days = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
                             final fullDays = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
                             return Wrap(
