@@ -166,12 +166,12 @@ class BackgroundService {
     } catch (_) {}
 
     // 2. Load Profiles
-    List<NotificationProfile> profilesToCheck = [];
+    final List<NotificationProfile> profilesToCheck = [];
     final storedProfiles = settingsBox.get('notificationProfiles');
 
     if (storedProfiles != null && storedProfiles is List && storedProfiles.isNotEmpty) {
       // Cast safely
-      profilesToCheck = storedProfiles.whereType<NotificationProfile>().toList();
+      profilesToCheck.addAll(storedProfiles.whereType<NotificationProfile>());
     } 
     
     // Fallback: If no profiles found (e.g. legacy data), create a temporary profile from root settings
@@ -208,8 +208,8 @@ class BackgroundService {
   static bool _checkProfile(Earthquake earthquake, NotificationProfile profile, double? userLat, double? userLon) {
     // 1. Distance Calculation
     // Use profile location if set, otherwise fallback to user location (mobile profile)
-    double refLat = (profile.latitude != 0.0 || profile.longitude != 0.0) ? profile.latitude : (userLat ?? 0.0);
-    double refLon = (profile.latitude != 0.0 || profile.longitude != 0.0) ? profile.longitude : (userLon ?? 0.0);
+    final double refLat = (profile.latitude != 0.0 || profile.longitude != 0.0) ? profile.latitude : (userLat ?? 0.0);
+    final double refLon = (profile.latitude != 0.0 || profile.longitude != 0.0) ? profile.longitude : (userLon ?? 0.0);
     
     final double distance = _getDistance(refLat, refLon, earthquake.latitude, earthquake.longitude);
     
@@ -294,7 +294,7 @@ class BackgroundService {
     // This will show the system prompt if permission is not yet granted/explicitly denied.
     // If already granted, it typically just returns 'authorized' without showing a dialog again (OS dependent).
     // If permanently denied, it will return 'denied' without showing a dialog.
-    NotificationSettings settings = await _firebaseMessaging.requestPermission();
+    final NotificationSettings settings = await _firebaseMessaging.requestPermission();
     return settings.authorizationStatus;
   }
 

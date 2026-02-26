@@ -81,15 +81,6 @@ class SettingsProvider with ChangeNotifier {
                   longitude: currentPosition?.longitude ?? 0.0,
                   radius: 0.0, // Default to worldwide
                   minMagnitude: 4.5,
-                  quietHoursEnabled: false,
-                  quietHoursStart: const [22, 0],
-                  quietHoursEnd: const [6, 0],
-                  quietHoursDays: const [0, 1, 2, 3, 4, 5, 6],
-                  emergencyMagnitudeThreshold: 5.0,
-                  emergencyRadius: 100.0,
-                  globalMinMagnitudeOverrideQuietHours: 0.0,
-                  alwaysNotifyRadiusEnabled: false,
-                  alwaysNotifyRadiusValue: 0.0,
                 )
               ]
             );

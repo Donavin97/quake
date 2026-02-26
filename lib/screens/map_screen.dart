@@ -83,7 +83,7 @@ class _MapScreenState extends State<MapScreen> {
 
   void _zoomOutToGlobalView() {
     _mapController.move(
-      LatLng(0.0, 0.0), // Center of the world
+      const LatLng(0.0, 0.0), // Center of the world
       2.0, // Zoom level for global view
     );
   }
@@ -181,7 +181,7 @@ class _MapScreenState extends State<MapScreen> {
               TileLayer(
                 wmsOptions: WMSTileLayerOptions(
                   baseUrl: 'https://edumaps.esri.ca/ArcGIS/services/MapServices/TectonicPlates/MapServer/WMSServer',
-                  layers: ['0'],
+                  layers: const ['0'],
                 ),
                 userAgentPackageName: 'com.liebgott.quaketrack',
               ),
@@ -189,7 +189,7 @@ class _MapScreenState extends State<MapScreen> {
               TileLayer(
                 wmsOptions: WMSTileLayerOptions(
                   baseUrl: 'https://edumaps.esri.ca/ArcGIS/services/MapServices/TectonicPlates/MapServer/WMSServer',
-                  layers: ['1'],
+                  layers: const ['1'],
                 ),
                 userAgentPackageName: 'com.liebgott.quaketrack',
               ),

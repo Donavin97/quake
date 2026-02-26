@@ -18,7 +18,7 @@ class UserPreferences {
     this.timeWindow = TimeWindow.day,
     this.earthquakeProvider = 'usgs',
     this.subscribedTopics = const [],
-  }) : this.notificationProfiles = notificationProfiles ?? [];
+  }) : notificationProfiles = notificationProfiles ?? [];
 
   factory UserPreferences.fromMap(Map<String, dynamic> data) {
     List<NotificationProfile> profiles = [];
