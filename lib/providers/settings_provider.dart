@@ -19,6 +19,9 @@ class SettingsProvider with ChangeNotifier {
   bool _isLoaded = false;
   bool get isLoaded => _isLoaded;
 
+  UserPreferences _userPreferences = UserPreferences(); // Store the full user preferences
+  NotificationProfile? _activeNotificationProfile; // The profile currently being viewed/edited
+
   // App-wide settings not tied to a specific notification profile
   var _themeMode = ThemeMode.system;
   var _timeWindow = TimeWindow.day;
