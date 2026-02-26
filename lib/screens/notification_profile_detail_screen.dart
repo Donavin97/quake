@@ -17,10 +17,11 @@ class NotificationProfileDetailScreen extends StatefulWidget {
 
 class _NotificationProfileDetailScreenState extends State<NotificationProfileDetailScreen> {
   final _formKey = GlobalKey<FormState>();
-  late NotificationProfile _profile;
+  NotificationProfile? _profile;
   late TextEditingController _nameController;
   late TextEditingController _latitudeController;
   late TextEditingController _longitudeController;
+  bool _isInitialized = false;
   
   // Values for Sliders and Toggles
   double _minMagnitude = 4.5;
@@ -38,24 +39,37 @@ class _NotificationProfileDetailScreenState extends State<NotificationProfileDet
   @override
   void initState() {
     super.initState();
-    final settingsProvider = Provider.of<SettingsProvider>(context, listen: false);
-    _profile = settingsProvider.notificationProfiles.firstWhere((p) => p.id == widget.profileId);
+    _nameController = TextEditingController();
+    _latitudeController = TextEditingController();
+    _longitudeController = TextEditingController();
+  }
 
-    _nameController = TextEditingController(text: _profile.name);
-    _latitudeController = TextEditingController(text: _profile.latitude.toString());
-    _longitudeController = TextEditingController(text: _profile.longitude.toString());
+  void _initializeProfile(SettingsProvider settingsProvider) {
+    final profiles = settingsProvider.notificationProfiles;
+    _profile = profiles.cast<NotificationProfile?>().firstWhere(
+      (p) => p?.id == widget.profileId,
+      orElse: () => null,
+    );
+
+    if (_profile == null) return;
+
+    _nameController.text = _profile!.name;
+    _latitudeController.text = _profile!.latitude.toString();
+    _longitudeController.text = _profile!.longitude.toString();
     
-    _minMagnitude = _profile.minMagnitude;
-    _radius = _profile.radius;
-    _quietHoursEnabled = _profile.quietHoursEnabled;
-    _quietHoursStart = List.from(_profile.quietHoursStart);
-    _quietHoursEnd = List.from(_profile.quietHoursEnd);
-    _quietHoursDays = List.from(_profile.quietHoursDays);
-    _alwaysNotifyRadiusEnabled = _profile.alwaysNotifyRadiusEnabled;
-    _alwaysNotifyRadiusValue = _profile.alwaysNotifyRadiusValue;
-    _emergencyMagnitudeThreshold = _profile.emergencyMagnitudeThreshold;
-    _emergencyRadius = _profile.emergencyRadius;
-    _globalMinMagnitudeOverrideQuietHours = _profile.globalMinMagnitudeOverrideQuietHours;
+    _minMagnitude = _profile!.minMagnitude.clamp(0, 9);
+    _radius = _profile!.radius.clamp(0, 5000);
+    _quietHoursEnabled = _profile!.quietHoursEnabled;
+    _quietHoursStart = List.from(_profile!.quietHoursStart ?? []);
+    _quietHoursEnd = List.from(_profile!.quietHoursEnd ?? []);
+    _quietHoursDays = List.from(_profile!.quietHoursDays ?? []);
+    _alwaysNotifyRadiusEnabled = _profile!.alwaysNotifyRadiusEnabled;
+    _alwaysNotifyRadiusValue = _profile!.alwaysNotifyRadiusValue.clamp(0, 500);
+    _emergencyMagnitudeThreshold = _profile!.emergencyMagnitudeThreshold.clamp(0, 9);
+    _emergencyRadius = _profile!.emergencyRadius.clamp(0, 1000);
+    _globalMinMagnitudeOverrideQuietHours = _profile!.globalMinMagnitudeOverrideQuietHours.clamp(0, 9);
+    
+    _isInitialized = true;
   }
 
   @override
@@ -67,11 +81,12 @@ class _NotificationProfileDetailScreenState extends State<NotificationProfileDet
   }
 
   void _saveProfile() async {
+    if (_profile == null) return;
     if (_formKey.currentState!.validate()) {
       _formKey.currentState!.save();
       final settingsProvider = Provider.of<SettingsProvider>(context, listen: false);
 
-      final updatedProfile = _profile.copyWith(
+      final updatedProfile = _profile!.copyWith(
         name: _nameController.text,
         minMagnitude: _minMagnitude,
         radius: _radius,
@@ -95,9 +110,29 @@ class _NotificationProfileDetailScreenState extends State<NotificationProfileDet
 
   @override
   Widget build(BuildContext context) {
+    final settingsProvider = Provider.of<SettingsProvider>(context);
+    
+    if (!settingsProvider.isLoaded) {
+      return Scaffold(
+        appBar: AppBar(title: const Text('Loading Profile...')),
+        body: const Center(child: CircularProgressIndicator()),
+      );
+    }
+
+    if (!_isInitialized) {
+      _initializeProfile(settingsProvider);
+    }
+
+    if (_profile == null) {
+      return Scaffold(
+        appBar: AppBar(title: const Text('Profile Not Found')),
+        body: const Center(child: Text('The requested notification profile could not be found.')),
+      );
+    }
+
     return Scaffold(
       appBar: AppBar(
-        title: Text(_profile.name),
+        title: Text(_nameController.text.isEmpty ? 'Profile Detail' : _nameController.text),
         actions: [
           IconButton(
             tooltip: 'Save Profile Settings',
@@ -327,64 +362,60 @@ class _NotificationProfileDetailScreenState extends State<NotificationProfileDet
                             );
                           }
                         
-                          Widget _buildSlider({
-                            required String label,
-                            required double value,
-                            required double min,
-                            required double max,
-                            required int divisions,
-                            required ValueChanged<double> onChanged,
-                          }) {
-                            return Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                ExcludeSemantics(child: Text(label, style: const TextStyle(fontWeight: FontWeight.w500))),
-                                Semantics(
-                                  label: label,
-                                  child: Slider(
-                                    value: value,
-                                    min: min,
-                                    max: max,
-                                    divisions: divisions,
-                                    label: value.toStringAsFixed(1),
-                                    onChanged: onChanged,
-                                    semanticFormatterCallback: (double newValue) {
-                                      return label; // Ensures the screen reader announces the full context (e.g., "Radius: 100 km")
-                                    },
+                            Widget _buildSlider({
+                              required String label,
+                              required double value,
+                              required double min,
+                              required double max,
+                              required int divisions,
+                              required ValueChanged<double> onChanged,
+                            }) {
+                              final safeValue = value.clamp(min, max);
+                              return Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  ExcludeSemantics(child: Text(label, style: const TextStyle(fontWeight: FontWeight.w500))),
+                                  Semantics(
+                                    label: label,
+                                    child: Slider(
+                                      value: safeValue,
+                                      min: min,
+                                      max: max,
+                                      divisions: divisions,
+                                      label: safeValue.toStringAsFixed(1),
+                                      onChanged: onChanged,
+                                                  semanticFormatterCallback: (double newValue) {
+                                                    return '$label: ${newValue.toStringAsFixed(1)}'; 
+                                                  },                                    ),
                                   ),
-                                ),
-                              ],
-                            );
-                          }
-                        
+                                ],
+                              );
+                            }                        
                           Widget _buildDayPicker() {
                             final days = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
                             final fullDays = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-                            return Semantics(
-                              label: 'Select Active Days',
-                              child: Wrap(
-                                spacing: 4,
-                                children: List.generate(7, (index) {
-                                  final isSelected = _quietHoursDays.contains(index);
-                                  return Semantics(
-                                    label: fullDays[index],
+                            return Wrap(
+                              spacing: 4,
+                              children: List.generate(7, (index) {
+                                final isSelected = _quietHoursDays.contains(index);
+                                return Semantics(
+                                  label: fullDays[index],
+                                  selected: isSelected,
+                                  child: FilterChip(
+                                    label: Text(days[index]),
                                     selected: isSelected,
-                                    child: FilterChip(
-                                      label: Text(days[index]),
-                                      selected: isSelected,
-                                      onSelected: (selected) {
-                                        setState(() {
-                                          if (selected) {
-                                            _quietHoursDays.add(index);
-                                          } else {
-                                            _quietHoursDays.remove(index);
-                                          }
-                                        });
-                                      },
-                                    ),
-                                  );
-                                }),
-                              ),
+                                    onSelected: (selected) {
+                                      setState(() {
+                                        if (selected) {
+                                          _quietHoursDays.add(index);
+                                        } else {
+                                          _quietHoursDays.remove(index);
+                                        }
+                                      });
+                                    },
+                                  ),
+                                );
+                              }),
                             );
                           }
   String _formatTime(List<int> time) {

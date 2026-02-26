@@ -16,8 +16,8 @@ class SettingsProvider with ChangeNotifier {
   final _userService = UserService();
   final LocationProvider _locationProvider;
 
-  UserPreferences _userPreferences = UserPreferences(); // Store the full user preferences
-  NotificationProfile? _activeNotificationProfile; // The profile currently being viewed/edited
+  bool _isLoaded = false;
+  bool get isLoaded => _isLoaded;
 
   // App-wide settings not tied to a specific notification profile
   var _themeMode = ThemeMode.system;
@@ -61,50 +61,56 @@ class SettingsProvider with ChangeNotifier {
   }
 
   Future<void> _loadPreferences() async {
-    final user = _auth.currentUser;
-    if (user != null) {
-      _userPreferences = (await _userService.getUserPreferences(user.uid)) ?? UserPreferences();
-      
-      // If there are no profiles (e.g., new user or old data without profiles), create a default one
-      if (_userPreferences.notificationProfiles.isEmpty) {
-          final currentPosition = _locationProvider.currentPosition;
-          _userPreferences = _userPreferences.copyWith(
-            notificationProfiles: [
-              NotificationProfile(
-                id: 'default',
-                name: 'Default Profile',
-                latitude: currentPosition?.latitude ?? 0.0,
-                longitude: currentPosition?.longitude ?? 0.0,
-                radius: 0.0, // Default to worldwide
-                minMagnitude: 4.5,
-                quietHoursEnabled: false,
-                quietHoursStart: const [22, 0],
-                quietHoursEnd: const [6, 0],
-                quietHoursDays: const [0, 1, 2, 3, 4, 5, 6],
-                emergencyMagnitudeThreshold: 5.0,
-                emergencyRadius: 100.0,
-                globalMinMagnitudeOverrideQuietHours: 0.0,
-                alwaysNotifyRadiusEnabled: false,
-                alwaysNotifyRadiusValue: 0.0,
-              )
-            ]
-          );
-      }
-      _activeNotificationProfile = _userPreferences.notificationProfiles.first; // Set the first profile as active
-      
-      // Load app-wide settings from the loaded UserPreferences object
-      _themeMode = ThemeMode.values[_userPreferences.themeMode];
-      _timeWindow = _userPreferences.timeWindow;
-      _earthquakeProvider = _userPreferences.earthquakeProvider;
-      _subscribedTopics = Set<String>.from(_userPreferences.subscribedTopics);
+    try {
+      final user = _auth.currentUser;
+      if (user != null) {
+        _userPreferences = (await _userService.getUserPreferences(user.uid)) ?? UserPreferences();
+        
+        // If there are no profiles (e.g., new user or old data without profiles), create a default one
+        if (_userPreferences.notificationProfiles.isEmpty) {
+            final currentPosition = _locationProvider.currentPosition;
+            _userPreferences = _userPreferences.copyWith(
+              notificationProfiles: [
+                NotificationProfile(
+                  id: 'default',
+                  name: 'Default Profile',
+                  latitude: currentPosition?.latitude ?? 0.0,
+                  longitude: currentPosition?.longitude ?? 0.0,
+                  radius: 0.0, // Default to worldwide
+                  minMagnitude: 4.5,
+                  quietHoursEnabled: false,
+                  quietHoursStart: const [22, 0],
+                  quietHoursEnd: const [6, 0],
+                  quietHoursDays: const [0, 1, 2, 3, 4, 5, 6],
+                  emergencyMagnitudeThreshold: 5.0,
+                  emergencyRadius: 100.0,
+                  globalMinMagnitudeOverrideQuietHours: 0.0,
+                  alwaysNotifyRadiusEnabled: false,
+                  alwaysNotifyRadiusValue: 0.0,
+                )
+              ]
+            );
+        }
+        _activeNotificationProfile = _userPreferences.notificationProfiles.first; // Set the first profile as active
+        
+        // Load app-wide settings from the loaded UserPreferences object
+        _themeMode = ThemeMode.values[_userPreferences.themeMode];
+        _timeWindow = _userPreferences.timeWindow;
+        _earthquakeProvider = _userPreferences.earthquakeProvider;
+        _subscribedTopics = Set<String>.from(_userPreferences.subscribedTopics);
 
-    } else {
-      _userPreferences = UserPreferences(); // Reset to default if no user
-      _activeNotificationProfile = null;
+      } else {
+        _userPreferences = UserPreferences(); // Reset to default if no user
+        _activeNotificationProfile = null;
+      }
+      await _updateSubscriptions();
+      await _saveToLocalCache();
+    } catch (e) {
+      debugPrint('Error loading preferences: $e');
+    } finally {
+      _isLoaded = true;
+      notifyListeners();
     }
-    await _updateSubscriptions();
-    await _saveToLocalCache();
-    notifyListeners();
   }
 
   Future<void> _saveToLocalCache() async {
