@@ -427,24 +427,26 @@ class _NotificationProfileDetailScreenState
     required ValueChanged<double> onChanged,
   }) {
     final safeValue = value.clamp(min, max);
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        ExcludeSemantics(
-            child: Text(label,
-                style: const TextStyle(fontWeight: FontWeight.w500))),
-        Slider(
-          value: safeValue,
-          min: min,
-          max: max,
-          divisions: divisions,
-          label: safeValue.toStringAsFixed(1),
-          onChanged: onChanged,
-          semanticFormatterCallback: (double newValue) {
-            return '$label: ${newValue.toStringAsFixed(1)}';
-          },
-        ),
-      ],
+    return Semantics(
+      label: label,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(label,
+                  style: const TextStyle(fontWeight: FontWeight.w500)),
+          Slider(
+            value: safeValue,
+            min: min,
+            max: max,
+            divisions: divisions,
+            label: safeValue.toStringAsFixed(1),
+            onChanged: onChanged,
+            semanticFormatterCallback: (double newValue) {
+              return newValue.toStringAsFixed(1);
+            },
+          ),
+        ],
+      ),
     );
   }
 
