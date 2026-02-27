@@ -9,6 +9,7 @@ import 'screens/profile_screen.dart';
 import 'screens/setup_screen.dart';
 import 'screens/notification_profiles_screen.dart'; // Import NotificationProfilesScreen
 import 'screens/notification_profile_detail_screen.dart'; // Import NotificationProfileDetailScreen
+import 'screens/statistics_screen.dart'; // Import StatisticsScreen
 import 'services/navigation_service.dart';
 
 class AppRouter {
@@ -68,6 +69,10 @@ class AppRouter {
                   // We'll retrieve the profile from the SettingsProvider in the detail screen
                   return NotificationProfileDetailScreen(profileId: profileId);
                 },
+              ),
+              GoRoute(
+                path: 'statistics',
+                builder: (context, state) => const StatisticsScreen(),
               ),
             ],
           ),

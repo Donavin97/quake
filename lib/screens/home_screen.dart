@@ -170,6 +170,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             final router = GoRouter.of(context);
             if (value == 'profile') {
               router.go('/profile');
+            } else if (value == 'statistics') {
+              router.go('/statistics');
             } else if (value == 'signOut') {
               await authService.signOut();
               router.go('/auth');
@@ -180,6 +182,11 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               value: 'profile',
               child: Text('Profile'),
             ),
+            const PopupMenuItem<String>(
+              value: 'statistics',
+              child: Text('Statistics'),
+            ),
+            const PopupMenuDivider(),
             const PopupMenuItem<String>(
               value: 'signOut',
               child: Text('Sign Out'),
