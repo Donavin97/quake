@@ -41,6 +41,7 @@ dependencies:
   cross_file: ^0.3.4 # Added for XFile
   google_mobile_ads: ^7.0.0
   uuid: ^4.0.0 # Added for generating unique IDs
+  fl_chart: ^0.69.0
 
 dev_dependencies:
   flutter_test:

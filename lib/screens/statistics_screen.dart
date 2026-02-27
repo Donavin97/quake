@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:fl_chart/fl_chart.dart';
 
 import '../models/earthquake.dart';
 import '../providers/earthquake_provider.dart';
@@ -271,6 +272,23 @@ class StatisticsScreen extends StatelessWidget {
   Widget _buildMagnitudeDistributionCard(BuildContext context, _EarthquakeStats stats) {
     final dist = stats.magnitudeDistribution;
     final total = dist.micro + dist.minor + dist.light + dist.moderate + dist.strong + dist.major + dist.great;
+    
+    if (total == 0) {
+      return Card(
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Magnitude Distribution', style: Theme.of(context).textTheme.titleLarge),
+              const SizedBox(height: 16),
+              const Center(child: Text('No data available')),
+            ],
+          ),
+        ),
+      );
+    }
+
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(16),
@@ -282,42 +300,105 @@ class StatisticsScreen extends StatelessWidget {
               style: Theme.of(context).textTheme.titleLarge,
             ),
             const SizedBox(height: 16),
-            _buildMagnitudeBar('Micro (<2)', dist.micro, total, Colors.green, context),
-            _buildMagnitudeBar('Minor (2-3.9)', dist.minor, total, Colors.lightGreen, context),
-            _buildMagnitudeBar('Light (4-4.9)', dist.light, total, Colors.yellow, context),
-            _buildMagnitudeBar('Moderate (5-5.9)', dist.moderate, total, Colors.orange, context),
-            _buildMagnitudeBar('Strong (6-6.9)', dist.strong, total, Colors.deepOrange, context),
-            _buildMagnitudeBar('Major (7-7.9)', dist.major, total, Colors.red, context),
-            _buildMagnitudeBar('Great (8+)', dist.great, total, Colors.purple, context),
+            SizedBox(
+              height: 200,
+              child: Row(
+                children: [
+                  Expanded(
+                    child: PieChart(
+                      PieChartData(
+                        sectionsSpace: 2,
+                        centerSpaceRadius: 40,
+                        sections: [
+                          if (dist.micro > 0) PieChartSectionData(
+                            value: dist.micro.toDouble(),
+                            title: '${(dist.micro / total * 100).toStringAsFixed(0)}%',
+                            color: Colors.green,
+                            radius: 50,
+                            titleStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.white),
+                          ),
+                          if (dist.minor > 0) PieChartSectionData(
+                            value: dist.minor.toDouble(),
+                            title: '${(dist.minor / total * 100).toStringAsFixed(0)}%',
+                            color: Colors.lightGreen,
+                            radius: 50,
+                            titleStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.white),
+                          ),
+                          if (dist.light > 0) PieChartSectionData(
+                            value: dist.light.toDouble(),
+                            title: '${(dist.light / total * 100).toStringAsFixed(0)}%',
+                            color: Colors.yellow,
+                            radius: 50,
+                            titleStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.black),
+                          ),
+                          if (dist.moderate > 0) PieChartSectionData(
+                            value: dist.moderate.toDouble(),
+                            title: '${(dist.moderate / total * 100).toStringAsFixed(0)}%',
+                            color: Colors.orange,
+                            radius: 50,
+                            titleStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.white),
+                          ),
+                          if (dist.strong > 0) PieChartSectionData(
+                            value: dist.strong.toDouble(),
+                            title: '${(dist.strong / total * 100).toStringAsFixed(0)}%',
+                            color: Colors.deepOrange,
+                            radius: 50,
+                            titleStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.white),
+                          ),
+                          if (dist.major > 0) PieChartSectionData(
+                            value: dist.major.toDouble(),
+                            title: '${(dist.major / total * 100).toStringAsFixed(0)}%',
+                            color: Colors.red,
+                            radius: 50,
+                            titleStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.white),
+                          ),
+                          if (dist.great > 0) PieChartSectionData(
+                            value: dist.great.toDouble(),
+                            title: '${(dist.great / total * 100).toStringAsFixed(0)}%',
+                            color: Colors.purple,
+                            radius: 50,
+                            titleStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.white),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _buildLegendItem('Micro (<2)', Colors.green, dist.micro),
+                      _buildLegendItem('Minor (2-3.9)', Colors.lightGreen, dist.minor),
+                      _buildLegendItem('Light (4-4.9)', Colors.yellow, dist.light),
+                      _buildLegendItem('Moderate (5-5.9)', Colors.orange, dist.moderate),
+                      _buildLegendItem('Strong (6-6.9)', Colors.deepOrange, dist.strong),
+                      _buildLegendItem('Major (7-7.9)', Colors.red, dist.major),
+                      _buildLegendItem('Great (8+)', Colors.purple, dist.great),
+                    ],
+                  ),
+                ],
+              ),
+            ),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildMagnitudeBar(String label, int count, int total, Color color, BuildContext context) {
-    final percentage = total > 0 ? (count / total) : 0.0;
+  Widget _buildLegendItem(String label, Color color, int count) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      padding: const EdgeInsets.symmetric(vertical: 2),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
         children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(label, style: const TextStyle(fontSize: 12)),
-              Text('$count (${(percentage * 100).toStringAsFixed(1)}%)', 
-                  style: TextStyle(fontSize: 12, color: Colors.grey[600])),
-            ],
+          Container(
+            width: 12,
+            height: 12,
+            decoration: BoxDecoration(color: color, shape: BoxShape.circle),
           ),
-          const SizedBox(height: 4),
-          LinearProgressIndicator(
-            value: percentage,
-            backgroundColor: Colors.grey[200],
-            valueColor: AlwaysStoppedAnimation<Color>(color),
-            minHeight: 8,
-            borderRadius: BorderRadius.circular(4),
-          ),
+          const SizedBox(width: 6),
+          Text('$label: $count', style: const TextStyle(fontSize: 10)),
         ],
       ),
     );
