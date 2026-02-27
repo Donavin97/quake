@@ -327,13 +327,16 @@ const sendNotification = async (earthquake) => {
       ? earthquake.magnitude.toFixed(2) 
       : earthquake.magnitude.toFixed(1);
 
+    // Use different sound for large earthquakes (magnitude >= 6.0)
+    const soundName = earthquake.magnitude >= 6.0 ? 'earthquake-large' : 'earthquake';
+
     const messagePayload = {
       data: {
         title: 'New Earthquake Alert!',
         body: `Magnitude ${magnitudeText} (${earthquake.source}) near ${earthquake.place}`, // This will be overwritten by specific notificationBody
         earthquake: JSON.stringify(earthquake),
         mapUrl: `https://www.google.com/maps/search/?api=1&query=${earthquake.latitude},${earthquake.longitude}`,
-        sound: 'earthquake'
+        sound: soundName
       },
       android: {
         priority: 'high',

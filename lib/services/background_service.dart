@@ -326,9 +326,12 @@ class BackgroundService {
       'mapUrl': mapUrl,
     });
 
+    // Use different sound for large earthquakes (magnitude >= 6.0)
+    final String soundName = earthquake.magnitude >= 6.0 ? 'earthquake-large' : 'earthquake';
+
     const String groupKey = 'com.quaketrack.EARTHQUAKE_ALERTS';
 
-    const AndroidNotificationDetails androidPlatformChannelSpecifics =
+    final AndroidNotificationDetails androidPlatformChannelSpecifics =
         AndroidNotificationDetails(
       'earthquake_channel',
       'Earthquake Alerts',
@@ -336,18 +339,18 @@ class BackgroundService {
       importance: Importance.max,
       priority: Priority.high,
       showWhen: false,
-      sound: RawResourceAndroidNotificationSound('earthquake'),
+      sound: RawResourceAndroidNotificationSound(soundName),
       groupKey: groupKey,
       actions: <AndroidNotificationAction>[
-        AndroidNotificationAction(
+        const AndroidNotificationAction(
           'map_action',
           'View on Map',
         )
       ],
     );
-    const NotificationDetails platformChannelSpecifics = NotificationDetails(
+    final NotificationDetails platformChannelSpecifics = NotificationDetails(
       android: androidPlatformChannelSpecifics,
-      iOS: DarwinNotificationDetails(
+      iOS: const DarwinNotificationDetails(
         threadIdentifier: 'earthquake_alerts',
       ),
     );
