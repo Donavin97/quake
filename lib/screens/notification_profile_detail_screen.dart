@@ -175,241 +175,210 @@ class _NotificationProfileDetailScreenState
       body: Form(
         key: _formKey,
         child: ListView(
-          padding: const EdgeInsets.all(12.0),
+          padding: const EdgeInsets.all(16.0),
           children: [
-            _buildSectionHeader('Basic Info'),
-            Card(
-              child: Padding(
-                padding: const EdgeInsets.all(12.0),
-                child: Column(
-                  children: [
-                    TextFormField(
-                      controller: _nameController,
-                      decoration: const InputDecoration(
-                        labelText: 'Filter Name',
-                        hintText: 'e.g., Home, Family, My Region',
-                        prefixIcon: Icon(Icons.label_outline),
-                      ),
-                      validator: (value) =>
-                          (value == null || value.isEmpty)
-                              ? 'Please enter a name'
-                              : null,
-                    ),
-                  ],
-                ),
-              ),
+            // Basic Info Section
+            Text(
+              'Filter Name',
+              style: Theme.of(context).textTheme.titleMedium,
             ),
-            _buildSectionHeader('Alert Area'),
-            Card(
-              child: Padding(
-                padding: const EdgeInsets.all(12.0),
-                child: Column(
-                  children: [
-                    Row(
-                      children: [
-                        Expanded(
-                          child: TextFormField(
-                            controller: _latitudeController,
-                            decoration:
-                                const InputDecoration(labelText: 'Latitude'),
-                            keyboardType: TextInputType.number,
-                            validator: (v) =>
-                                double.tryParse(v ?? '') == null
-                                    ? 'Invalid'
-                                    : null,
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: TextFormField(
-                            controller: _longitudeController,
-                            decoration:
-                                const InputDecoration(labelText: 'Longitude'),
-                            keyboardType: TextInputType.number,
-                            validator: (v) =>
-                                double.tryParse(v ?? '') == null
-                                    ? 'Invalid'
-                                    : null,
-                          ),
-                        ),
-                        IconButton(
-                          icon: const Icon(Icons.my_location),
-                          tooltip: 'Use Current Location',
-                          onPressed: () async {
-                            final lp = Provider.of<LocationProvider>(context,
-                                listen: false);
-                            await lp.determinePosition();
-                            if (!mounted) return;
-                            if (lp.currentPosition != null) {
-                              setState(() {
-                                _latitudeController.text =
-                                    lp.currentPosition!.latitude.toString();
-                                _longitudeController.text =
-                                    lp.currentPosition!.longitude.toString();
-                              });
-                            }
-                          },
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 12),
-                    _buildSlider(
-                      label:
-                          'Radius: ${_radius == 0 ? 'Worldwide' : '${_radius.toInt()} km'}',
-                      value: _radius,
-                      min: 0,
-                      max: 5000,
-                      divisions: 50,
-                      onChanged: (v) => setState(() => _radius = v),
-                    ),
-                  ],
-                ),
+            const SizedBox(height: 8),
+            TextFormField(
+              controller: _nameController,
+              decoration: const InputDecoration(
+                hintText: 'e.g., Home, Family, My Region',
+                border: OutlineInputBorder(),
               ),
+              validator: (value) =>
+                  (value == null || value.isEmpty)
+                      ? 'Please enter a name'
+                      : null,
             ),
-            _buildSectionHeader('Magnitude Threshold'),
-            Card(
-              child: Padding(
-                padding: const EdgeInsets.all(12.0),
-                child: _buildSlider(
-                  label: 'Min Magnitude: ${_minMagnitude.toStringAsFixed(1)}',
-                  value: _minMagnitude,
-                  min: 0,
-                  max: 9,
-                  divisions: 90,
-                  onChanged: (v) => setState(() => _minMagnitude = v),
-                ),
-              ),
+            const SizedBox(height: 24),
+
+            // Alert Area Section
+            Text(
+              'Alert Area',
+              style: Theme.of(context).textTheme.titleMedium,
             ),
-            _buildSectionHeader('Quiet Hours'),
-            Card(
-              child: Column(
-                children: [
-                  SwitchListTile(
-                    title: const Text('Enable Quiet Hours'),
-                    subtitle: const Text('Silences non-emergency alerts'),
-                    value: _quietHoursEnabled,
-                    onChanged: (v) =>
-                        setState(() => _quietHoursEnabled = v),
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                Expanded(
+                  child: TextFormField(
+                    controller: _latitudeController,
+                    decoration: const InputDecoration(
+                      labelText: 'Latitude',
+                      border: OutlineInputBorder(),
+                    ),
+                    keyboardType: TextInputType.number,
+                    validator: (v) =>
+                        double.tryParse(v ?? '') == null
+                            ? 'Invalid'
+                            : null,
                   ),
-                  if (_quietHoursEnabled) ...[
-                    const Divider(height: 1),
-                    ListTile(
-                      leading: const Icon(Icons.access_time),
-                      title: const Text('Active Period'),
-                      subtitle: Text(
-                          '${_formatTime(_quietHoursStart)} to ${_formatTime(_quietHoursEnd)}'),
-                      onTap: _pickQuietHoursRange,
-                    ),
-                    Padding(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 12.0, vertical: 8.0),
-                      child: Text('Active Days',
-                          style: Theme.of(context).textTheme.titleMedium),
-                    ),
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 8.0),
-                      child: _buildDayPicker(),
-                    ),
-                    const SizedBox(height: 8),
-                  ],
-                ],
-              ),
-            ),
-            _buildSectionHeader('Advanced Overrides'),
-            Card(
-              child: Padding(
-                padding: const EdgeInsets.all(12.0),
-                child: Column(
-                  children: [
-                    _buildSlider(
-                      label:
-                          'Global Override: ${_globalMinMagnitudeOverrideQuietHours == 0 ? 'Disabled' : 'Always notify if ≥ ${_globalMinMagnitudeOverrideQuietHours.toStringAsFixed(1)}'}',
-                      value: _globalMinMagnitudeOverrideQuietHours,
-                      min: 0,
-                      max: 9,
-                      divisions: 90,
-                      onChanged: (v) => setState(
-                          () => _globalMinMagnitudeOverrideQuietHours = v),
-                    ),
-                    const Divider(),
-                    SwitchListTile(
-                      title: const Text('Proximity Override'),
-                      subtitle:
-                          const Text('Always notify within a small radius'),
-                      contentPadding: EdgeInsets.zero,
-                      value: _alwaysNotifyRadiusEnabled,
-                      onChanged: (v) =>
-                          setState(() => _alwaysNotifyRadiusEnabled = v),
-                    ),
-                    if (_alwaysNotifyRadiusEnabled)
-                      _buildSlider(
-                        label:
-                            'Override Radius: ${_alwaysNotifyRadiusValue.toInt()} km',
-                        value: _alwaysNotifyRadiusValue,
-                        min: 0,
-                        max: 500,
-                        divisions: 50,
-                        onChanged: (v) =>
-                            setState(() => _alwaysNotifyRadiusValue = v),
-                      ),
-                  ],
                 ),
-              ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: TextFormField(
+                    controller: _longitudeController,
+                    decoration: const InputDecoration(
+                      labelText: 'Longitude',
+                      border: OutlineInputBorder(),
+                    ),
+                    keyboardType: TextInputType.number,
+                    validator: (v) =>
+                        double.tryParse(v ?? '') == null
+                            ? 'Invalid'
+                            : null,
+                  ),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.my_location),
+                  tooltip: 'Use Current Location',
+                  onPressed: () async {
+                    final lp = Provider.of<LocationProvider>(context,
+                        listen: false);
+                    await lp.determinePosition();
+                    if (!mounted) return;
+                    if (lp.currentPosition != null) {
+                      setState(() {
+                        _latitudeController.text =
+                            lp.currentPosition!.latitude.toString();
+                        _longitudeController.text =
+                            lp.currentPosition!.longitude.toString();
+                      });
+                    }
+                  },
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            _buildSlider(
+              label:
+                  'Radius: ${_radius == 0 ? 'Worldwide' : '${_radius.toInt()} km'}',
+              value: _radius,
+              min: 0,
+              max: 5000,
+              divisions: 50,
+              onChanged: (v) => setState(() => _radius = v),
+            ),
+            const SizedBox(height: 24),
+
+            // Magnitude Threshold
+            Text(
+              'Magnitude Threshold',
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
+            const SizedBox(height: 8),
+            _buildSlider(
+              label: 'Min Magnitude: ${_minMagnitude.toStringAsFixed(1)}',
+              value: _minMagnitude,
+              min: 0,
+              max: 9,
+              divisions: 90,
+              onChanged: (v) => setState(() => _minMagnitude = v),
+            ),
+            const SizedBox(height: 24),
+
+            // Quiet Hours
+            Text(
+              'Quiet Hours',
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
+            const SizedBox(height: 8),
+            SwitchListTile(
+              title: const Text('Enable Quiet Hours'),
+              subtitle: const Text('Silences non-emergency alerts'),
+              contentPadding: EdgeInsets.zero,
+              value: _quietHoursEnabled,
+              onChanged: (v) =>
+                  setState(() => _quietHoursEnabled = v),
             ),
             if (_quietHoursEnabled) ...[
-              _buildSectionHeader('Emergency Thresholds'),
-              Card(
-                child: Padding(
-                  padding: const EdgeInsets.all(12.0),
-                  child: Column(
-                    children: [
-                      const Text(
-                        'Alert me even during quiet hours if:',
-                        style: TextStyle(fontSize: 12, color: Colors.grey),
-                      ),
-                      const SizedBox(height: 8),
-                      _buildSlider(
-                        label:
-                            'Mag ≥ ${_emergencyMagnitudeThreshold.toStringAsFixed(1)}',
-                        value: _emergencyMagnitudeThreshold,
-                        min: 0,
-                        max: 9,
-                        divisions: 90,
-                        onChanged: (v) =>
-                            setState(() => _emergencyMagnitudeThreshold = v),
-                      ),
-                      _buildSlider(
-                        label:
-                            'And distance ≤ ${_emergencyRadius.toInt()} km',
-                        value: _emergencyRadius,
-                        min: 0,
-                        max: 1000,
-                        divisions: 50,
-                        onChanged: (v) =>
-                            setState(() => _emergencyRadius = v),
-                      ),
-                    ],
-                  ),
-                ),
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: const Icon(Icons.access_time),
+                title: const Text('Active Period'),
+                subtitle: Text(
+                    '${_formatTime(_quietHoursStart)} to ${_formatTime(_quietHoursEnd)}'),
+                onTap: _pickQuietHoursRange,
+              ),
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: const Icon(Icons.calendar_today),
+                title: const Text('Active Days'),
+                subtitle: Text(_formatDays(_quietHoursDays)),
+                onTap: _pickQuietDays,
+              ),
+              const SizedBox(height: 16),
+              Text(
+                'Alert me even during quiet hours if:',
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+              const SizedBox(height: 8),
+              _buildSlider(
+                label:
+                    'Magnitude ≥ ${_emergencyMagnitudeThreshold.toStringAsFixed(1)}',
+                value: _emergencyMagnitudeThreshold,
+                min: 0,
+                max: 9,
+                divisions: 90,
+                onChanged: (v) =>
+                    setState(() => _emergencyMagnitudeThreshold = v),
+              ),
+              _buildSlider(
+                label:
+                    'Distance ≤ ${_emergencyRadius.toInt()} km',
+                value: _emergencyRadius,
+                min: 0,
+                max: 1000,
+                divisions: 50,
+                onChanged: (v) =>
+                    setState(() => _emergencyRadius = v),
               ),
             ],
+            const SizedBox(height: 24),
+
+            // Advanced Overrides
+            Text(
+              'Advanced Overrides',
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
+            const SizedBox(height: 8),
+            _buildSlider(
+              label:
+                  'Global Override: ${_globalMinMagnitudeOverrideQuietHours == 0 ? 'Disabled' : '≥ ${_globalMinMagnitudeOverrideQuietHours.toStringAsFixed(1)}'}',
+              value: _globalMinMagnitudeOverrideQuietHours,
+              min: 0,
+              max: 9,
+              divisions: 90,
+              onChanged: (v) => setState(
+                  () => _globalMinMagnitudeOverrideQuietHours = v),
+            ),
+            const SizedBox(height: 16),
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              title: const Text('Proximity Override'),
+              subtitle:
+                  const Text('Always notify within a small radius'),
+              value: _alwaysNotifyRadiusEnabled,
+              onChanged: (v) =>
+                  setState(() => _alwaysNotifyRadiusEnabled = v),
+            ),
+            if (_alwaysNotifyRadiusEnabled)
+              _buildSlider(
+                label:
+                    'Override Radius: ${_alwaysNotifyRadiusValue.toInt()} km',
+                value: _alwaysNotifyRadiusValue,
+                min: 0,
+                max: 500,
+                divisions: 50,
+                onChanged: (v) =>
+                    setState(() => _alwaysNotifyRadiusValue = v),
+              ),
             const SizedBox(height: 32),
           ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildSectionHeader(String title) {
-    return Padding(
-      padding: const EdgeInsets.only(left: 4.0, top: 16.0, bottom: 8.0),
-      child: Text(
-        title.toUpperCase(),
-        style: const TextStyle(
-          fontSize: 12,
-          fontWeight: FontWeight.bold,
-          color: Colors.blueGrey,
-          letterSpacing: 1.1,
         ),
       ),
     );
@@ -423,12 +392,18 @@ class _NotificationProfileDetailScreenState
     required int divisions,
     required ValueChanged<double> onChanged,
   }) {
-    final safeValue = value.clamp(min, max);
+    double safeValue = value;
+    if (value.isNaN || value.isInfinite || value < min || value > max) {
+      safeValue = min;
+    }
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
       children: [
-        Text(label,
-                style: const TextStyle(fontWeight: FontWeight.w500)),
+        Text(
+          label,
+          style: const TextStyle(fontWeight: FontWeight.w500),
+        ),
         Slider(
           value: safeValue,
           min: min,
@@ -441,56 +416,52 @@ class _NotificationProfileDetailScreenState
     );
   }
 
-  Widget _buildDayPicker() {
-    return Center(
-      child: SegmentedButton<int>(
-        segments: const [
-          ButtonSegment(value: 0, label: Text('S'), tooltip: 'Sunday'),
-          ButtonSegment(value: 1, label: Text('M'), tooltip: 'Monday'),
-          ButtonSegment(value: 2, label: Text('T'), tooltip: 'Tuesday'),
-          ButtonSegment(value: 3, label: Text('W'), tooltip: 'Wednesday'),
-          ButtonSegment(value: 4, label: Text('T'), tooltip: 'Thursday'),
-          ButtonSegment(value: 5, label: Text('F'), tooltip: 'Friday'),
-          ButtonSegment(value: 6, label: Text('S'), tooltip: 'Saturday'),
-        ],
-        selected: _quietHoursDays.toSet(),
-        onSelectionChanged: (newSelection) {
-          setState(() {
-            _quietHoursDays = newSelection.toList()..sort();
-          });
-        },
-        multiSelectionEnabled: true,
-        emptySelectionAllowed: true,
-        showSelectedIcon: false,
-        style: const ButtonStyle(
-          visualDensity: VisualDensity.compact,
-          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-        ),
-      ),
+  String _formatDays(List<int> days) {
+    const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+    if (days.length == 7) return 'Every day';
+    if (days.isEmpty) return 'None';
+    final sortedDays = List<int>.from(days)..sort();
+    return sortedDays.map((d) => dayNames[d]).join(', ');
+  }
+
+  Future<void> _pickQuietDays() async {
+    final selectedDays = List<int>.from(_quietHoursDays);
+    final result = await showDialog<List<int>>(
+      context: context,
+      builder: (context) => _DayPickerDialog(initialSelectedDays: selectedDays),
     );
+    if (result != null) {
+      setState(() {
+        _quietHoursDays = result;
+      });
+    }
   }
 
   String _formatTime(List<int> time) {
+    if (time.length < 2) return '--:--';
     final hour = time[0].toString().padLeft(2, '0');
     final minute = time[1].toString().padLeft(2, '0');
     return '$hour:$minute';
   }
 
   Future<void> _pickQuietHoursRange() async {
+    // Validate current values before showing picker
+    final startHour = _quietHoursStart.isNotEmpty ? _quietHoursStart[0] : 22;
+    final startMinute = _quietHoursStart.length > 1 ? _quietHoursStart[1] : 0;
+    final endHour = _quietHoursEnd.isNotEmpty ? _quietHoursEnd[0] : 6;
+    final endMinute = _quietHoursEnd.length > 1 ? _quietHoursEnd[1] : 0;
+
     final start = await showTimePicker(
       context: context,
-      initialTime:
-          TimeOfDay(hour: _quietHoursStart[0], minute: _quietHoursStart[1]),
+      initialTime: TimeOfDay(hour: startHour, minute: startMinute),
       helpText: 'QUIET HOURS START',
     );
     if (start == null) return;
-
     if (!mounted) return;
 
     final end = await showTimePicker(
       context: context,
-      initialTime:
-          TimeOfDay(hour: _quietHoursEnd[0], minute: _quietHoursEnd[1]),
+      initialTime: TimeOfDay(hour: endHour, minute: endMinute),
       helpText: 'QUIET HOURS END',
     );
     if (end == null) return;
@@ -499,5 +470,98 @@ class _NotificationProfileDetailScreenState
       _quietHoursStart = [start.hour, start.minute];
       _quietHoursEnd = [end.hour, end.minute];
     });
+  }
+}
+
+class _DayPickerDialog extends StatefulWidget {
+  final List<int> initialSelectedDays;
+
+  const _DayPickerDialog({required this.initialSelectedDays});
+
+  @override
+  State<_DayPickerDialog> createState() => _DayPickerDialogState();
+}
+
+class _DayPickerDialogState extends State<_DayPickerDialog> {
+  late List<bool> _selectedDays;
+  static const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+  @override
+  void initState() {
+    super.initState();
+    final days = widget.initialSelectedDays;
+    _selectedDays = List.generate(7, (index) => days.contains(index));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Select Active Days'),
+      content: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text(
+              'Choose which days quiet hours should be active',
+              style: TextStyle(fontSize: 14, color: Colors.grey),
+            ),
+            const SizedBox(height: 16),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: List.generate(7, (index) {
+                return FilterChip(
+                  label: Text(dayNames[index]),
+                  selected: _selectedDays[index],
+                  onSelected: (selected) {
+                    setState(() {
+                      _selectedDays[index] = selected;
+                    });
+                  },
+                );
+              }),
+            ),
+            const SizedBox(height: 16),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                TextButton(
+                  onPressed: () {
+                    setState(() {
+                      _selectedDays = List.generate(7, (_) => false);
+                    });
+                  },
+                  child: const Text('Clear All'),
+                ),
+                TextButton(
+                  onPressed: () {
+                    setState(() {
+                      _selectedDays = List.generate(7, (_) => true);
+                    });
+                  },
+                  child: const Text('Select All'),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('Cancel'),
+        ),
+        FilledButton(
+          onPressed: () {
+            final selectedDays = <int>[];
+            for (int i = 0; i < 7; i++) {
+              if (_selectedDays[i]) selectedDays.add(i);
+            }
+            Navigator.of(context).pop(selectedDays);
+          },
+          child: const Text('Done'),
+        ),
+      ],
+    );
   }
 }
