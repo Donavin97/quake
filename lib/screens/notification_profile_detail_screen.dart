@@ -465,22 +465,19 @@ class _NotificationProfileDetailScreenState
       spacing: 4,
       children: List.generate(7, (index) {
         final isSelected = _quietHoursDays.contains(index);
-        return Semantics(
-          label: fullDays[index],
+        return FilterChip(
+          label: Text(days[index]),
+          tooltip: fullDays[index],
           selected: isSelected,
-          child: FilterChip(
-            label: Text(days[index]),
-            selected: isSelected,
-            onSelected: (selected) {
-              setState(() {
-                if (selected) {
-                  _quietHoursDays.add(index);
-                } else {
-                  _quietHoursDays.remove(index);
-                }
-              });
-            },
-          ),
+          onSelected: (selected) {
+            setState(() {
+              if (selected) {
+                _quietHoursDays.add(index);
+              } else {
+                _quietHoursDays.remove(index);
+              }
+            });
+          },
         );
       }),
     );
