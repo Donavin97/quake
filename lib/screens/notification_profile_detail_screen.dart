@@ -300,14 +300,9 @@ class _NotificationProfileDetailScreenState
                           '${_formatTime(_quietHoursStart)} to ${_formatTime(_quietHoursEnd)}'),
                       onTap: _pickQuietHoursRange,
                     ),
-                    const Padding(
-                      padding: EdgeInsets.symmetric(
-                          horizontal: 16.0, vertical: 8.0),
-                      child: Text('Active Days',
-                          style: TextStyle(fontWeight: FontWeight.bold)),
-                    ),
                     Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 8.0),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 16.0, vertical: 8.0),
                       child: _buildDayPicker(),
                     ),
                     const SizedBox(height: 12),
@@ -451,35 +446,39 @@ class _NotificationProfileDetailScreenState
   }
 
   Widget _buildDayPicker() {
-    final days = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
-    final fullDays = [
-      'Sunday',
-      'Monday',
-      'Tuesday',
-      'Wednesday',
-      'Thursday',
-      'Friday',
-      'Saturday'
-    ];
-    return Wrap(
-      spacing: 4,
-      children: List.generate(7, (index) {
-        final isSelected = _quietHoursDays.contains(index);
-        return FilterChip(
-          label: Text(days[index]),
-          tooltip: fullDays[index],
-          selected: isSelected,
-          onSelected: (selected) {
-            setState(() {
-              if (selected) {
-                _quietHoursDays.add(index);
-              } else {
-                _quietHoursDays.remove(index);
-              }
-            });
-          },
-        );
-      }),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text('Active Days',
+            style: TextStyle(fontWeight: FontWeight.bold)),
+        const SizedBox(height: 8),
+        Center(
+          child: SegmentedButton<int>(
+            segments: const [
+              ButtonSegment(value: 0, label: Text('S'), tooltip: 'Sunday'),
+              ButtonSegment(value: 1, label: Text('M'), tooltip: 'Monday'),
+              ButtonSegment(value: 2, label: Text('T'), tooltip: 'Tuesday'),
+              ButtonSegment(value: 3, label: Text('W'), tooltip: 'Wednesday'),
+              ButtonSegment(value: 4, label: Text('T'), tooltip: 'Thursday'),
+              ButtonSegment(value: 5, label: Text('F'), tooltip: 'Friday'),
+              ButtonSegment(value: 6, label: Text('S'), tooltip: 'Saturday'),
+            ],
+            selected: _quietHoursDays.toSet(),
+            onSelectionChanged: (newSelection) {
+              setState(() {
+                _quietHoursDays = newSelection.toList()..sort();
+              });
+            },
+            multiSelectionEnabled: true,
+            emptySelectionAllowed: true,
+            showSelectedIcon: false,
+            style: const ButtonStyle(
+              visualDensity: VisualDensity.compact,
+              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            ),
+          ),
+        ),
+      ],
     );
   }
 

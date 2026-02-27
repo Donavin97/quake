@@ -127,7 +127,12 @@ class _FeltReportsMapState extends State<FeltReportsMap> with SingleTickerProvid
         final imagePath = await File('${directory.path}/felt_map.png').create();
         await imagePath.writeAsBytes(image);
 
-        await Share.shareXFiles([XFile(imagePath.path)], text: 'Check out this earthquake map!');
+        await SharePlus.instance.share(
+          ShareParams(
+            files: [XFile(imagePath.path)],
+            text: 'Check out this earthquake map!',
+          ),
+        );
       } else {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
