@@ -1,6 +1,6 @@
 # QuakeTrack - Release Notes
 
-## What's New in This Version
+## Version 1.1.0 - What's New in This Version
 
 ### 🚀 New Features
 
