@@ -11,6 +11,7 @@ import '../models/felt_report.dart';
 import '../services/auth_service.dart';
 import '../services/felt_report_service.dart';
 import 'felt_reports_map.dart';
+import 'seismograph_screen.dart';
 
 class DetailScreen extends StatefulWidget {
   final Earthquake? earthquake;
@@ -202,6 +203,16 @@ class _DetailScreenState extends State<DetailScreen> {
     );
   }
 
+  void _navigateToSeismograph() {
+    if (_earthquake == null) return;
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => SeismographScreen(earthquake: _earthquake!),
+      ),
+    );
+  }
+
   void _shareEarthquake() {
     if (_earthquake == null) return;
 
@@ -304,6 +315,11 @@ class _DetailScreenState extends State<DetailScreen> {
                   ElevatedButton(
                     onPressed: _navigateToFeltReportsMap,
                     child: const Text('View Felt Reports'),
+                  ),
+                  ElevatedButton.icon(
+                    onPressed: _navigateToSeismograph,
+                    icon: const Icon(Icons.show_chart),
+                    label: const Text('Seismograph'),
                   ),
                 ],
               ),
