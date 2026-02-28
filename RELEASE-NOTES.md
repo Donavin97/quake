@@ -30,6 +30,20 @@
 - Improved keyboard and input field accessibility
 - Semantic labels for interactive elements
 
+### 🔧 Code Quality
+
+- Fixed deprecated API usage: replaced `withOpacity()` with `withValues(alpha:)` in seismograph screen
+- Removed redundant default arguments for cleaner code
+- Added const constructors where appropriate for better performance
+
+### 📡 Seismograph Improvements
+
+- Enhanced station information display: shows station name, distance, elevation, and site location
+- Added channel information (BHZ, HHZ, SHZ) to waveform data display
+- Better error handling for IRIS API requests with retry logic
+- Improved timeout handling and user-friendly error messages
+- Added nodata=404 parameter to station queries for cleaner error handling
+
 ---
 
 For support or feedback, please visit our website or contact us through the app.

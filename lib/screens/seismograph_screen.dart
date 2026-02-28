@@ -17,6 +17,8 @@ class SeismographScreen extends StatefulWidget {
 class _SeismographScreenState extends State<SeismographScreen> {
   final WaveformService _waveformService = WaveformService();
   List<WaveformSample>? _waveformData;
+  StationInfo? _stationInfo;
+  bool _isMockData = false;
   bool _isLoading = true;
   String? _error;
 
@@ -39,15 +41,18 @@ class _SeismographScreenState extends State<SeismographScreen> {
 
   Future<void> _loadWaveformData() async {
     try {
-      final data = await _waveformService.getWaveformData(widget.earthquake);
+      final result = await _waveformService.getWaveformData(widget.earthquake);
       if (mounted) {
         setState(() {
-          _waveformData = data;
+          _waveformData = result.samples;
+          _stationInfo = result.station;
+          _isMockData = result.isMockData;
+          _error = result.errorMessage;
           _isLoading = false;
           // Auto-scale Y axis based on data
-          if (data.isNotEmpty) {
+          if (result.samples.isNotEmpty) {
             double maxAmp = 0;
-            for (final sample in data) {
+            for (final sample in result.samples) {
               if (sample.amplitude.abs() > maxAmp) {
                 maxAmp = sample.amplitude.abs();
               }
@@ -108,16 +113,16 @@ class _SeismographScreenState extends State<SeismographScreen> {
 
   Widget _buildBody() {
     if (_isLoading) {
-      return const Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            CircularProgressIndicator(),
-            SizedBox(height: 16),
-            Text('Loading waveform data...'),
-          ],
-        ),
-      );
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: const [
+          CircularProgressIndicator(),
+          SizedBox(height: 16),
+          Text('Loading waveform data...'),
+        ],
+      ),
+    );
     }
 
     if (_error != null) {
@@ -168,6 +173,81 @@ class _SeismographScreenState extends State<SeismographScreen> {
                     color: Colors.grey[600],
                   ),
             ),
+            if (_stationInfo != null) ...[
+              const SizedBox(height: 4),
+              Row(
+                children: [
+                  Icon(Icons.cell_tower, size: 14, color: Colors.green[700]),
+                  const SizedBox(width: 4),
+                  Expanded(
+                    child: Text(
+                      '${_stationInfo!.displayName} • ${_stationInfo!.distanceKm.toStringAsFixed(1)} km away',
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color: Colors.green[700],
+                          ),
+                    ),
+                  ),
+                ],
+              ),
+              if (_stationInfo!.locationString.isNotEmpty) ...[
+                const SizedBox(height: 2),
+                Row(
+                  children: [
+                    SizedBox(width: 18),
+                    Expanded(
+                      child: Text(
+                        _stationInfo!.locationString,
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                              color: Colors.grey[600],
+                              fontSize: 11,
+                            ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+              if (_stationInfo!.channel != null) ...[
+                const SizedBox(height: 2),
+                Row(
+                  children: [
+                    SizedBox(width: 18),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: Colors.green[700]?.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(4),
+                        border: Border.all(
+                          color: Colors.green[700]?.withValues(alpha: 0.3) ?? Colors.green,
+                        ),
+                      ),
+                      child: Text(
+                        'Channel: ${_stationInfo!.channel}',
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                              color: Colors.green[700],
+                              fontSize: 11,
+                              fontWeight: FontWeight.w500,
+                            ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ],
+            if (_isMockData) ...[
+              const SizedBox(height: 4),
+              Row(
+                children: [
+                  Icon(Icons.info_outline, size: 14, color: Colors.orange[700]),
+                  const SizedBox(width: 4),
+                  Text(
+                    'Simulated waveform data',
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: Colors.orange[700],
+                        ),
+                  ),
+                ],
+              ),
+            ],
             const SizedBox(height: 8),
             Row(
               children: [
@@ -188,7 +268,7 @@ class _SeismographScreenState extends State<SeismographScreen> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.2),
+        color: color.withValues(alpha: 0.2),
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: color),
       ),
@@ -251,11 +331,9 @@ class _SeismographScreenState extends State<SeismographScreen> {
             maxX: _maxX,
             minY: _minY,
             maxY: _maxY,
-            clipData: const FlClipData.all(),
             titlesData: FlTitlesData(
               leftTitles: AxisTitles(
                 sideTitles: SideTitles(
-                  showTitles: true,
                   reservedSize: 50,
                   getTitlesWidget: (value, meta) {
                     return SideTitleWidget(
@@ -270,7 +348,6 @@ class _SeismographScreenState extends State<SeismographScreen> {
               ),
               bottomTitles: AxisTitles(
                 sideTitles: SideTitles(
-                  showTitles: true,
                   reservedSize: 30,
                   interval: 10,
                   getTitlesWidget: (value, meta) {
@@ -284,16 +361,14 @@ class _SeismographScreenState extends State<SeismographScreen> {
                   },
                 ),
               ),
-              rightTitles: const AxisTitles(
-                sideTitles: SideTitles(showTitles: false),
+              rightTitles: AxisTitles(
+                sideTitles: SideTitles(),
               ),
-              topTitles: const AxisTitles(
-                sideTitles: SideTitles(showTitles: false),
+              topTitles: AxisTitles(
+                sideTitles: SideTitles(),
               ),
             ),
             gridData: FlGridData(
-              show: true,
-              drawVerticalLine: true,
               horizontalInterval: (_maxY - _minY) / 5,
               verticalInterval: (_maxX - _minX) / 6,
               getDrawingHorizontalLine: (value) {
@@ -304,36 +379,29 @@ class _SeismographScreenState extends State<SeismographScreen> {
                   );
                 }
                 return FlLine(
-                  color: Colors.grey.withOpacity(0.3),
-                  strokeWidth: 1,
+                  color: Colors.grey.withValues(alpha: 0.3),
                 );
               },
               getDrawingVerticalLine: (value) {
                 return FlLine(
-                  color: Colors.grey.withOpacity(0.3),
-                  strokeWidth: 1,
+                  color: Colors.grey.withValues(alpha: 0.3),
                 );
               },
             ),
             borderData: FlBorderData(
-              show: true,
               border: Border.all(color: Colors.grey),
             ),
             lineBarsData: [
               LineChartBarData(
                 spots: spots,
-                isCurved: false,
                 color: Colors.blue,
-                barWidth: 1,
-                dotData: const FlDotData(show: false),
+                dotData: const FlDotData(),
                 belowBarData: BarAreaData(
-                  show: true,
-                  color: Colors.blue.withOpacity(0.1),
+                  color: Colors.blue.withValues(alpha: 0.1),
                 ),
               ),
             ],
             lineTouchData: LineTouchData(
-              enabled: true,
               touchTooltipData: LineTouchTooltipData(
                 getTooltipColor: (touchedSpot) => Colors.blueGrey.shade800,
                 getTooltipItems: (touchedSpots) {
@@ -347,7 +415,6 @@ class _SeismographScreenState extends State<SeismographScreen> {
               ),
             ),
           ),
-          duration: Duration.zero,
         ),
       ),
     );
@@ -357,12 +424,12 @@ class _SeismographScreenState extends State<SeismographScreen> {
     return Container(
       padding: const EdgeInsets.all(12),
       color: Colors.grey[100],
-      child: Row(
+      child: const Row(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          const Icon(Icons.touch_app, size: 16),
-          const SizedBox(width: 8),
-          const Text(
+          Icon(Icons.touch_app, size: 16),
+          SizedBox(width: 8),
+          Text(
             'Pinch to zoom • Drag to pan',
             style: TextStyle(fontSize: 12),
           ),
