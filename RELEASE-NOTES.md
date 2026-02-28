@@ -48,6 +48,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added `analyzer: ^6.4.0` for static analysis
 
 ### Bug Fixes
+- Fixed TalkBack crash in notification profile detail screen by adding autofillHints to TextFormField widgets
 - Fixed crash in notification profile detail screen with improved validation
 - Fixed slider validation for NaN and infinite values
 - Fixed day picker to use dialog-based selection
