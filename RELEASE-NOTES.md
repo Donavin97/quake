@@ -63,6 +63,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fixed slider validation for NaN and infinite values
 - Fixed day picker to use dialog-based selection
 - Fixed navigation service import path
+- Fixed notification filtering: Notifications are now only sent to users whose Firestore profile filters match the earthquake criteria. Previously, unfiltered topic-based notifications (global, geo_*, minmag_*) were bypassing user filter settings.
 
 ---
 
