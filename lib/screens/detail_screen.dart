@@ -131,6 +131,9 @@ class _DetailScreenState extends State<DetailScreen> {
                         currentLevel = value.round(); // Use round to avoid floating point issues if any
                       });
                     },
+                    semanticFormatterCallback: (double value) {
+                      return 'Intensity level ${value.round()}: ${FeltReport.getIntensityDescription(value.round())}';
+                    },
                   ),
                 ],
               ),

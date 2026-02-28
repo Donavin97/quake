@@ -154,6 +154,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 );
               }).toList(),
             ),
+            Semantics(
+              label: 'Earthquake data provider selection',
+              child: const SizedBox.shrink(),
+            ),
             const SizedBox(height: 40),
             Center(
               child: ElevatedButton(
