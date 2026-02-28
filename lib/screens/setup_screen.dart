@@ -259,6 +259,7 @@ class _AuthFormState extends State<AuthForm> {
               _email = value!;
             },
             keyboardType: TextInputType.emailAddress,
+            autofillHints: const [AutofillHints.email],
             decoration: const InputDecoration(
               labelText: 'Email address',
             ),
@@ -275,6 +276,7 @@ class _AuthFormState extends State<AuthForm> {
               _password = value!;
             },
             obscureText: !_passwordVisible,
+            autofillHints: const [AutofillHints.password],
             decoration: InputDecoration(
               labelText: 'Password',
               suffixIcon: IconButton(
@@ -315,9 +317,12 @@ class _AuthFormState extends State<AuthForm> {
                 _showErrorDialog(e.toString());
               }
             },
-            icon: Image.asset(
-              'assets/google_logo.png',
-              height: 24.0,
+            icon: Semantics(
+              label: 'Google logo',
+              child: Image.asset(
+                'assets/google_logo.png',
+                height: 24.0,
+              ),
             ),
             label: const Text('Sign in with Google'),
           ),

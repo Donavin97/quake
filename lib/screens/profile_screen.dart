@@ -34,6 +34,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
               TextFormField(
                 controller: _emailController,
                 decoration: const InputDecoration(labelText: 'New Email'),
+                autofillHints: const [AutofillHints.email],
+                keyboardType: TextInputType.emailAddress,
                 validator: (value) {
                   if (value == null || value.isEmpty) {
                     return 'Please enter your new email';
@@ -73,8 +75,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         _passwordVisible = !_passwordVisible;
                       });
                     },
+                    tooltip: _passwordVisible ? 'Hide password' : 'Show password',
                   ),
                 ),
+                autofillHints: const [AutofillHints.newPassword],
                 obscureText: !_passwordVisible,
                 validator: (value) {
                   if (value == null || value.isEmpty) {
@@ -163,6 +167,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                   child: TextFormField(
                                     controller: passwordController,
                                     obscureText: true,
+                                    autofillHints: const [AutofillHints.password],
                                     decoration: const InputDecoration(labelText: 'Password'),
                                     validator: (value) {
                                       if (value == null || value.isEmpty) {
