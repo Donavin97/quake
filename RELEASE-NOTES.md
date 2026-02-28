@@ -48,7 +48,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added `analyzer: ^6.4.0` for static analysis
 
 ### Accessibility Improvements
-- Fixed TalkBack crash in notification profile detail screen by adding autofillHints to TextFormField widgets
+- Fixed TalkBack crash in notification profile detail screen by using final TextEditingControllers with inline initialization (ensures controllers exist before build calls)
+- Added autofillHints to notification profile detail screen name field
 - Added autofillHints to profile screen email and password fields (AutofillHints.email, AutofillHints.newPassword, AutofillHints.password)
 - Added autofillHints to setup screen authentication form fields
 - Added semantic label to Google logo in setup screen for screen readers
