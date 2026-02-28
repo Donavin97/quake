@@ -215,6 +215,7 @@ class SettingsProvider with ChangeNotifier {
       ).toList(),
     );
     await _savePreferences();
+    await _updateSubscriptions();
     notifyListeners();
   }
 
@@ -229,6 +230,7 @@ class SettingsProvider with ChangeNotifier {
       ).toList(),
     );
     await _savePreferences();
+    await _updateSubscriptions();
     notifyListeners();
   }
 
@@ -248,6 +250,7 @@ class SettingsProvider with ChangeNotifier {
       ).toList(),
     );
     await _savePreferences();
+    await _updateSubscriptions();
     notifyListeners();
   }
 
@@ -260,6 +263,7 @@ class SettingsProvider with ChangeNotifier {
       ).toList(),
     );
     await _savePreferences();
+    await _updateSubscriptions();
     notifyListeners();
   }
 
@@ -272,6 +276,7 @@ class SettingsProvider with ChangeNotifier {
       ).toList(),
     );
     await _savePreferences();
+    await _updateSubscriptions();
     notifyListeners();
   }
 
@@ -284,6 +289,7 @@ class SettingsProvider with ChangeNotifier {
       ).toList(),
     );
     await _savePreferences();
+    await _updateSubscriptions();
     notifyListeners();
   }
 
@@ -296,6 +302,7 @@ class SettingsProvider with ChangeNotifier {
       ).toList(),
     );
     await _savePreferences();
+    await _updateSubscriptions();
     notifyListeners();
   }
 
@@ -308,6 +315,7 @@ class SettingsProvider with ChangeNotifier {
       ).toList(),
     );
     await _savePreferences();
+    await _updateSubscriptions();
     notifyListeners();
   }
 
@@ -321,6 +329,7 @@ class SettingsProvider with ChangeNotifier {
       ).toList(),
     );
     await _savePreferences();
+    await _updateSubscriptions();
     notifyListeners();
   }
 
@@ -333,6 +342,7 @@ class SettingsProvider with ChangeNotifier {
       ).toList(),
     );
     await _savePreferences();
+    await _updateSubscriptions();
     notifyListeners();
   }
 
@@ -345,6 +355,7 @@ class SettingsProvider with ChangeNotifier {
       ).toList(),
     );
     await _savePreferences();
+    await _updateSubscriptions();
     notifyListeners();
   }
 
