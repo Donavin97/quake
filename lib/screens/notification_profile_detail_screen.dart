@@ -189,6 +189,7 @@ class _NotificationProfileDetailScreenState
                 hintText: 'e.g., Home, Family, My Region',
                 border: OutlineInputBorder(),
               ),
+              autofillHints: const [AutofillHints.name],
               validator: (value) =>
                   (value == null || value.isEmpty)
                       ? 'Please enter a name'
@@ -211,7 +212,7 @@ class _NotificationProfileDetailScreenState
                       labelText: 'Latitude',
                       border: OutlineInputBorder(),
                     ),
-                    keyboardType: TextInputType.number,
+                    keyboardType: const TextInputType.numberWithOptions(decimal: true, signed: true),
                     validator: (v) =>
                         double.tryParse(v ?? '') == null
                             ? 'Invalid'
@@ -226,7 +227,7 @@ class _NotificationProfileDetailScreenState
                       labelText: 'Longitude',
                       border: OutlineInputBorder(),
                     ),
-                    keyboardType: TextInputType.number,
+                    keyboardType: const TextInputType.numberWithOptions(decimal: true, signed: true),
                     validator: (v) =>
                         double.tryParse(v ?? '') == null
                             ? 'Invalid'
