@@ -64,6 +64,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fixed day picker to use dialog-based selection
 - Fixed navigation service import path
 - Fixed notification filtering: Notifications are now only sent to users whose Firestore profile filters match the earthquake criteria. Previously, unfiltered topic-based notifications (global, geo_*, minmag_*) were bypassing user filter settings.
+- Fixed client-side FCM topic subscriptions: Added _updateSubscriptions() calls to all notification profile setters in settings_provider.dart to ensure subscriptions are properly updated when any profile setting changes.
 
 ---
 
