@@ -21,9 +21,9 @@ class _NotificationProfileDetailScreenState
     extends State<NotificationProfileDetailScreen> {
   final _formKey = GlobalKey<FormState>();
   NotificationProfile? _profile;
-  late TextEditingController _nameController;
-  late TextEditingController _latitudeController;
-  late TextEditingController _longitudeController;
+  final TextEditingController _nameController = TextEditingController();
+  final TextEditingController _latitudeController = TextEditingController();
+  final TextEditingController _longitudeController = TextEditingController();
   bool _isInitialized = false;
 
   // Values for Sliders and Toggles
@@ -42,9 +42,6 @@ class _NotificationProfileDetailScreenState
   @override
   void initState() {
     super.initState();
-    _nameController = TextEditingController();
-    _latitudeController = TextEditingController();
-    _longitudeController = TextEditingController();
   }
 
   void _initializeProfile(
