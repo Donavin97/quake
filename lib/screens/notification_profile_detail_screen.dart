@@ -24,7 +24,6 @@ class _NotificationProfileDetailScreenState
   final TextEditingController _nameController = TextEditingController();
   final TextEditingController _latitudeController = TextEditingController();
   final TextEditingController _longitudeController = TextEditingController();
-  bool _isInitialized = false;
 
   // Values for Sliders and Toggles
   double _minMagnitude = 4.5;
@@ -42,10 +41,16 @@ class _NotificationProfileDetailScreenState
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _loadProfile();
+    });
   }
 
-  void _initializeProfile(
-      SettingsProvider settingsProvider, LocationProvider locationProvider) {
+  void _loadProfile() {
+    final settingsProvider =
+        Provider.of<SettingsProvider>(context, listen: false);
+    final locationProvider =
+        Provider.of<LocationProvider>(context, listen: false);
     if (widget.profileId == 'new') {
       final position = locationProvider.currentPosition;
       _profile = NotificationProfile(
@@ -67,9 +72,10 @@ class _NotificationProfileDetailScreenState
 
     if (_profile == null) return;
 
-    _nameController.text = _profile?.name ?? '';
-    _latitudeController.text = _profile?.latitude.toString() ?? '0.0';
-    _longitudeController.text = _profile?.longitude.toString() ?? '0.0';
+    _nameController.text = _profile!.name;
+    _latitudeController.text = _profile!.latitude.toString();
+    _longitudeController.text = _profile!.longitude.toString();
+    setState(() {});
 
     _minMagnitude = _profile?.minMagnitude.clamp(0, 9) ?? 4.5;
     _radius = _profile?.radius.clamp(0, 5000) ?? 0.0;
@@ -85,8 +91,6 @@ class _NotificationProfileDetailScreenState
     _emergencyRadius = _profile?.emergencyRadius.clamp(0, 1000) ?? 100.0;
     _globalMinMagnitudeOverrideQuietHours =
         _profile?.globalMinMagnitudeOverrideQuietHours.clamp(0, 9) ?? 0.0;
-
-    _isInitialized = true;
   }
 
   @override
@@ -134,18 +138,12 @@ class _NotificationProfileDetailScreenState
   @override
   Widget build(BuildContext context) {
     final settingsProvider = Provider.of<SettingsProvider>(context);
-    final locationProvider =
-        Provider.of<LocationProvider>(context, listen: false);
 
-    if (!settingsProvider.isLoaded) {
+    if (!settingsProvider.isLoaded || _profile == null) {
       return Scaffold(
         appBar: AppBar(title: const Text('Loading Profile...')),
         body: const Center(child: CircularProgressIndicator()),
       );
-    }
-
-    if (!_isInitialized) {
-      _initializeProfile(settingsProvider, locationProvider);
     }
 
     if (_profile == null) {
