@@ -328,7 +328,7 @@ const sendNotification = async (earthquake) => {
       : earthquake.magnitude.toFixed(1);
 
     // Use different sound for large earthquakes (magnitude >= 6.0)
-    const soundName = earthquake.magnitude >= 6.0 ? 'earthquake-large' : 'earthquake';
+    const soundName = earthquake.magnitude >= 6.0 ? 'earthquake_large' : 'earthquake';
 
     const messagePayload = {
       data: {
@@ -389,38 +389,10 @@ const sendNotification = async (earthquake) => {
       }
     }
 
-    // ALSO send to topics as requested (Global and Geohash-based)
-    // This serves as a broadcast mechanism
-    try {
-      const topicMessages = [];
-      
-      // 1. Global topic
-      topicMessages.push({
-        topic: 'global',
-        data: messagePayload.data,
-        android: messagePayload.android
-      });
-
-      // 2. Geohash topic (prefix of 2 chars)
-      topicMessages.push({
-        topic: `geo_${eqPrefix2}`,
-        data: messagePayload.data,
-        android: messagePayload.android
-      });
-
-      // 3. Magnitude topic (e.g. minmag_5)
-      const magFloor = Math.floor(earthquakeMagnitude);
-      topicMessages.push({
-        topic: `minmag_${magFloor}`,
-        data: messagePayload.data,
-        android: messagePayload.android
-      });
-
-      await Promise.all(topicMessages.map(msg => admin.messaging().send(msg)));
-      console.log(`Topic notifications sent for ${earthquake.id} (global, geo_${eqPrefix2}, minmag_${magFloor})`);
-    } catch (topicError) {
-      console.error('Error sending topic notifications:', topicError);
-    }
+    // ONLY send targeted notifications to specific devices based on their Firestore profile settings.
+    // Topic-based broadcasting has been disabled to ensure notifications only go to users
+    // whose Firestore profile filters match the earthquake criteria.
+    // The direct token-based sending above already handles this filtering correctly.
 
   } catch (error) {
     console.error('Error sending notifications for earthquake:', earthquake.id, error);
