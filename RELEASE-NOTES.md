@@ -47,8 +47,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added `fl_chart: ^0.69.0` for chart visualizations
 - Added `analyzer: ^6.4.0` for static analysis
 
-### Bug Fixes
+### Accessibility Improvements
 - Fixed TalkBack crash in notification profile detail screen by adding autofillHints to TextFormField widgets
+- Added autofillHints to profile screen email and password fields (AutofillHints.email, AutofillHints.newPassword, AutofillHints.password)
+- Added autofillHints to setup screen authentication form fields
+- Added semantic label to Google logo in setup screen for screen readers
+- Added semanticFormatterCallback to intensity slider in "Did you feel it?" dialog for better screen reader support
+- Added Semantics widget to earthquake provider dropdown in settings screen
+- Added tooltips to password visibility toggle buttons
+- Improved keyboard types for latitude/longitude fields (TextInputType.numberWithOptions)
+
+### Bug Fixes
 - Fixed crash in notification profile detail screen with improved validation
 - Fixed slider validation for NaN and infinite values
 - Fixed day picker to use dialog-based selection
