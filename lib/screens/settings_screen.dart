@@ -3,6 +3,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:go_router/go_router.dart'; // Import GoRouter
+import 'package:url_launcher/url_launcher.dart';
 
 import '../models/time_window.dart';
 import '../providers/settings_provider.dart';
@@ -157,6 +158,22 @@ class _SettingsScreenState extends State<SettingsScreen> {
             Semantics(
               label: 'Earthquake data provider selection',
               child: const SizedBox.shrink(),
+            ),
+            const SizedBox(height: 24),
+            Text(
+              'About',
+              style: Theme.of(context).textTheme.titleLarge,
+            ),
+            ListTile(
+              title: const Text('Privacy Policy'),
+              contentPadding: EdgeInsets.zero,
+              trailing: const Icon(Icons.arrow_forward_ios),
+              onTap: () async {
+                final uri = Uri.parse('https://quakewatch-89047796-c7f3c.web.app/privacy.html');
+                if (await canLaunchUrl(uri)) {
+                  await launchUrl(uri, mode: LaunchMode.externalApplication);
+                }
+              },
             ),
             const SizedBox(height: 40),
             Center(
