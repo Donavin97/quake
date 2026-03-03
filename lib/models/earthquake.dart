@@ -88,7 +88,7 @@ class Earthquake extends HiveObject {
       id: json['id'] ?? '',
       magnitude: parseDouble(json['magnitude']),
       place: json['place'] ?? 'Unknown',
-      time: DateTime.fromMillisecondsSinceEpoch(json['time'] ?? 0),
+      time: DateTime.fromMillisecondsSinceEpoch(json['time'] ?? 0, isUtc: true),
       latitude: parseDouble(json['latitude']),
       longitude: parseDouble(json['longitude']),
       depth: parseDouble(json['depth']),
@@ -124,7 +124,7 @@ class Earthquake extends HiveObject {
       id: json['id'],
       magnitude: parseDouble(json['properties']['mag']),
       place: json['properties']['place'] ?? 'Unknown',
-      time: DateTime.fromMillisecondsSinceEpoch(json['properties']['time']),
+      time: DateTime.fromMillisecondsSinceEpoch(json['properties']['time'], isUtc: true),
       latitude: parseDouble(coords[1]),
       longitude: parseDouble(coords[0]),
       depth: parseDouble(depthValue),
@@ -137,9 +137,9 @@ class Earthquake extends HiveObject {
     final timeStr = json['properties']['time'];
     DateTime parsedTime;
     try {
-      parsedTime = DateTime.parse(timeStr).toLocal();
+      parsedTime = DateTime.parse(timeStr);
     } catch (e) {
-      parsedTime = DateTime.now();
+      parsedTime = DateTime.now().toUtc();
     }
 
     double parseDouble(dynamic value) {
@@ -179,7 +179,7 @@ class Earthquake extends HiveObject {
       id: json['eventID'],
       magnitude: double.parse(mag.toStringAsFixed(2)),
       place: json['region'] ?? 'Unknown',
-      time: DateTime.parse(json['otime']).toLocal(),
+      time: DateTime.parse(json['otime']),
       latitude: parseDouble(json['lat']),
       longitude: parseDouble(json['lon']),
       depth: parseDouble(json['depth']),

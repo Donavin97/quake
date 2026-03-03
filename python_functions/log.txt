@@ -1,0 +1,30 @@
+2026-03-02T09:34:50.567869Z ? waveform-processor: [GFZ] Fetching waveform from GE.BBJI...
+2026-03-02T09:34:51.305237Z ? waveform-processor: [GFZ] SUCCESS: Got waveform data
+2026-03-02T09:34:51.305467Z ? waveform-processor: [Waveform] SUCCESS via GFZ
+2026-03-02T09:34:51.305508Z ? waveform-processor: Found waveform data at GE.BBJI via GFZ
+2026-03-02T09:35:02.523088Z ? waveform-processor: Error creating audio: argument should be a str or an os.PathLike object where __fspath__ returns a str, not 'BytesIO'
+2026-03-02T09:35:02.536742Z ? waveform-processor: Traceback (most recent call last):
+2026-03-02T09:35:02.536761Z ? waveform-processor: 
+2026-03-02T09:35:02.537715Z ? waveform-processor:   File "/workspace/main.py", line 462, in _create_waveform_audio
+    audio_stream.write(buf, format='WAV', framerate=sample_rate, width=2, rescale=True)
+    ~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+2026-03-02T09:35:02.537747Z ? waveform-processor: 
+2026-03-02T09:35:02.537789Z ? waveform-processor:   File "/layers/google.python.pip/pip/lib/python3.13/site-packages/obspy/core/stream.py", line 1459, in write
+    write_format(self, filename, **kwargs)
+    ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^
+2026-03-02T09:35:02.537821Z ? waveform-processor: 
+2026-03-02T09:35:02.537861Z ? waveform-processor:   File "/layers/google.python.pip/pip/lib/python3.13/site-packages/obspy/io/wav/core.py", line 134, in _write_wav
+    file_path = Path(filename)
+2026-03-02T09:35:02.537891Z ? waveform-processor: 
+2026-03-02T09:35:02.537928Z ? waveform-processor:   File "/layers/google.python.runtime/python/lib/python3.13/pathlib/_local.py", line 503, in __init__
+    super().__init__(*args)
+    ~~~~~~~~~~~~~~~~^^^^^^^
+2026-03-02T09:35:02.537957Z ? waveform-processor: 
+2026-03-02T09:35:02.537997Z ? waveform-processor:   File "/layers/google.python.runtime/python/lib/python3.13/pathlib/_local.py", line 132, in __init__
+    raise TypeError(
+    ...<2 lines>...
+        f"not {type(path).__name__!r}")
+2026-03-02T09:35:02.538025Z ? waveform-processor: 
+2026-03-02T09:35:02.538077Z ? waveform-processor: TypeError: argument should be a str or an os.PathLike object where __fspath__ returns a str, not 'BytesIO'
+2026-03-02T09:35:02.538110Z ? waveform-processor: 
+2026-03-02T09:35:02.538290Z ? waveform-processor: Failed to generate audio

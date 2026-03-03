@@ -32,6 +32,7 @@ class NotificationProfileAdapter extends TypeAdapter<NotificationProfile> {
       emergencyMagnitudeThreshold: fields[12] as double,
       emergencyRadius: fields[13] as double,
       globalMinMagnitudeOverrideQuietHours: fields[14] as double,
+      timezone: fields[15] as String?,
     );
   }
 
@@ -68,7 +69,9 @@ class NotificationProfileAdapter extends TypeAdapter<NotificationProfile> {
       ..writeByte(13)
       ..write(obj.emergencyRadius)
       ..writeByte(14)
-      ..write(obj.globalMinMagnitudeOverrideQuietHours);
+      ..write(obj.globalMinMagnitudeOverrideQuietHours)
+      ..writeByte(15)
+      ..write(obj.timezone);
   }
 
   @override

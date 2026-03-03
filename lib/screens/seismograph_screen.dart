@@ -1,6 +1,10 @@
+import 'dart:io';
+import 'dart:typed_data';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:just_audio/just_audio.dart';
+import 'package:path_provider/path_provider.dart';
 
 import '../models/earthquake.dart';
 import '../services/waveform_service.dart';
@@ -16,19 +20,36 @@ class SeismographScreen extends StatefulWidget {
 
 class _SeismographScreenState extends State<SeismographScreen> {
   final WaveformService _waveformService = WaveformService();
-  List<WaveformSample>? _waveformData;
+  Uint8List? _imageData; // PNG image from Python backend
+  Uint8List? _audioData; // Audio data from Python backend
+  List<WaveformSample>? _waveformData; // Fallback samples from IRIS
   StationInfo? _stationInfo;
   bool _isMockData = false;
   bool _isLoading = true;
   String? _error;
+  bool _isUsingImage = true; // Track if we're showing image (Python) or chart (IRIS fallback)
+  
+  // Audio player state
+  final AudioPlayer _audioPlayer = AudioPlayer();
+  bool _isAudioLoading = false;
+  bool _isAudioReady = false;
+  String? _tempAudioPath;
+  
+  // Current loading status for user feedback
+  String _loadingStatus = 'Initializing...';
+  List<String> _loadingSteps = [];
+  
+  // Track current station being tried (for enhanced progress display)
+  String _currentStation = '';
+  List<String> _stationAttempts = [];
 
-  // Zoom and pan state
+  // Zoom and pan state (only used for chart fallback)
   double _minX = 0;
-  double _maxX = 60;
+  double _maxX = 360;
   double _minY = -10;
   double _maxY = 10;
 
-  // For pinch zoom
+  // For pinch zoom (only used for chart fallback)
   double _baseScale = 1.0;
   double _currentScale = 1.0;
   Offset _baseFocalPoint = Offset.zero;
@@ -36,46 +57,264 @@ class _SeismographScreenState extends State<SeismographScreen> {
   @override
   void initState() {
     super.initState();
+    _initAudioPlayer();
     _loadWaveformData();
   }
 
-  Future<void> _loadWaveformData() async {
-    try {
-      final result = await _waveformService.getWaveformData(widget.earthquake);
+  @override
+  void dispose() {
+    _deleteTempAudioFile();
+    _audioPlayer.dispose();
+    super.dispose();
+  }
+
+  Future<void> _deleteTempAudioFile() async {
+    if (_tempAudioPath != null) {
+      try {
+        final file = File(_tempAudioPath!);
+        if (await file.exists()) {
+          await file.delete();
+        }
+      } catch (_) {
+        // Ignore cleanup errors
+      }
+      _tempAudioPath = null;
+    }
+  }
+
+  Future<void> _initAudioPlayer() async {
+    // Listen to player state changes
+    _audioPlayer.playerStateStream.listen((state) {
       if (mounted) {
         setState(() {
-          _waveformData = result.samples;
-          _stationInfo = result.station;
-          _isMockData = result.isMockData;
-          _error = result.errorMessage;
-          _isLoading = false;
-          // Auto-scale Y axis based on data
-          if (result.samples.isNotEmpty) {
-            double maxAmp = 0;
-            for (final sample in result.samples) {
-              if (sample.amplitude.abs() > maxAmp) {
-                maxAmp = sample.amplitude.abs();
-              }
-            }
-            _minY = -maxAmp * 1.2;
-            _maxY = maxAmp * 1.2;
-          }
+          _isAudioLoading = state.processingState == ProcessingState.loading ||
+              state.processingState == ProcessingState.buffering;
+        });
+      }
+    });
+  }
+
+  Future<void> _loadAudio() async {
+    if (_audioData == null || _audioData!.isEmpty) return;
+    
+    setState(() {
+      _isAudioLoading = true;
+    });
+    
+    try {
+      // Delete previous temp file if exists
+      await _deleteTempAudioFile();
+      
+      // Write audio data to a temporary file
+      final tempDir = await getTemporaryDirectory();
+      final audioFile = File('${tempDir.path}/waveform_audio_${DateTime.now().millisecondsSinceEpoch}.wav');
+      await audioFile.writeAsBytes(_audioData!);
+      _tempAudioPath = audioFile.path;
+      
+      // Load into audio player
+      await _audioPlayer.setFilePath(audioFile.path);
+      
+      if (mounted) {
+        setState(() {
+          _isAudioReady = true;
+          _isAudioLoading = false;
         });
       }
     } catch (e) {
       if (mounted) {
         setState(() {
-          _error = e.toString();
-          _isLoading = false;
+          _isAudioReady = false;
+          _isAudioLoading = false;
         });
       }
+    }
+  }
+
+  Future<void> _loadWaveformData() async {
+    // Reset state
+    // Stop any playing audio and cleanup
+    _audioPlayer.stop();
+    _deleteTempAudioFile();
+    
+    setState(() {
+      _isLoading = true;
+      _error = null;
+      _imageData = null;
+      _audioData = null;
+      _waveformData = null;
+      _stationInfo = null;
+      _isMockData = false;
+      _isUsingImage = true;
+      _isAudioReady = false;
+      _isAudioLoading = false;
+      _loadingStatus = 'Searching for nearby seismic stations...';
+      _loadingSteps = [];
+    });
+
+    // Progress callback to update UI with download details
+    void handleProgressUpdate(String message) {
+      if (!mounted) return;
+      
+      // Track station attempts for special display
+      if (message.startsWith('Station candidate:')) {
+        setState(() {
+          _stationAttempts = [..._stationAttempts, message];
+        });
+        return;
+      }
+      
+      if (message.startsWith('Trying next station:')) {
+        setState(() {
+          _currentStation = message;
+          _loadingSteps = [..._loadingSteps, message];
+        });
+        return;
+      }
+      
+      if (message.startsWith('Found station:')) {
+        setState(() {
+          _currentStation = message;
+          _loadingSteps = [..._loadingSteps, message];
+        });
+        return;
+      }
+      
+      if (message.contains('No waveform data at') || message.contains('trying next station')) {
+        setState(() {
+          _loadingSteps = [..._loadingSteps, message];
+        });
+        return;
+      }
+      
+      setState(() {
+        _loadingSteps = [..._loadingSteps, message];
+      });
+    }
+
+    try {
+      // First, update status to show we're searching for stations
+      setState(() {
+        _loadingStatus = 'Finding nearby seismic stations...';
+        _loadingSteps = [
+          'Querying IRIS station database (level=channel)...',
+        ];
+        _stationAttempts = [];
+        _currentStation = '';
+      });
+
+      final result = await _waveformService.getWaveformData(
+        widget.earthquake,
+        onProgressUpdate: handleProgressUpdate,
+      );
+      
+      if (!mounted) return;
+
+      // Determine status message based on result
+      String statusMessage;
+      List<String> steps;
+      
+      // Check if we got an image from Python or samples from IRIS fallback
+      final hasImage = result.hasImage;
+      final hasSamples = result.samples.isNotEmpty;
+      
+      if (result.isMockData) {
+        if (result.station == null) {
+          statusMessage = 'No nearby stations found';
+          steps = [
+            'Searched IRIS station database',
+            'No stations within range of earthquake location',
+            'Displaying simulated waveform data',
+          ];
+        } else if (result.errorMessage != null && result.errorMessage!.contains('No waveform data')) {
+          statusMessage = 'Station found but no waveform data available';
+          steps = [
+            'Found station: ${result.station?.displayName ?? "Unknown"}',
+            'Station is ${result.station?.distanceKm.toStringAsFixed(1) ?? "?"} km away',
+            'No seismic data recorded for this event time',
+            'Displaying simulated waveform data',
+          ];
+        } else if (result.errorMessage != null) {
+          statusMessage = 'Unable to fetch live data';
+          steps = [
+            'Found station: ${result.station?.displayName ?? "Unknown"}',
+            'Network error: ${result.errorMessage}',
+            'Displaying simulated waveform data',
+          ];
+        } else {
+          statusMessage = 'Using simulated waveform data';
+          steps = [
+            'Station query completed',
+            'Waveform data not available',
+          ];
+        }
+      } else if (hasImage) {
+        statusMessage = 'Live waveform plot loaded';
+        steps = [
+          'Found station: ${result.station?.displayName ?? "Unknown"}',
+          'Station is ${result.station?.distanceKm.toStringAsFixed(1) ?? "?"} km away',
+          'Channel: ${result.station?.channel ?? "N/A"}',
+          'Generated waveform plot with Matplotlib',
+        ];
+      } else if (hasSamples) {
+        statusMessage = 'Live waveform data loaded (IRIS)';
+        steps = [
+          'Found station: ${result.station?.displayName ?? "Unknown"}',
+          'Station is ${result.station?.distanceKm.toStringAsFixed(1) ?? "?"} km away',
+          'Channel: ${result.station?.channel ?? "N/A"}',
+          'Successfully retrieved ${result.samples.length} samples',
+        ];
+      } else {
+        statusMessage = 'Using simulated waveform data';
+        steps = ['No waveform data available, using simulation'];
+      }
+
+      setState(() {
+        _imageData = result.imageData;
+        _audioData = result.audioData;
+        _waveformData = result.samples;
+        _stationInfo = result.station;
+        _isMockData = result.isMockData;
+        _error = result.errorMessage;
+        _loadingStatus = statusMessage;
+        _loadingSteps = steps;
+        _isLoading = false;
+        _isUsingImage = hasImage;
+        
+        // Load audio if available
+        if (result.hasAudio) {
+          _loadAudio();
+        }
+        
+        // Auto-scale Y axis based on data (for chart fallback)
+        if (result.samples.isNotEmpty) {
+          double maxAmp = 0;
+          for (final sample in result.samples) {
+            if (sample.amplitude.abs() > maxAmp) {
+              maxAmp = sample.amplitude.abs();
+            }
+          }
+          _minY = -maxAmp * 1.2;
+          _maxY = maxAmp * 1.2;
+        }
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _error = e.toString();
+        _loadingStatus = 'Error loading waveform data';
+        _loadingSteps = [
+          'An unexpected error occurred',
+          _error ?? 'Unknown error',
+        ];
+        _isLoading = false;
+      });
     }
   }
 
   void _resetZoom() {
     setState(() {
       _minX = 0;
-      _maxX = 60;
+      _maxX = 360;
       if (_waveformData != null && _waveformData!.isNotEmpty) {
         double maxAmp = 0;
         for (final sample in _waveformData!) {
@@ -87,6 +326,69 @@ class _SeismographScreenState extends State<SeismographScreen> {
         _maxY = maxAmp * 1.2;
       }
     });
+  }
+
+  FlLine _getHorizontalLine(double value) {
+    if (value == 0) {
+      return const FlLine(
+        color: Colors.black54,
+      );
+    }
+    return FlLine(
+      color: Colors.grey.withAlpha(77),
+    );
+  }
+
+  FlLine _getVerticalLine(double value) {
+    return FlLine(
+      color: Colors.grey.withAlpha(77),
+    );
+  }
+
+  String _getTimeRangeText() {
+    // Calculate the time range used for waveform data
+    final eqTime = widget.earthquake.time;
+    final startTime = eqTime.subtract(const Duration(seconds: 60));
+    final endTime = eqTime.add(const Duration(seconds: 300));
+    
+    final startStr = DateFormat.Hms().format(startTime.toLocal());
+    final endStr = DateFormat.Hms().format(endTime.toLocal());
+    
+    return '$startStr - $endStr (${endTime.difference(startTime).inMinutes} min)';
+  }
+
+  Widget _buildStationAttemptItem(String stationInfo) {
+    // Extract station name and distance from message like "Station candidate: IU.KONO at 45.2 km"
+    final parts = stationInfo.replaceFirst('Station candidate: ', '').split(' at ');
+    final stationName = parts.isNotEmpty ? parts[0] : stationInfo;
+    final distance = parts.length > 1 ? parts[1] : '';
+    
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 2),
+      child: Row(
+        children: [
+          const SizedBox(width: 24),
+          const Icon(Icons.router, size: 14, color: Colors.blue),
+          const SizedBox(width: 6),
+          Text(
+            stationName,
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: Colors.grey[700],
+                ),
+          ),
+          if (distance.isNotEmpty) ...[
+            const SizedBox(width: 4),
+            Text(
+              '($distance)',
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: Colors.grey[500],
+                    fontSize: 10,
+                  ),
+            ),
+          ],
+        ],
+      ),
+    );
   }
 
   @override
@@ -113,32 +415,299 @@ class _SeismographScreenState extends State<SeismographScreen> {
 
   Widget _buildBody() {
     if (_isLoading) {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: const [
-          CircularProgressIndicator(),
-          SizedBox(height: 16),
-          Text('Loading waveform data...'),
-        ],
-      ),
-    );
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(32),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const CircularProgressIndicator(),
+              const SizedBox(height: 24),
+              Text(
+                _loadingStatus,
+                style: Theme.of(context).textTheme.titleMedium,
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 16),
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.grey[100],
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Progress:',
+                      style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                            color: Colors.grey[700],
+                          ),
+                    ),
+                    const SizedBox(height: 8),
+                    ..._loadingSteps.asMap().entries.map((entry) {
+                      return Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 4),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Icon(
+                              Icons.check_circle_outline,
+                              size: 16,
+                              color: Colors.green,
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                entry.value,
+                                style: Theme.of(context).textTheme.bodySmall,
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    }),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 24),
+              
+              // Show station attempts if we have them
+              if (_stationAttempts.isNotEmpty) ...[
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.blue[50],
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.blue[200]!),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          const Icon(Icons.cell_tower, size: 16, color: Colors.blue),
+                          const SizedBox(width: 8),
+                          Text(
+                            'Nearby Stations Found:',
+                            style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                                  color: Colors.blue[700],
+                                ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      ...(_stationAttempts.length > 3 
+                          ? [
+                              ..._stationAttempts.take(3).map((s) => _buildStationAttemptItem(s)),
+                              Padding(
+                                padding: const EdgeInsets.only(left: 24, top: 4),
+                                child: Text(
+                                  '... and ${_stationAttempts.length - 3} more',
+                                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                        color: Colors.grey[600],
+                                        fontStyle: FontStyle.italic,
+                                      ),
+                                ),
+                              ),
+                            ]
+                          : _stationAttempts.map((s) => _buildStationAttemptItem(s))),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 16),
+              ],
+              
+              // Show current station being tried
+              if (_currentStation.isNotEmpty) ...[
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: Colors.amber[50],
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.amber[300]!),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Colors.amber[700],
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Flexible(
+                        child: Text(
+                          _currentStation,
+                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                color: Colors.amber[800],
+                                fontWeight: FontWeight.w500,
+                              ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 16),
+              ],
+              
+              Text(
+                'This may take a few seconds...',
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: Colors.grey[600],
+                    ),
+              ),
+            ],
+          ),
+        ),
+      );
     }
 
     if (_error != null) {
       return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const Icon(Icons.error_outline, size: 48, color: Colors.red),
-            const SizedBox(height: 16),
-            Text('Error: $_error'),
-            const SizedBox(height: 16),
-            ElevatedButton(
-              onPressed: _loadWaveformData,
-              child: const Text('Retry'),
-            ),
-          ],
+        child: Padding(
+          padding: const EdgeInsets.all(32),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(Icons.error_outline, size: 48, color: Colors.red[400]),
+              const SizedBox(height: 16),
+              Text(
+                _loadingStatus,
+                style: Theme.of(context).textTheme.titleMedium,
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 16),
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.red[50],
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.red[200]!),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'What happened:',
+                      style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                            color: Colors.red[700],
+                          ),
+                    ),
+                    const SizedBox(height: 8),
+                    ..._loadingSteps.asMap().entries.map((entry) {
+                      return Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 4),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Icon(
+                              entry.key < _loadingSteps.length - 1 
+                                  ? Icons.check_circle 
+                                  : Icons.info_outline,
+                              size: 16,
+                              color: entry.key < _loadingSteps.length - 1 
+                                  ? Colors.green[600] 
+                                  : Colors.orange[600],
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                entry.value,
+                                style: Theme.of(context).textTheme.bodySmall,
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    }),
+                    if (_error != null) ...[
+                      const SizedBox(height: 12),
+                      const Divider(),
+                      const SizedBox(height: 8),
+                      Text(
+                        'Details: $_error',
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                              color: Colors.red[700],
+                              fontStyle: FontStyle.italic,
+                            ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+              const SizedBox(height: 24),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  ElevatedButton.icon(
+                    onPressed: _loadWaveformData,
+                    icon: const Icon(Icons.refresh),
+                    label: const Text('Retry'),
+                  ),
+                  const SizedBox(width: 16),
+                  OutlinedButton.icon(
+                    onPressed: () async {
+                      setState(() {
+                        _isMockData = true;
+                        _loadingStatus = 'Generating simulated waveform...';
+                        _loadingSteps = ['Creating waveform simulation based on earthquake parameters'];
+                      });
+                      
+                      // Generate mock data directly
+                      final result = await WaveformService().getWaveformData(
+                        widget.earthquake,
+                        onProgressUpdate: (msg) {
+                          if (mounted) {
+                            setState(() {
+                              _loadingSteps = [..._loadingSteps, msg];
+                            });
+                          }
+                        },
+                      );
+                      if (mounted) {
+                        setState(() {
+                          _imageData = result.imageData;
+                          _audioData = result.audioData;
+                          _waveformData = result.samples;
+                          _stationInfo = result.station;
+                          _error = null;
+                          _isUsingImage = result.hasImage;
+                          
+                          // Load audio if available
+                          if (result.hasAudio) {
+                            _loadAudio();
+                          }
+                          if (result.hasImage) {
+                            _loadingStatus = 'Simulated waveform plot ready';
+                            _loadingSteps = ['Simulation complete', 'Displaying waveform plot'];
+                          } else {
+                            _loadingStatus = 'Simulated waveform ready';
+                            _loadingSteps = ['Simulation complete', 'Displaying ${result.samples.length} samples'];
+                          }
+                          if (result.samples.isNotEmpty) {
+                            double maxAmp = 0;
+                            for (final sample in result.samples) {
+                              if (sample.amplitude.abs() > maxAmp) {
+                                maxAmp = sample.amplitude.abs();
+                              }
+                            }
+                            _minY = -maxAmp * 1.2;
+                            _maxY = maxAmp * 1.2;
+                          }
+                        });
+                      }
+                    },
+                    icon: const Icon(Icons.science),
+                    label: const Text('Use Simulation'),
+                  ),
+                ],
+              ),
+            ],
+          ),
         ),
       );
     }
@@ -147,10 +716,56 @@ class _SeismographScreenState extends State<SeismographScreen> {
       children: [
         _buildInfoCard(),
         Expanded(
-          child: _buildChart(),
+          child: _isUsingImage && _imageData != null 
+              ? _buildImageView() 
+              : _buildChart(),
         ),
+        if (_audioData != null && _audioData!.isNotEmpty) _buildAudioPlayer(),
         _buildLegend(),
       ],
+    );
+  }
+
+  /// Build the image view for PNG from Python/Matplotlib
+  Widget _buildImageView() {
+    return Padding(
+      padding: const EdgeInsets.all(8),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(8),
+        child: InteractiveViewer(
+          minScale: 0.5,
+          maxScale: 4.0,
+          child: Image.memory(
+            _imageData!,
+            fit: BoxFit.contain,
+            errorBuilder: (context, error, stackTrace) {
+              return Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(Icons.broken_image, size: 48, color: Colors.grey[400]),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Failed to load waveform image',
+                      style: TextStyle(color: Colors.grey[600]),
+                    ),
+                    const SizedBox(height: 8),
+                    if (_waveformData != null && _waveformData!.isNotEmpty)
+                      TextButton(
+                        onPressed: () {
+                          setState(() {
+                            _isUsingImage = false;
+                          });
+                        },
+                        child: const Text('Show chart view instead'),
+                      ),
+                  ],
+                ),
+              );
+            },
+          ),
+        ),
+      ),
     );
   }
 
@@ -168,7 +783,7 @@ class _SeismographScreenState extends State<SeismographScreen> {
             ),
             const SizedBox(height: 4),
             Text(
-              'M${widget.earthquake.magnitude.toStringAsFixed(1)} • ${DateFormat.yMMMd().add_jms().format(widget.earthquake.time)}',
+              'M${widget.earthquake.magnitude.toStringAsFixed(1)} • ${DateFormat.yMMMd().add_jms().format(widget.earthquake.time.toLocal())}',
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                     color: Colors.grey[600],
                   ),
@@ -177,7 +792,7 @@ class _SeismographScreenState extends State<SeismographScreen> {
               const SizedBox(height: 4),
               Row(
                 children: [
-                  Icon(Icons.cell_tower, size: 14, color: Colors.green[700]),
+                  const Icon(Icons.cell_tower, size: 14, color: Colors.green),
                   const SizedBox(width: 4),
                   Expanded(
                     child: Text(
@@ -193,7 +808,7 @@ class _SeismographScreenState extends State<SeismographScreen> {
                 const SizedBox(height: 2),
                 Row(
                   children: [
-                    SizedBox(width: 18),
+                    const SizedBox(width: 18),
                     Expanded(
                       child: Text(
                         _stationInfo!.locationString,
@@ -210,7 +825,7 @@ class _SeismographScreenState extends State<SeismographScreen> {
                 const SizedBox(height: 2),
                 Row(
                   children: [
-                    SizedBox(width: 18),
+                    const SizedBox(width: 18),
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                       decoration: BoxDecoration(
@@ -221,7 +836,7 @@ class _SeismographScreenState extends State<SeismographScreen> {
                         ),
                       ),
                       child: Text(
-                        'Channel: ${_stationInfo!.channel}',
+                        'Channel: ${_stationInfo!.fullChannelId}',
                         style: Theme.of(context).textTheme.bodySmall?.copyWith(
                               color: Colors.green[700],
                               fontSize: 11,
@@ -229,23 +844,72 @@ class _SeismographScreenState extends State<SeismographScreen> {
                             ),
                       ),
                     ),
+                    if (_stationInfo!.sampleRate != null) ...[
+                      const SizedBox(width: 8),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: Colors.blue[700]?.withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(4),
+                          border: Border.all(
+                            color: Colors.blue[700]?.withValues(alpha: 0.3) ?? Colors.blue,
+                          ),
+                        ),
+                        child: Text(
+                          '${_stationInfo!.sampleRate} SPS',
+                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                color: Colors.blue[700],
+                                fontSize: 11,
+                                fontWeight: FontWeight.w500,
+                              ),
+                        ),
+                      ),
+                    ],
                   ],
                 ),
               ],
-            ],
-            if (_isMockData) ...[
-              const SizedBox(height: 4),
+              // Show time range
+              const SizedBox(height: 2),
               Row(
                 children: [
-                  Icon(Icons.info_outline, size: 14, color: Colors.orange[700]),
+                  const SizedBox(width: 18),
+                  Icon(Icons.schedule, size: 12, color: Colors.grey[600]),
                   const SizedBox(width: 4),
                   Text(
-                    'Simulated waveform data',
+                    _getTimeRangeText(),
                     style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: Colors.orange[700],
+                          color: Colors.grey[600],
+                          fontSize: 11,
                         ),
                   ),
                 ],
+              ),
+            ],
+            if (_isMockData) ...[
+              const SizedBox(height: 4),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: Colors.orange[50],
+                  borderRadius: BorderRadius.circular(6),
+                  border: Border.all(color: Colors.orange[200]!),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.info_outline, size: 14, color: Colors.orange),
+                    const SizedBox(width: 4),
+                    Flexible(
+                      child: Text(
+                        _error ?? 'Simulated waveform data',
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                              color: Colors.orange[700],
+                            ),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ],
             const SizedBox(height: 8),
@@ -310,16 +974,16 @@ class _SeismographScreenState extends State<SeismographScreen> {
             _currentScale = (_baseScale * details.scale).clamp(0.5, 10.0);
             final range = (_maxX - _minX) / _currentScale;
             final center = (_minX + _maxX) / 2;
-            _minX = (center - range / 2).clamp(0, 60 - range);
-            _maxX = (_minX + range).clamp(range, 60);
+            _minX = (center - range / 2).clamp(0, 360 - range);
+            _maxX = (_minX + range).clamp(range, 360);
           }
           
           // Handle pan
           final dx = details.focalPoint.dx - _baseFocalPoint.dx;
           final range = _maxX - _minX;
           final panAmount = -dx * range / 300; // Adjust sensitivity
-          _minX = (_minX + panAmount).clamp(0, 60 - range);
-          _maxX = (_minX + range).clamp(range, 60);
+          _minX = (_minX + panAmount).clamp(0, 360 - range);
+          _maxX = (_minX + range).clamp(range, 360);
           _baseFocalPoint = details.focalPoint;
         });
       },
@@ -361,41 +1025,48 @@ class _SeismographScreenState extends State<SeismographScreen> {
                   },
                 ),
               ),
-              rightTitles: AxisTitles(
-                sideTitles: SideTitles(),
+              rightTitles: const AxisTitles(
+                sideTitles: SideTitles(
+                  reservedSize: 1,
+                ),
               ),
-              topTitles: AxisTitles(
-                sideTitles: SideTitles(),
+              topTitles: const AxisTitles(
+                sideTitles: SideTitles(
+                  reservedSize: 1,
+                ),
               ),
             ),
             gridData: FlGridData(
               horizontalInterval: (_maxY - _minY) / 5,
               verticalInterval: (_maxX - _minX) / 6,
-              getDrawingHorizontalLine: (value) {
-                if (value == 0) {
-                  return const FlLine(
-                    color: Colors.black54,
-                    strokeWidth: 2,
-                  );
-                }
-                return FlLine(
-                  color: Colors.grey.withValues(alpha: 0.3),
-                );
-              },
-              getDrawingVerticalLine: (value) {
-                return FlLine(
-                  color: Colors.grey.withValues(alpha: 0.3),
-                );
-              },
+              getDrawingHorizontalLine: _getHorizontalLine,
+              getDrawingVerticalLine: _getVerticalLine,
             ),
             borderData: FlBorderData(
               border: Border.all(color: Colors.grey),
             ),
+            // Add a vertical line to mark earthquake event time (at 60 seconds)
+            extraLinesData: ExtraLinesData(
+              verticalLines: [
+                VerticalLine(
+                  x: 60,
+                  color: Colors.red.withValues(alpha: 0.7),
+                  dashArray: [5, 5],
+                  label: VerticalLineLabel(
+                    alignment: Alignment.topRight,
+                    style: TextStyle(
+                      color: Colors.red[700],
+                      fontSize: 10,
+                      fontWeight: FontWeight.bold,
+                    ),
+                    labelResolver: (line) => 'Quake',
+                  ),
+                ),
+              ],
+            ),
             lineBarsData: [
               LineChartBarData(
                 spots: spots,
-                color: Colors.blue,
-                dotData: const FlDotData(),
                 belowBarData: BarAreaData(
                   color: Colors.blue.withValues(alpha: 0.1),
                 ),
@@ -420,11 +1091,189 @@ class _SeismographScreenState extends State<SeismographScreen> {
     );
   }
 
+  Widget _buildAudioPlayer() {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      margin: const EdgeInsets.symmetric(horizontal: 8),
+      decoration: BoxDecoration(
+        color: Colors.deepPurple[50],
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.deepPurple[200]!),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.music_note, color: Colors.deepPurple[700], size: 20),
+              const SizedBox(width: 8),
+              Text(
+                'Seismic Audio Sonification',
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  color: Colors.deepPurple[700],
+                ),
+              ),
+              const Spacer(),
+              if (_isMockData)
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: Colors.orange[100],
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: Text(
+                    'Simulated',
+                    style: TextStyle(
+                      fontSize: 10,
+                      color: Colors.orange[700],
+                    ),
+                  ),
+                ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          // Audio player controls
+          StreamBuilder<PlayerState>(
+            stream: _audioPlayer.playerStateStream,
+            builder: (context, snapshot) {
+              final playerState = snapshot.data;
+              final playing = playerState?.playing;
+              
+              return Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  // Play/Pause button
+                  IconButton(
+                    iconSize: 40,
+                    tooltip: playing == true ? 'Pause' : 'Play',
+                    onPressed: _isAudioReady
+                        ? () {
+                            if (playing == true) {
+                              _audioPlayer.pause();
+                            } else {
+                              _audioPlayer.play();
+                            }
+                          }
+                        : null,
+                    icon: Icon(
+                      _isAudioLoading
+                          ? Icons.hourglass_empty
+                          : (playing == true ? Icons.pause_circle_filled : Icons.play_circle_filled),
+                      color: _isAudioReady ? Colors.deepPurple[700] : Colors.grey,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  // Progress bar
+                  Expanded(
+                    child: _isAudioLoading
+                        ? const LinearProgressIndicator()
+                        : StreamBuilder<Duration>(
+                            stream: _audioPlayer.positionStream,
+                            builder: (context, snapshot) {
+                              final position = snapshot.data ?? Duration.zero;
+                              return StreamBuilder<Duration?>(
+                                stream: _audioPlayer.durationStream,
+                                builder: (context, durationSnapshot) {
+                                  final duration = durationSnapshot.data ?? Duration.zero;
+                                  final positionSeconds = position.inSeconds.toDouble();
+                                  final durationSeconds = duration.inSeconds.toDouble();
+                                  
+                                  return Tooltip(
+                                    message: 'Seek to position',
+                                    child: Column(
+                                      children: [
+                                        SliderTheme(
+                                          data: SliderTheme.of(context).copyWith(
+                                            trackHeight: 4,
+                                            thumbShape: const RoundSliderThumbShape(
+                                              enabledThumbRadius: 6,
+                                            ),
+                                          ),
+                                          child: Slider(
+                                            value: durationSeconds > 0 
+                                                ? positionSeconds.clamp(0, durationSeconds) 
+                                                : 0,
+                                            max: durationSeconds > 0 ? durationSeconds : 1,
+                                            onChanged: (value) {
+                                              _audioPlayer.seek(Duration(seconds: value.toInt()));
+                                            },
+                                            activeColor: Colors.deepPurple[700],
+                                            inactiveColor: Colors.deepPurple[200],
+                                          ),
+                                        ),
+                                        Padding(
+                                          padding: const EdgeInsets.symmetric(horizontal: 16),
+                                          child: Row(
+                                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                            children: [
+                                              Text(
+                                                _formatDuration(position),
+                                                style: TextStyle(
+                                                  fontSize: 11,
+                                                  color: Colors.grey[600],
+                                                ),
+                                              ),
+                                              Text(
+                                                _formatDuration(duration),
+                                                style: TextStyle(
+                                                  fontSize: 11,
+                                                  color: Colors.grey[600],
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  );
+                                },
+                              );
+                            },
+                          ),
+                  ),
+                  // Stop button
+                  IconButton(
+                    tooltip: 'Stop and reset',
+                    onPressed: _isAudioReady
+                        ? () {
+                            _audioPlayer.stop();
+                            _audioPlayer.seek(Duration.zero);
+                          }
+                        : null,
+                    icon: Icon(
+                      Icons.stop_circle,
+                      color: _isAudioReady ? Colors.deepPurple[700] : Colors.grey,
+                    ),
+                  ),
+                ],
+              );
+            },
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Listen to the seismic waves converted to audio',
+            style: TextStyle(
+              fontSize: 11,
+              color: Colors.grey[600],
+              fontStyle: FontStyle.italic,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _formatDuration(Duration duration) {
+    final minutes = duration.inMinutes;
+    final seconds = duration.inSeconds % 60;
+    return '$minutes:${seconds.toString().padLeft(2, '0')}';
+  }
+
   Widget _buildLegend() {
     return Container(
       padding: const EdgeInsets.all(12),
-      color: Colors.grey[100],
-      child: const Row(
+      color: Colors.grey[100],        child: const Row(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           Icon(Icons.touch_app, size: 16),

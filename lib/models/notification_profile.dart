@@ -34,6 +34,8 @@ class NotificationProfile extends HiveObject {
   double emergencyRadius;
   @HiveField(14)
   double globalMinMagnitudeOverrideQuietHours; // New field
+  @HiveField(15)
+  String? timezone; // User's timezone identifier (e.g., 'America/Los_Angeles')
 
   NotificationProfile({
     required this.id,
@@ -51,6 +53,7 @@ class NotificationProfile extends HiveObject {
     this.emergencyMagnitudeThreshold = 0.0,
     this.emergencyRadius = 0.0,
     this.globalMinMagnitudeOverrideQuietHours = 0.0, // Initialize new field
+    this.timezone,
   });
 
   factory NotificationProfile.fromJson(Map<String, dynamic> json) {
@@ -70,6 +73,7 @@ class NotificationProfile extends HiveObject {
       emergencyMagnitudeThreshold: (json['emergencyMagnitudeThreshold'] as num?)?.toDouble() ?? 0.0,
       emergencyRadius: (json['emergencyRadius'] as num?)?.toDouble() ?? 0.0,
       globalMinMagnitudeOverrideQuietHours: (json['globalMinMagnitudeOverrideQuietHours'] as num?)?.toDouble() ?? 0.0, // Parse new field
+      timezone: json['timezone'] as String?,
     );
   }
 
@@ -90,6 +94,7 @@ class NotificationProfile extends HiveObject {
       'emergencyMagnitudeThreshold': emergencyMagnitudeThreshold,
       'emergencyRadius': emergencyRadius,
       'globalMinMagnitudeOverrideQuietHours': globalMinMagnitudeOverrideQuietHours, // Serialize new field
+      'timezone': timezone,
     };
   }
 
@@ -112,6 +117,7 @@ class NotificationProfile extends HiveObject {
     double? emergencyMagnitudeThreshold,
     double? emergencyRadius,
     double? globalMinMagnitudeOverrideQuietHours, // Add to copyWith
+    String? timezone,
   }) {
     return NotificationProfile(
       id: id ?? this.id,
@@ -129,6 +135,7 @@ class NotificationProfile extends HiveObject {
       emergencyMagnitudeThreshold: emergencyMagnitudeThreshold ?? this.emergencyMagnitudeThreshold,
       emergencyRadius: emergencyRadius ?? this.emergencyRadius,
       globalMinMagnitudeOverrideQuietHours: globalMinMagnitudeOverrideQuietHours ?? this.globalMinMagnitudeOverrideQuietHours, // Assign new field
+      timezone: timezone ?? this.timezone,
     );
   }
 }

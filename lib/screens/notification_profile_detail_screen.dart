@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import 'package:uuid/uuid.dart';
+import 'package:timezone/timezone.dart' as tz;
+import 'package:timezone/data/latest.dart' as tz_data;
 
 import '../models/notification_profile.dart';
 import '../providers/settings_provider.dart';
@@ -37,6 +39,79 @@ class _NotificationProfileDetailScreenState
   double _emergencyMagnitudeThreshold = 5.0;
   double _emergencyRadius = 100.0;
   double _globalMinMagnitudeOverrideQuietHours = 0.0;
+  String? _timezone;
+
+  // List of common timezones for the picker
+  static final List<Map<String, String>> _commonTimezones = [
+    {'value': 'America/New_York', 'label': 'Eastern Time (US)'},
+    {'value': 'America/Chicago', 'label': 'Central Time (US)'},
+    {'value': 'America/Denver', 'label': 'Mountain Time (US)'},
+    {'value': 'America/Los_Angeles', 'label': 'Pacific Time (US)'},
+    {'value': 'America/Anchorage', 'label': 'Alaska Time'},
+    {'value': 'Pacific/Honolulu', 'label': 'Hawaii Time'},
+    {'value': 'Europe/London', 'label': 'London (GMT/BST)'},
+    {'value': 'Europe/Paris', 'label': 'Central European (CET)'},
+    {'value': 'Europe/Berlin', 'label': 'Berlin (CET)'},
+    {'value': 'Europe/Moscow', 'label': 'Moscow (MSK)'},
+    {'value': 'Africa/Johannesburg', 'label': 'South Africa (SAST)'},
+    {'value': 'Asia/Dubai', 'label': 'Dubai (GST)'},
+    {'value': 'Asia/Kolkata', 'label': 'India (IST)'},
+    {'value': 'Asia/Bangkok', 'label': 'Bangkok (ICT)'},
+    {'value': 'Asia/Singapore', 'label': 'Singapore (SGT)'},
+    {'value': 'Asia/Hong_Kong', 'label': 'Hong Kong (HKT)'},
+    {'value': 'Asia/Tokyo', 'label': 'Japan (JST)'},
+    {'value': 'Australia/Sydney', 'label': 'Sydney (AEST)'},
+    {'value': 'Australia/Perth', 'label': 'Perth (AWST)'},
+    {'value': 'Pacific/Auckland', 'label': 'New Zealand (NZST)'},
+  ];
+
+  // Auto-detect the device's current timezone
+  String? _detectDeviceTimezone() {
+    try {
+      // Initialize timezone data
+      tz_data.initializeTimeZones();
+      
+      // Try to get the local timezone from the tz local (works on some platforms)
+      final location = tz.local;
+      final timezoneName = location.name;
+      
+      // If the local timezone name is valid (not empty), return it
+      if (timezoneName.isNotEmpty) {
+        return timezoneName;
+      }
+      
+      // Fallback: Try to detect timezone from the device's current offset
+      // This uses Flutter's native approach which is more reliable
+      final now = DateTime.now();
+      final offset = now.timeZoneOffset;
+      final offsetMinutes = offset.inMinutes;
+      
+      // Try to find a matching timezone from our list based on offset
+      // This is a best-effort fallback
+      for (final tzItem in _commonTimezones) {
+        final tzValue = tzItem['value'];
+        if (tzValue != null) {
+          try {
+            final tzLocation = tz.getLocation(tzValue);
+            final tzNow = tz.TZDateTime.now(tzLocation);
+            final tzOffset = tzNow.timeZoneOffset;
+            // Compare both hours and the exact minute offset (including sign)
+            final tzTotalMinutes = tzOffset.inHours * 60 + tzOffset.inMinutes;
+            if (tzTotalMinutes == offsetMinutes) {
+              return tzValue;
+            }
+          } catch (_) {
+            continue;
+          }
+        }
+      }
+      
+      return null;
+    } catch (e) {
+      debugPrint('Failed to detect timezone: $e');
+      return null;
+    }
+  }
 
   @override
   void initState() {
@@ -91,6 +166,14 @@ class _NotificationProfileDetailScreenState
     _emergencyRadius = _profile?.emergencyRadius.clamp(0, 1000) ?? 100.0;
     _globalMinMagnitudeOverrideQuietHours =
         _profile?.globalMinMagnitudeOverrideQuietHours.clamp(0, 9) ?? 0.0;
+    
+    // Auto-detect timezone for new profiles, or use saved timezone
+    // If existing profile has no timezone, auto-detect it too
+    if (_profile?.timezone == null || _profile?.timezone?.isEmpty == true) {
+      _timezone = _detectDeviceTimezone();
+    } else {
+      _timezone = _profile?.timezone;
+    }
   }
 
   @override
@@ -124,6 +207,7 @@ class _NotificationProfileDetailScreenState
         emergencyRadius: _emergencyRadius,
         globalMinMagnitudeOverrideQuietHours:
             _globalMinMagnitudeOverrideQuietHours,
+        timezone: _timezone,
       );
 
       if (widget.profileId == 'new') {
@@ -335,6 +419,39 @@ class _NotificationProfileDetailScreenState
               ),
             ],
             const SizedBox(height: 24),
+
+            // Timezone Section
+            Text(
+              'Timezone',
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              'Select your local timezone for accurate quiet hours',
+              style: TextStyle(fontSize: 12, color: Colors.grey),
+            ),
+            const SizedBox(height: 8),
+            DropdownButtonFormField<String>(
+              initialValue: _timezone,
+              decoration: const InputDecoration(
+                border: OutlineInputBorder(),
+                hintText: 'Select timezone',
+              ),
+              items: [
+                const DropdownMenuItem<String>(
+                  child: Text('Use device default'),
+                ),
+                ..._commonTimezones.map((tz) => DropdownMenuItem<String>(
+                      value: tz['value'],
+                      child: Text(tz['label']!),
+                    )),
+              ],
+              onChanged: (value) {
+                setState(() {
+                  _timezone = value;
+                });
+              },
+            ),
 
             // Advanced Overrides
             Text(

@@ -192,6 +192,7 @@ class BackgroundService {
         emergencyMagnitudeThreshold: (settingsBox.get('emergencyMagnitudeThreshold', defaultValue: 5.0) as num).toDouble(),
         emergencyRadius: (settingsBox.get('emergencyRadius', defaultValue: 100.0) as num).toDouble(),
         globalMinMagnitudeOverrideQuietHours: (settingsBox.get('globalMinMagnitudeOverrideQuietHours', defaultValue: 0.0) as num).toDouble(),
+        timezone: settingsBox.get('timezone') as String?,
       ));
     }
 
@@ -229,8 +230,7 @@ class BackgroundService {
 
     // 4. Quiet Hours
     if (profile.quietHoursEnabled) {
-        final now = DateTime.now();
-        if (_isDuringQuietHoursForProfile(profile, now)) {
+        if (_isDuringQuietHoursForProfile(profile)) {
              // Emergency Override check
              if (earthquake.magnitude >= profile.emergencyMagnitudeThreshold) {
                  if (distance <= profile.emergencyRadius) return true;
@@ -242,10 +242,14 @@ class BackgroundService {
     return true; // Passed all checks
   }
 
-  static bool _isDuringQuietHoursForProfile(NotificationProfile profile, DateTime now) {
-    if (!profile.quietHoursDays.contains(now.weekday % 7)) return false;
+  static bool _isDuringQuietHoursForProfile(NotificationProfile profile) {
+    // Always use device local time for quiet hours check
+    // The quiet hours times are stored as local time values entered by the user
+    final localNow = DateTime.now();
 
-    final currentMinutes = now.hour * 60 + now.minute;
+    if (!profile.quietHoursDays.contains(localNow.weekday % 7)) return false;
+
+    final currentMinutes = localNow.hour * 60 + localNow.minute;
     final startMinutes = profile.quietHoursStart[0] * 60 + profile.quietHoursStart[1];
     final endMinutes = profile.quietHoursEnd[0] * 60 + profile.quietHoursEnd[1];
 
@@ -327,7 +331,7 @@ class BackgroundService {
     });
 
     // Use different sound for large earthquakes (magnitude >= 6.0)
-    final String soundName = earthquake.magnitude >= 6.0 ? 'earthquake-large' : 'earthquake';
+    final String soundName = earthquake.magnitude >= 6.0 ? 'earthquake_large' : 'earthquake';
 
     const String groupKey = 'com.quaketrack.EARTHQUAKE_ALERTS';
 

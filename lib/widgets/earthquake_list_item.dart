@@ -26,8 +26,8 @@ class EarthquakeListItem extends StatelessWidget {
       );
     }
 
-    final formattedDate = DateFormat.yMMMd().format(earthquake.time);
-    final formattedTime = DateFormat.jm().format(earthquake.time);
+    final formattedDate = DateFormat.yMMMd().format(earthquake.time.toLocal());
+    final formattedTime = DateFormat.jm().format(earthquake.time.toLocal());
     final distanceInKm = distanceInMeters != null ? (distanceInMeters / 1000).toStringAsFixed(2) : 'N/A';
 
     final magPrecision = earthquake.source == EarthquakeSource.sec ? 2 : 1;

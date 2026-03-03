@@ -37,6 +37,38 @@ function bearingToDirection(bearing) {
   return directions[index];
 }
 
+// Helper function to format time ago string
+function getTimeAgo(timestamp) {
+  const now = Date.now();
+  const diff = now - timestamp;
+  
+  const seconds = Math.floor(diff / 1000);
+  const minutes = Math.floor(seconds / 60);
+  const hours = Math.floor(minutes / 60);
+  const days = Math.floor(hours / 24);
+  
+  if (days > 0) {
+    return days === 1 ? '1 day ago' : `${days} days ago`;
+  } else if (hours > 0) {
+    return hours === 1 ? '1 hour ago' : `${hours} hours ago`;
+  } else if (minutes > 0) {
+    return minutes === 1 ? '1 minute ago' : `${minutes} minutes ago`;
+  } else {
+    return seconds <= 1 ? 'just now' : `${seconds} seconds ago`;
+  }
+}
+
+// Helper function to format distance string
+function getDistanceText(distanceKm) {
+  if (distanceKm < 1) {
+    return `${Math.round(distanceKm * 1000)} m away`;
+  } else if (distanceKm < 10) {
+    return `${distanceKm.toFixed(1)} km away`;
+  } else {
+    return `${Math.round(distanceKm)} km away`;
+  }
+}
+
 // Helper for reverse geocoding using Nominatim
 const reverseGeocode = async (lat, lon) => {
   try {
@@ -119,15 +151,74 @@ const reverseGeocode = async (lat, lon) => {
   return null;
 };
 
+// Function to get current time in the user's timezone
+function getUserLocalTime(timezone) {
+  if (!timezone) {
+    return null; // No timezone specified, use caller-provided time
+  }
+  
+  try {
+    // Use Intl to get the current time components in the user's timezone
+    const now = new Date();
+    const formatter = new Intl.DateTimeFormat('en-US', {
+      timeZone: timezone,
+      year: 'numeric',
+      month: 'numeric',
+      day: 'numeric',
+      hour: 'numeric',
+      minute: 'numeric',
+      second: 'numeric',
+      hour12: false,
+      weekday: 'short'
+    });
+    
+    const parts = formatter.formatToParts(now);
+    const getPart = (type) => parts.find(p => p.type === type)?.value;
+    
+    // Create a new date object with the timezone-adjusted components
+    // Note: This is a simplified approach - we extract the hour/minute in the target timezone
+    const hour = parseInt(getPart('hour') || '0');
+    const minute = parseInt(getPart('minute') || '0');
+    const second = parseInt(getPart('second') || '0');
+    
+    // Get weekday: convert short name to number (0=Sun, 6=Sat)
+    const weekdayStr = getPart('weekday');
+    const dayMap = {'Sun': 0, 'Mon': 1, 'Tue': 2, 'Wed': 3, 'Thu': 4, 'Fri': 5, 'Sat': 6};
+    const weekday = dayMap[weekdayStr] ?? now.getDay();
+    
+    // Create local date object with correct time in user timezone
+    const localDate = new Date(now.getFullYear(), now.getMonth(), now.getDate(), hour, minute, second);
+    
+    // Adjust day if needed (handle day boundary)
+    const today = now.getDay();
+    let dayOffset = weekday - today;
+    if (dayOffset > 3) dayOffset -= 7; // Handle wrap-around
+    if (dayOffset < -3) dayOffset += 7;
+    localDate.setDate(localDate.getDate() + dayOffset);
+    
+    return localDate;
+  } catch (e) {
+    console.log(`Invalid timezone ${timezone}, using server time:`, e.message);
+    return null;
+  }
+}
+
 // Function to check if current time is within quiet hours for a specific profile
 function isDuringQuietHoursForProfile(profile, currentTime) {
   if (!profile.quietHoursEnabled) {
     return false; // Quiet hours not enabled for this profile
   }
 
-  const currentHour = currentTime.getHours();
-  const currentMinute = currentTime.getMinutes();
-  const currentDay = currentTime.getDay(); // 0 = Sunday, 6 = Saturday
+  // Convert current time to user's local time using their timezone
+  // If no timezone is set, use the time passed in (server time as fallback)
+  let userTime = getUserLocalTime(profile.timezone);
+  if (!userTime) {
+    userTime = currentTime;
+  }
+  
+  const currentHour = userTime.getHours();
+  const currentMinute = userTime.getMinutes();
+  const currentDay = userTime.getDay(); // 0 = Sunday, 6 = Saturday
 
   const quietStartHour = profile.quietHoursStart[0];
   const quietStartMinute = profile.quietHoursStart[1];
@@ -311,29 +402,41 @@ const sendNotification = async (earthquake) => {
       }
       
       if (matchingProfiles.length > 0) {
+        // Calculate distance for this user
+        let distanceText = '';
+        let distanceKm = null;
+        
+        if (userLocation) {
+          distanceKm = getDistance(userLocation.latitude, userLocation.longitude, earthquakeLatitude, earthquakeLongitude);
+          // Include distance if within 100km
+          if (distanceKm <= 100) {
+            distanceText = ` · ${getDistanceText(distanceKm)}`;
+          }
+        }
+
         // Construct notification body based on matching profiles
         let notificationBody;
         if (matchingProfiles.length === 1) {
-          notificationBody = `Matches your "${matchingProfiles[0]}" filter.`;
+          notificationBody = `Matches your "${matchingProfiles[0]}" filter.${distanceText}`;
         } else {
-          notificationBody = `Matches your filters: ${matchingProfiles.join(', ')}.`;
+          notificationBody = `Matches your filters: ${matchingProfiles.join(', ')}.${distanceText}`;
         }
 
         recipientTokens.push({ token: fcmToken, userId: userId, notificationBody: notificationBody });
       }
-    });
-
-    const magnitudeText = earthquake.source === 'SEC' 
+    });      const magnitudeText = earthquake.source === 'SEC' 
       ? earthquake.magnitude.toFixed(2) 
       : earthquake.magnitude.toFixed(1);
+
+    // Get time ago string
+    const timeAgo = getTimeAgo(earthquake.time);
 
     // Use different sound for large earthquakes (magnitude >= 6.0)
     const soundName = earthquake.magnitude >= 6.0 ? 'earthquake_large' : 'earthquake';
 
-    const messagePayload = {
-      data: {
+    const messagePayload = {        data: {
         title: 'New Earthquake Alert!',
-        body: `Magnitude ${magnitudeText} (${earthquake.source}) near ${earthquake.place}`, // This will be overwritten by specific notificationBody
+        body: `Magnitude ${magnitudeText} (${earthquake.source}) ${timeAgo} near ${earthquake.place}`, // This will be overwritten by specific notificationBody
         earthquake: JSON.stringify(earthquake),
         mapUrl: `https://www.google.com/maps/search/?api=1&query=${earthquake.latitude},${earthquake.longitude}`,
         sound: soundName
@@ -350,7 +453,7 @@ const sendNotification = async (earthquake) => {
         token: r.token,
         data: {
             ...messagePayload.data,
-            body: `Magnitude ${magnitudeText} (${earthquake.source}) near ${earthquake.place}. ${r.notificationBody}`, // Use specific body
+            body: `Magnitude ${magnitudeText} (${earthquake.source}) ${timeAgo} near ${earthquake.place}. ${r.notificationBody}`, // Use specific body
             isTargeted: 'true' // Explicitly mark as targeted for client-side priority
         },
         android: messagePayload.android

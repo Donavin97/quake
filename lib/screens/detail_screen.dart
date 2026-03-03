@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'package:hive/hive.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
@@ -30,10 +31,14 @@ class _DetailScreenState extends State<DetailScreen> {
   bool _isReporting = false;
   final FeltReportService _feltReportService = FeltReportService();
   bool _isLoading = false;
+  
+  // Interstitial ad
+  InterstitialAd? _interstitialAd;
 
   @override
   void initState() {
     super.initState();
+    _loadInterstitialAd();
     if (widget.earthquake != null) {
       _earthquake = widget.earthquake;
       _calculateDistance();
@@ -41,6 +46,70 @@ class _DetailScreenState extends State<DetailScreen> {
     } else if (widget.earthquakeId != null) {
       _loadEarthquakeFromHive();
     }
+  }
+
+  void _loadInterstitialAd() {
+    InterstitialAd.load(
+      adUnitId: 'ca-app-pub-7112901918437892/1244453690',
+      request: const AdRequest(),
+      adLoadCallback: InterstitialAdLoadCallback(
+        onAdLoaded: (ad) {
+          setState(() {
+            _interstitialAd = ad;
+          });
+        },
+        onAdFailedToLoad: (err) {
+          debugPrint('Failed to load interstitial ad: ${err.message}');
+        },
+      ),
+    );
+  }
+
+  void _showInterstitialAdAndNavigate() {
+    if (_earthquake == null) return;
+    
+    if (_interstitialAd != null) {
+      _interstitialAd!.fullScreenContentCallback = FullScreenContentCallback(
+        onAdDismissedFullScreenContent: (ad) {
+          // User closed the ad - now navigate to seismograph screen
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => SeismographScreen(earthquake: _earthquake!),
+            ),
+          );
+          // Load a new ad for next time
+          _loadInterstitialAd();
+        },
+        onAdFailedToShowFullScreenContent: (ad, err) {
+          debugPrint('Failed to show interstitial ad: ${err.message}');
+          ad.dispose();
+          // Navigate anyway even if ad fails to show
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => SeismographScreen(earthquake: _earthquake!),
+            ),
+          );
+          _loadInterstitialAd();
+        },
+      );
+      _interstitialAd!.show();
+    } else {
+      // Ad not loaded, navigate directly
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => SeismographScreen(earthquake: _earthquake!),
+        ),
+      );
+    }
+  }
+
+  @override
+  void dispose() {
+    _interstitialAd?.dispose();
+    super.dispose();
   }
 
   void _calculateTheoreticalFeltRadius() {
@@ -204,19 +273,13 @@ class _DetailScreenState extends State<DetailScreen> {
   }
 
   void _navigateToSeismograph() {
-    if (_earthquake == null) return;
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => SeismographScreen(earthquake: _earthquake!),
-      ),
-    );
+    _showInterstitialAdAndNavigate();
   }
 
   void _shareEarthquake() {
     if (_earthquake == null) return;
 
-    final String timeStr = DateFormat.yMMMd().add_jms().format(_earthquake!.time);
+    final String timeStr = DateFormat.yMMMd().add_jms().format(_earthquake!.time.toLocal());
     final String mapUrl = 'https://www.google.com/maps/search/?api=1&query=${_earthquake!.latitude},${_earthquake!.longitude}';
     
     final String shareText = 'Earthquake Alert!\n\n'
@@ -282,7 +345,7 @@ class _DetailScreenState extends State<DetailScreen> {
             const SizedBox(height: 8),
             Text('Magnitude: ${_earthquake!.magnitude.toStringAsFixed(_earthquake!.source == EarthquakeSource.sec ? 2 : 1)}'),
             const SizedBox(height: 8),
-            Text('Time: ${DateFormat.yMMMd().add_jms().format(_earthquake!.time)}'),
+            Text('Time: ${DateFormat.yMMMd().add_jms().format(_earthquake!.time.toLocal())}'),
             const SizedBox(height: 8),
             Text(
               'Coordinates: (${_earthquake!.latitude.toStringAsFixed(2)}, ${_earthquake!.longitude.toStringAsFixed(2)})',

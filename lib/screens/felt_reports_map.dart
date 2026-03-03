@@ -153,7 +153,7 @@ class _FeltReportsMapState extends State<FeltReportsMap> with SingleTickerProvid
   Widget build(BuildContext context) {
     // Format date and time
     final dateFormat = DateFormat('yyyy-MM-dd HH:mm');
-    final String formattedDate = dateFormat.format(widget.earthquake.time);
+    final String formattedDate = dateFormat.format(widget.earthquake.time.toLocal());
 
     return Scaffold(
       appBar: AppBar(
