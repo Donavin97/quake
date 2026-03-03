@@ -2,6 +2,7 @@ import 'dart:io';
 import 'dart:typed_data';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
+import 'package:vibration/vibration.dart';
 import 'package:intl/intl.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:path_provider/path_provider.dart';
@@ -18,7 +19,27 @@ class SeismographScreen extends StatefulWidget {
   State<SeismographScreen> createState() => _SeismographScreenState();
 }
 
-class _SeismographScreenState extends State<SeismographScreen> {
+class _SeismographScreenState extends State<SeismographScreen> with SingleTickerProviderStateMixin {
+  // Helper method to trigger haptic feedback safely using Vibration class
+  Future<void> _triggerHaptic(String type) async {
+    try {
+      // Check if device has vibration capability
+      final hasVibrator = await Vibration.hasVibrator();
+      if (hasVibrator != true) return;
+
+      switch (type) {
+        case 'light':
+          await Vibration.vibrate(duration: 10);
+        case 'medium':
+          await Vibration.vibrate(duration: 25);
+        case 'heavy':
+          await Vibration.vibrate(duration: 50);
+      }
+    } catch (_) {
+      // Ignore haptic feedback errors (e.g., on desktop/simulator)
+    }
+  }
+
   final WaveformService _waveformService = WaveformService();
   Uint8List? _imageData; // PNG image from Python backend
   Uint8List? _audioData; // Audio data from Python backend
@@ -28,6 +49,10 @@ class _SeismographScreenState extends State<SeismographScreen> {
   bool _isLoading = true;
   String? _error;
   bool _isUsingImage = true; // Track if we're showing image (Python) or chart (IRIS fallback)
+
+  // Animation controller for fade-in effect
+  late AnimationController _animationController;
+  late Animation<double> _fadeAnimation;
   
   // Audio player state
   final AudioPlayer _audioPlayer = AudioPlayer();
@@ -38,10 +63,12 @@ class _SeismographScreenState extends State<SeismographScreen> {
   // Current loading status for user feedback
   String _loadingStatus = 'Initializing...';
   List<String> _loadingSteps = [];
-  
-  // Track current station being tried (for enhanced progress display)
-  String _currentStation = '';
-  List<String> _stationAttempts = [];
+
+  // Unused variables kept for API compatibility but not displayed
+  // ignore: unused_field,prefer_final_fields
+  final String _currentStation = '';
+  // ignore: unused_field,prefer_final_fields
+  final List<String> _stationAttempts = [];
 
   // Zoom and pan state (only used for chart fallback)
   double _minX = 0;
@@ -57,12 +84,20 @@ class _SeismographScreenState extends State<SeismographScreen> {
   @override
   void initState() {
     super.initState();
+    _animationController = AnimationController(
+      duration: const Duration(milliseconds: 500),
+      vsync: this,
+    );
+    _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(parent: _animationController, curve: Curves.easeIn),
+    );
     _initAudioPlayer();
     _loadWaveformData();
   }
 
   @override
   void dispose() {
+    _animationController.dispose();
     _deleteTempAudioFile();
     _audioPlayer.dispose();
     super.dispose();
@@ -136,6 +171,9 @@ class _SeismographScreenState extends State<SeismographScreen> {
     _audioPlayer.stop();
     _deleteTempAudioFile();
     
+    // Reset animation for fresh load
+    _animationController.reset();
+    
     setState(() {
       _isLoading = true;
       _error = null;
@@ -151,55 +189,15 @@ class _SeismographScreenState extends State<SeismographScreen> {
       _loadingSteps = [];
     });
 
-    // Progress callback to update UI with download details
+    // Progress callback - kept for waveform service but not displayed
     void handleProgressUpdate(String message) {
-      if (!mounted) return;
-      
-      // Track station attempts for special display
-      if (message.startsWith('Station candidate:')) {
-        setState(() {
-          _stationAttempts = [..._stationAttempts, message];
-        });
-        return;
-      }
-      
-      if (message.startsWith('Trying next station:')) {
-        setState(() {
-          _currentStation = message;
-          _loadingSteps = [..._loadingSteps, message];
-        });
-        return;
-      }
-      
-      if (message.startsWith('Found station:')) {
-        setState(() {
-          _currentStation = message;
-          _loadingSteps = [..._loadingSteps, message];
-        });
-        return;
-      }
-      
-      if (message.contains('No waveform data at') || message.contains('trying next station')) {
-        setState(() {
-          _loadingSteps = [..._loadingSteps, message];
-        });
-        return;
-      }
-      
-      setState(() {
-        _loadingSteps = [..._loadingSteps, message];
-      });
+      // Progress is tracked internally but not shown in UI
     }
 
     try {
-      // First, update status to show we're searching for stations
+      // Update status to show we're searching for stations
       setState(() {
         _loadingStatus = 'Finding nearby seismic stations...';
-        _loadingSteps = [
-          'Querying IRIS station database (level=channel)...',
-        ];
-        _stationAttempts = [];
-        _currentStation = '';
       });
 
       final result = await _waveformService.getWaveformData(
@@ -268,6 +266,9 @@ class _SeismographScreenState extends State<SeismographScreen> {
         steps = ['No waveform data available, using simulation'];
       }
 
+  // Vibrate once on successful data retrieval
+      await _triggerHaptic('medium');
+      
       setState(() {
         _imageData = result.imageData;
         _audioData = result.audioData;
@@ -279,6 +280,7 @@ class _SeismographScreenState extends State<SeismographScreen> {
         _loadingSteps = steps;
         _isLoading = false;
         _isUsingImage = hasImage;
+        _animationController.forward();
         
         // Load audio if available
         if (result.hasAudio) {
@@ -299,6 +301,11 @@ class _SeismographScreenState extends State<SeismographScreen> {
       });
     } catch (e) {
       if (!mounted) return;
+      // Vibrate twice on failure
+      await _triggerHaptic('heavy');
+      await Future.delayed(const Duration(milliseconds: 150));
+      await _triggerHaptic('heavy');
+      
       setState(() {
         _error = e.toString();
         _loadingStatus = 'Error loading waveform data';
@@ -357,40 +364,6 @@ class _SeismographScreenState extends State<SeismographScreen> {
     return '$startStr - $endStr (${endTime.difference(startTime).inMinutes} min)';
   }
 
-  Widget _buildStationAttemptItem(String stationInfo) {
-    // Extract station name and distance from message like "Station candidate: IU.KONO at 45.2 km"
-    final parts = stationInfo.replaceFirst('Station candidate: ', '').split(' at ');
-    final stationName = parts.isNotEmpty ? parts[0] : stationInfo;
-    final distance = parts.length > 1 ? parts[1] : '';
-    
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 2),
-      child: Row(
-        children: [
-          const SizedBox(width: 24),
-          const Icon(Icons.router, size: 14, color: Colors.blue),
-          const SizedBox(width: 6),
-          Text(
-            stationName,
-            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: Colors.grey[700],
-                ),
-          ),
-          if (distance.isNotEmpty) ...[
-            const SizedBox(width: 4),
-            Text(
-              '($distance)',
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: Colors.grey[500],
-                    fontSize: 10,
-                  ),
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -429,131 +402,6 @@ class _SeismographScreenState extends State<SeismographScreen> {
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: 16),
-              Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: Colors.grey[100],
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Progress:',
-                      style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                            color: Colors.grey[700],
-                          ),
-                    ),
-                    const SizedBox(height: 8),
-                    ..._loadingSteps.asMap().entries.map((entry) {
-                      return Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 4),
-                        child: Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const Icon(
-                              Icons.check_circle_outline,
-                              size: 16,
-                              color: Colors.green,
-                            ),
-                            const SizedBox(width: 8),
-                            Expanded(
-                              child: Text(
-                                entry.value,
-                                style: Theme.of(context).textTheme.bodySmall,
-                              ),
-                            ),
-                          ],
-                        ),
-                      );
-                    }),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 24),
-              
-              // Show station attempts if we have them
-              if (_stationAttempts.isNotEmpty) ...[
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: Colors.blue[50],
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: Colors.blue[200]!),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          const Icon(Icons.cell_tower, size: 16, color: Colors.blue),
-                          const SizedBox(width: 8),
-                          Text(
-                            'Nearby Stations Found:',
-                            style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                                  color: Colors.blue[700],
-                                ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 8),
-                      ...(_stationAttempts.length > 3 
-                          ? [
-                              ..._stationAttempts.take(3).map((s) => _buildStationAttemptItem(s)),
-                              Padding(
-                                padding: const EdgeInsets.only(left: 24, top: 4),
-                                child: Text(
-                                  '... and ${_stationAttempts.length - 3} more',
-                                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                        color: Colors.grey[600],
-                                        fontStyle: FontStyle.italic,
-                                      ),
-                                ),
-                              ),
-                            ]
-                          : _stationAttempts.map((s) => _buildStationAttemptItem(s))),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 16),
-              ],
-              
-              // Show current station being tried
-              if (_currentStation.isNotEmpty) ...[
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                  decoration: BoxDecoration(
-                    color: Colors.amber[50],
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: Colors.amber[300]!),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      SizedBox(
-                        width: 16,
-                        height: 16,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          color: Colors.amber[700],
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Flexible(
-                        child: Text(
-                          _currentStation,
-                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                color: Colors.amber[800],
-                                fontWeight: FontWeight.w500,
-                              ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 16),
-              ],
-              
               Text(
                 'This may take a few seconds...',
                 style: Theme.of(context).textTheme.bodySmall?.copyWith(
@@ -669,6 +517,11 @@ class _SeismographScreenState extends State<SeismographScreen> {
                         },
                       );
                       if (mounted) {
+                        // Vibrate twice on mock/simulated data
+                        await _triggerHaptic('heavy');
+                        await Future.delayed(const Duration(milliseconds: 150));
+                        await _triggerHaptic('heavy');
+                        
                         setState(() {
                           _imageData = result.imageData;
                           _audioData = result.audioData;
@@ -712,17 +565,23 @@ class _SeismographScreenState extends State<SeismographScreen> {
       );
     }
 
-    return Column(
-      children: [
-        _buildInfoCard(),
-        Expanded(
-          child: _isUsingImage && _imageData != null 
-              ? _buildImageView() 
-              : _buildChart(),
+    return SingleChildScrollView(
+      child: FadeTransition(
+        opacity: _fadeAnimation,
+        child: Column(
+          children: [
+            _buildInfoCard(),
+            SizedBox(
+              height: 400,
+              child: _isUsingImage && _imageData != null 
+                  ? _buildImageView() 
+                  : _buildChart(),
+            ),
+            if (_audioData != null && _audioData!.isNotEmpty) _buildAudioPlayer(),
+            _buildLegend(),
+          ],
         ),
-        if (_audioData != null && _audioData!.isNotEmpty) _buildAudioPlayer(),
-        _buildLegend(),
-      ],
+      ),
     );
   }
 

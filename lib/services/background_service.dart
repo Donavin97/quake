@@ -78,6 +78,7 @@ class BackgroundService {
   static Stream<String> get onTokenRefresh => _firebaseMessaging.onTokenRefresh;
 
   static Future<void> setupNotificationChannel() async {
+    // Normal earthquake channel (for magnitude < 6.0)
     const AndroidNotificationChannel channel = AndroidNotificationChannel(
       'earthquake_channel',
       'Earthquake Alerts',
@@ -86,10 +87,20 @@ class BackgroundService {
       sound: RawResourceAndroidNotificationSound('earthquake'),
     );
 
-    await flutterLocalNotificationsPlugin
+    // Large earthquake channel (for magnitude >= 6.0)
+    const AndroidNotificationChannel largeChannel = AndroidNotificationChannel(
+      'earthquake_large_channel',
+      'Large Earthquake Alerts',
+      description: 'Notifications for significant earthquake events (magnitude 6.0+)',
+      importance: Importance.max,
+      sound: RawResourceAndroidNotificationSound('earthquake_large'),
+    );
+
+    final androidPlugin = flutterLocalNotificationsPlugin
         .resolvePlatformSpecificImplementation<
-            AndroidFlutterLocalNotificationsPlugin>()
-        ?.createNotificationChannel(channel);
+            AndroidFlutterLocalNotificationsPlugin>();
+    await androidPlugin?.createNotificationChannel(channel);
+    await androidPlugin?.createNotificationChannel(largeChannel);
   }
 
   static Future<void> initialize() async {
@@ -330,20 +341,24 @@ class BackgroundService {
       'mapUrl': mapUrl,
     });
 
-    // Use different sound for large earthquakes (magnitude >= 6.0)
-    final String soundName = earthquake.magnitude >= 6.0 ? 'earthquake_large' : 'earthquake';
+    // Use different channel for large earthquakes (magnitude >= 6.0)
+    final bool isLargeEarthquake = earthquake.magnitude >= 6.0;
+    final String channelId = isLargeEarthquake ? 'earthquake_large_channel' : 'earthquake_channel';
+    final String channelName = isLargeEarthquake ? 'Large Earthquake Alerts' : 'Earthquake Alerts';
+    final String channelDescription = isLargeEarthquake
+        ? 'Notifications for significant earthquake events (magnitude 6.0+)'
+        : 'Notifications for new earthquake events';
 
     const String groupKey = 'com.quaketrack.EARTHQUAKE_ALERTS';
 
     final AndroidNotificationDetails androidPlatformChannelSpecifics =
         AndroidNotificationDetails(
-      'earthquake_channel',
-      'Earthquake Alerts',
-      channelDescription: 'Notifications for new earthquake events',
+      channelId,
+      channelName,
+      channelDescription: channelDescription,
       importance: Importance.max,
       priority: Priority.high,
       showWhen: false,
-      sound: RawResourceAndroidNotificationSound(soundName),
       groupKey: groupKey,
       actions: <AndroidNotificationAction>[
         const AndroidNotificationAction(
@@ -371,15 +386,18 @@ class BackgroundService {
     );
 
     // For Android, we also need to send a "summary" notification for the group to appear correctly
+    // Use the large channel if this was a large earthquake
+    final String summaryChannelId = isLargeEarthquake ? 'earthquake_large_channel' : 'earthquake_channel';
+    final String summaryChannelName = isLargeEarthquake ? 'Large Earthquake Alerts' : 'Earthquake Alerts';
     await flutterLocalNotificationsPlugin.show(
       id: 0, // Summary ID is always 0
       title: '',
       body: '',
-      notificationDetails: const NotificationDetails(
+      notificationDetails: NotificationDetails(
         android: AndroidNotificationDetails(
-          'earthquake_channel',
-          'Earthquake Alerts',
-          channelDescription: 'Notifications for new earthquake events',
+          summaryChannelId,
+          summaryChannelName,
+          channelDescription: 'Notifications for earthquake events',
           importance: Importance.max,
           priority: Priority.high,
           groupKey: groupKey,

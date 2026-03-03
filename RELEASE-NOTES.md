@@ -1,48 +1,45 @@
 # QuakeTrack - Release Notes
 
-## Version 1.1.0 - What's New in This Version
+## Version 1.1.0
 
-### 🚀 New Features
-
-**Earthquake Search**
-- Search earthquakes by place name, magnitude, or earthquake ID
-- Real-time filtering as you type
-
-**Statistics Screen**
-- View earthquake statistics including total events, average magnitude, and date ranges
-- Interactive pie chart showing magnitude distribution (Micro, Minor, Light, Moderate, Strong, Major, Great)
-- Depth analysis (Shallow, Intermediate, Deep)
-- Most active regions
-
-**Enhanced Notifications**
-- Different notification sounds based on earthquake magnitude
-- Large earthquake sound (6.0+) for significant events
-
-### 🐛 Bug Fixes
-
-- **Fixed TalkBack crashes**: Improved accessibility support - the app no longer crashes when using screen readers with text fields
-- **Fixed notification filtering**: Notifications now respect your personal filter settings - you'll only get alerts for earthquakes that match your criteria (magnitude threshold, location radius, etc.)
-- **Fixed subscription updates**: Filter changes now properly update notification subscriptions
-
-### ♿ Accessibility Improvements
-
-- Better screen reader support throughout the app
-- Improved keyboard and input field accessibility
-- Semantic labels for interactive elements
-
-### 🔧 Code Quality
-
-- Fixed deprecated API usage: replaced `withOpacity()` with `withValues(alpha:)` in seismograph screen
-- Removed redundant default arguments for cleaner code
-- Added const constructors where appropriate for better performance
+### 🌍 Timezone-Aware Quiet Hours
+- Set your local timezone for accurate quiet hours scheduling
+- Auto-detects device timezone on profile creation
 
 ### 📡 Seismograph Improvements
+- **Audio Sonification**: Listen to seismic data as audio with play/pause, seek, and progress tracking
+- **Multi-provider Fallback**: 12 FDSN providers (IRIS, EMSC, GFZ, INGV, LMU, BGR, NIED, SCEDC, NCEDC, ORFEUS, USP, AUSP) ensure maximum data coverage
+- **Station Fallback**: Automatically tries up to 10 nearby stations if closest has no data
+- **Earthquake Marker**: Red dashed line marks event time at 60 seconds
+- Enhanced station info: name, distance, elevation, location, channel (BHZ/HHZ/SHZ)
+- Fixed IRIS dataselect API with proper format=mseed and nodata=404 parameters
+- **Scrollable View**: Entire seismograph screen is now scrollable
+- **Simplified Loading**: Shows clean spinner with status text instead of detailed progress
+- **Haptic Feedback**: Device vibrates once on successful data, twice on failure or mock data
+- **Fade-in Animation**: Smooth 500ms ease-in animation when data loads
 
-- Enhanced station information display: shows station name, distance, elevation, and site location
-- Added channel information (BHZ, HHZ, SHZ) to waveform data display
-- Better error handling for IRIS API requests with retry logic
-- Improved timeout handling and user-friendly error messages
-- Added nodata=404 parameter to station queries for cleaner error handling
+### 🔔 Enhanced Notifications
+- Different notification sounds based on magnitude (6.0+ uses large earthquake sound)
+- Distance displayed in notification body (within 100km)
+- Time-ago formatting ("5 minutes ago", "2 hours ago")
+
+### 🐛 Bug Fixes
+- Fixed TalkBack crashes with screen reader-compatible text fields
+- Fixed notification filtering to respect personal filter settings
+- Fixed subscription updates when filter criteria change
+
+### ♿ Accessibility
+- Better screen reader support throughout the app
+- Audio player buttons (play/pause, stop, seek bar) labeled with tooltips in seismograph screen
+
+### 🔧 Code Quality
+- Replaced deprecated `withOpacity()` with `withValues(alpha:)`
+- Added const constructors for better performance
+- Fixed deprecated DropdownButtonFormField `value` to use `initialValue`
+- Removed unused imports and variables
+- Fixed IconButton semanticLabel parameter (not valid for IconButton)
+- Fixed haptic feedback to use Vibration package for reliable Android vibration
+- Added timezone package back as explicit dependency
 
 ---
 
