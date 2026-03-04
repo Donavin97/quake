@@ -1,6 +1,55 @@
 import 'notification_profile.dart'; // Import the new NotificationProfile model
 import 'time_window.dart'; // Import TimeWindow for global setting
 
+// Vibration intensity levels (simulated via duration)
+enum VibrationIntensity { light, medium, heavy }
+
+// Settings for a specific vibration type
+class VibrationSettings {
+  final int duration; // Duration in milliseconds
+  final int pattern; // Number of vibration pulses (1-3)
+
+  const VibrationSettings({
+    this.duration = 50,
+    this.pattern = 1,
+  });
+
+  factory VibrationSettings.fromMap(Map<String, dynamic> data) {
+    return VibrationSettings(
+      duration: (data['duration'] as num?)?.toInt() ?? 50,
+      pattern: (data['pattern'] as num?)?.toInt() ?? 1,
+    );
+  }
+
+  Map<String, dynamic> toMap() {
+    return {
+      'duration': duration,
+      'pattern': pattern,
+    };
+  }
+
+  VibrationSettings copyWith({int? duration, int? pattern}) {
+    return VibrationSettings(
+      duration: duration ?? this.duration,
+      pattern: pattern ?? this.pattern,
+    );
+  }
+
+  // Get duration for a specific intensity level
+  int getDurationForIntensity(VibrationIntensity intensity) {
+    // Adjust duration based on pattern (more patterns = longer total vibration)
+    final baseDuration = duration;
+    switch (intensity) {
+      case VibrationIntensity.light:
+        return (baseDuration * 0.5).toInt().clamp(10, 200);
+      case VibrationIntensity.medium:
+        return baseDuration;
+      case VibrationIntensity.heavy:
+        return (baseDuration * pattern).clamp(10, 500);
+    }
+  }
+}
+
 class UserPreferences {
   final bool notificationsEnabled;
   final List<NotificationProfile> notificationProfiles; // New field for multiple profiles
@@ -11,6 +60,10 @@ class UserPreferences {
   final String earthquakeProvider;
   final List<String> subscribedTopics;
 
+  // Vibration settings for seismograph
+  final VibrationSettings successVibration;
+  final VibrationSettings errorVibration;
+
   UserPreferences({
     this.notificationsEnabled = true,
     List<NotificationProfile>? notificationProfiles,
@@ -18,7 +71,11 @@ class UserPreferences {
     this.timeWindow = TimeWindow.day,
     this.earthquakeProvider = 'usgs',
     this.subscribedTopics = const [],
-  }) : notificationProfiles = notificationProfiles ?? [];
+    VibrationSettings? successVibration,
+    VibrationSettings? errorVibration,
+  })  : notificationProfiles = notificationProfiles ?? [],
+        successVibration = successVibration ?? const VibrationSettings(),
+        errorVibration = errorVibration ?? const VibrationSettings(duration: 100);
 
   factory UserPreferences.fromMap(Map<String, dynamic> data) {
     List<NotificationProfile> profiles = [];
@@ -55,6 +112,12 @@ class UserPreferences {
       timeWindow: TimeWindow.values[data['timeWindow'] as int? ?? 0],
       earthquakeProvider: data['earthquakeProvider'] as String? ?? 'usgs',
       subscribedTopics: (data['subscribedTopics'] as List<dynamic>?)?.map((e) => e as String).toList() ?? [],
+      successVibration: data['successVibration'] != null 
+          ? VibrationSettings.fromMap(data['successVibration'] as Map<String, dynamic>)
+          : null,
+      errorVibration: data['errorVibration'] != null 
+          ? VibrationSettings.fromMap(data['errorVibration'] as Map<String, dynamic>)
+          : null,
     );
   }
 
@@ -66,6 +129,8 @@ class UserPreferences {
       'timeWindow': timeWindow.index,
       'earthquakeProvider': earthquakeProvider,
       'subscribedTopics': subscribedTopics,
+      'successVibration': successVibration.toMap(),
+      'errorVibration': errorVibration.toMap(),
     };
   }
 
@@ -76,6 +141,8 @@ class UserPreferences {
     TimeWindow? timeWindow,
     String? earthquakeProvider,
     List<String>? subscribedTopics,
+    VibrationSettings? successVibration,
+    VibrationSettings? errorVibration,
   }) {
     return UserPreferences(
       notificationsEnabled: notificationsEnabled ?? this.notificationsEnabled,
@@ -84,6 +151,8 @@ class UserPreferences {
       timeWindow: timeWindow ?? this.timeWindow,
       earthquakeProvider: earthquakeProvider ?? this.earthquakeProvider,
       subscribedTopics: subscribedTopics ?? [...this.subscribedTopics],
+      successVibration: successVibration ?? this.successVibration,
+      errorVibration: errorVibration ?? this.errorVibration,
     );
   }
 }

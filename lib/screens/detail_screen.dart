@@ -24,7 +24,7 @@ class DetailScreen extends StatefulWidget {
   State<DetailScreen> createState() => _DetailScreenState();
 }
 
-class _DetailScreenState extends State<DetailScreen> {
+class _DetailScreenState extends State<DetailScreen> with WidgetsBindingObserver {
   Earthquake? _earthquake;
   double? distance;
   double? _theoreticalFeltRadius; // Added
@@ -38,6 +38,7 @@ class _DetailScreenState extends State<DetailScreen> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _loadInterstitialAd();
     if (widget.earthquake != null) {
       _earthquake = widget.earthquake;
@@ -108,8 +109,17 @@ class _DetailScreenState extends State<DetailScreen> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _interstitialAd?.dispose();
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    // Reload ad when app resumes to ensure fresh ad
+    if (state == AppLifecycleState.resumed) {
+      _loadInterstitialAd();
+    }
   }
 
   void _calculateTheoreticalFeltRadius() {

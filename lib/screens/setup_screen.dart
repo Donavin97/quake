@@ -14,13 +14,37 @@ class SetupScreen extends StatefulWidget {
   State<SetupScreen> createState() => _SetupScreenState();
 }
 
-class _SetupScreenState extends State<SetupScreen> {
+class _SetupScreenState extends State<SetupScreen> with WidgetsBindingObserver {
   int _currentStep = 0;
 
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) => _showSetupDialogs());
+    WidgetsBinding.instance.addObserver(this);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        _showSetupDialogs();
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    // Restart setup dialogs if app was backgrounded during setup
+    if (state == AppLifecycleState.resumed && !_isSetupComplete()) {
+      _showSetupDialogs();
+    }
+  }
+
+  bool _isSetupComplete() {
+    // Check if we've completed all setup steps (step 4+ means we're done)
+    return _currentStep >= 4;
   }
 
   void _showSetupDialogs() {

@@ -60,6 +60,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   }
 
   Future<void> _requestPermissions() async {
+    if (!mounted) return;
+    
     // 1. Request Location Permissions first
     await _requestLocationPermissions();
     if (!mounted) return;
@@ -75,6 +77,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     if (_askedLocationPermission) return; // Already asked in this session
 
     final locationProvider = Provider.of<LocationProvider>(context, listen: false);
+    if (!mounted) return;
+    if (!mounted) return;
     
     await locationProvider.checkPermission();
     if (!mounted) return;
@@ -85,8 +89,10 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       if (locationProvider.isPermissionGranted) {
         // If granted after request, determine position
         locationProvider.determinePosition();
+        if (!mounted) return;
       } else {
         // Still not granted, show a message or guide to settings
+        if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: const Text('Location permission is required for radius-based alerts and list filtering.'),
@@ -106,6 +112,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     if (_askedNotificationPermission) return; // Already asked in this session
 
     final settingsProvider = Provider.of<SettingsProvider>(context, listen: false);
+    if (!mounted) return;
 
     // Get current OS notification permission status
     final AuthorizationStatus currentStatus = await BackgroundService.getNotificationStatus();

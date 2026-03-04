@@ -6,8 +6,11 @@ import 'package:vibration/vibration.dart';
 import 'package:intl/intl.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:provider/provider.dart';
 
 import '../models/earthquake.dart';
+import '../models/user_preferences.dart';
+import '../providers/settings_provider.dart';
 import '../services/waveform_service.dart';
 
 class SeismographScreen extends StatefulWidget {
@@ -22,18 +25,40 @@ class SeismographScreen extends StatefulWidget {
 class _SeismographScreenState extends State<SeismographScreen> with SingleTickerProviderStateMixin {
   // Helper method to trigger haptic feedback safely using Vibration class
   Future<void> _triggerHaptic(String type) async {
+    // Get vibration settings from provider BEFORE any async operations
+    // ignore: use_build_context_synchronously
+    final settings = context.read<SettingsProvider>();
+    
     try {
       // Check if device has vibration capability
       final hasVibrator = await Vibration.hasVibrator();
+      if (!mounted) return;
       if (hasVibrator != true) return;
 
-      switch (type) {
-        case 'light':
-          await Vibration.vibrate(duration: 10);
-        case 'medium':
-          await Vibration.vibrate(duration: 25);
-        case 'heavy':
-          await Vibration.vibrate(duration: 50);
+      final successSettings = settings.successVibration;
+      final errorSettings = settings.errorVibration;
+
+      if (type == 'success' || type == 'light' || type == 'medium') {
+        // Success case - use user's success vibration settings
+        final intensity = type == 'light' ? VibrationIntensity.light : VibrationIntensity.medium;
+        final duration = successSettings.getDurationForIntensity(intensity);
+        await Vibration.vibrate(duration: duration);
+      } else if (type == 'error' || type == 'heavy') {
+        // Error case - use user's error vibration settings
+        final duration = errorSettings.getDurationForIntensity(VibrationIntensity.heavy);
+        if (errorSettings.pattern > 1) {
+          // Pattern format: [pause, vibrate, pause, vibrate, ...] - must start with pause
+          final pattern = <int>[0]; // Start with 0ms pause (required format)
+          for (int i = 0; i < errorSettings.pattern; i++) {
+            pattern.add(duration);
+            if (i < errorSettings.pattern - 1) {
+              pattern.add(100); // Pause between pulses
+            }
+          }
+          await Vibration.vibrate(pattern: pattern);
+        } else {
+          await Vibration.vibrate(duration: duration);
+        }
       }
     } catch (_) {
       // Ignore haptic feedback errors (e.g., on desktop/simulator)
@@ -125,6 +150,12 @@ class _SeismographScreenState extends State<SeismographScreen> with SingleTicker
           _isAudioLoading = state.processingState == ProcessingState.loading ||
               state.processingState == ProcessingState.buffering;
         });
+        
+        // Auto-reset to beginning when playback completes
+        if (state.processingState == ProcessingState.completed) {
+          _audioPlayer.seek(Duration.zero);
+          _audioPlayer.pause(); // Ensure it stays paused at position 0
+        }
       }
     });
   }
@@ -267,7 +298,7 @@ class _SeismographScreenState extends State<SeismographScreen> with SingleTicker
       }
 
   // Vibrate once on successful data retrieval
-      await _triggerHaptic('medium');
+      await _triggerHaptic('success');
       
       setState(() {
         _imageData = result.imageData;
@@ -302,9 +333,9 @@ class _SeismographScreenState extends State<SeismographScreen> with SingleTicker
     } catch (e) {
       if (!mounted) return;
       // Vibrate twice on failure
-      await _triggerHaptic('heavy');
+      await _triggerHaptic('error');
       await Future.delayed(const Duration(milliseconds: 150));
-      await _triggerHaptic('heavy');
+      await _triggerHaptic('error');
       
       setState(() {
         _error = e.toString();
@@ -518,9 +549,9 @@ class _SeismographScreenState extends State<SeismographScreen> with SingleTicker
                       );
                       if (mounted) {
                         // Vibrate twice on mock/simulated data
-                        await _triggerHaptic('heavy');
+                        await _triggerHaptic('error');
                         await Future.delayed(const Duration(milliseconds: 150));
-                        await _triggerHaptic('heavy');
+                        await _triggerHaptic('error');
                         
                         setState(() {
                           _imageData = result.imageData;
@@ -1002,23 +1033,21 @@ class _SeismographScreenState extends State<SeismographScreen> with SingleTicker
               return Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  // Play/Pause button
+                  // Play/Restart button - always starts from beginning
                   IconButton(
                     iconSize: 40,
-                    tooltip: playing == true ? 'Pause' : 'Play',
+                    tooltip: playing == true ? 'Restart' : 'Play from beginning',
                     onPressed: _isAudioReady
                         ? () {
-                            if (playing == true) {
-                              _audioPlayer.pause();
-                            } else {
-                              _audioPlayer.play();
-                            }
+                            // Always restart from beginning when pressing play button
+                            _audioPlayer.seek(Duration.zero);
+                            _audioPlayer.play();
                           }
                         : null,
                     icon: Icon(
                       _isAudioLoading
                           ? Icons.hourglass_empty
-                          : (playing == true ? Icons.pause_circle_filled : Icons.play_circle_filled),
+                          : (playing == true ? Icons.replay : Icons.play_circle_filled),
                       color: _isAudioReady ? Colors.deepPurple[700] : Colors.grey,
                     ),
                   ),

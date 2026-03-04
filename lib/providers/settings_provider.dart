@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:dart_geohash/dart_geohash.dart';
 import 'package:hive/hive.dart';
+import 'package:vibration/vibration.dart';
 
 import '../models/time_window.dart';
 import '../services/background_service.dart';
@@ -50,6 +51,10 @@ class SettingsProvider with ChangeNotifier {
   double get globalMinMagnitudeOverrideQuietHours => _activeNotificationProfile?.globalMinMagnitudeOverrideQuietHours ?? 0.0;
   bool get alwaysNotifyRadiusEnabled => _activeNotificationProfile?.alwaysNotifyRadiusEnabled ?? false;
   double get alwaysNotifyRadiusValue => _activeNotificationProfile?.alwaysNotifyRadiusValue ?? 0.0;
+
+  // Vibration settings getters
+  VibrationSettings get successVibration => _userPreferences.successVibration;
+  VibrationSettings get errorVibration => _userPreferences.errorVibration;
 
   SettingsProvider(this._locationProvider) {
     _loadPreferences();
@@ -124,6 +129,8 @@ class SettingsProvider with ChangeNotifier {
       'globalMinMagnitudeOverrideQuietHours': _activeNotificationProfile?.globalMinMagnitudeOverrideQuietHours ?? 0.0,
       'alwaysNotifyRadiusEnabled': _activeNotificationProfile?.alwaysNotifyRadiusEnabled ?? false,
       'alwaysNotifyRadiusValue': _activeNotificationProfile?.alwaysNotifyRadiusValue ?? 0.0,
+      'successVibration': _userPreferences.successVibration.toMap(),
+      'errorVibration': _userPreferences.errorVibration.toMap(),
       'lastLatitude': position?.latitude,
       'lastLongitude': position?.longitude,
       'notificationProfiles': _userPreferences.notificationProfiles, // Save full list
@@ -357,6 +364,59 @@ class SettingsProvider with ChangeNotifier {
     await _savePreferences();
     await _updateSubscriptions();
     notifyListeners();
+  }
+
+  // Vibration settings setters
+  Future<void> setSuccessVibration(VibrationSettings settings) async {
+    _userPreferences = _userPreferences.copyWith(successVibration: settings);
+    await _savePreferences();
+    notifyListeners();
+  }
+
+  Future<void> setErrorVibration(VibrationSettings settings) async {
+    _userPreferences = _userPreferences.copyWith(errorVibration: settings);
+    await _savePreferences();
+    notifyListeners();
+  }
+
+  // Test vibration with current settings
+  Future<void> testSuccessVibration() async {
+    try {
+      final hasVibrator = await Vibration.hasVibrator();
+      if (hasVibrator != true) return;
+      
+      final settings = _userPreferences.successVibration;
+      final duration = settings.getDurationForIntensity(VibrationIntensity.medium);
+      await Vibration.vibrate(duration: duration);
+    } catch (_) {
+      // Ignore haptic feedback errors
+    }
+  }
+
+  Future<void> testErrorVibration() async {
+    try {
+      final hasVibrator = await Vibration.hasVibrator();
+      if (hasVibrator != true) return;
+      
+      final settings = _userPreferences.errorVibration;
+      final duration = settings.getDurationForIntensity(VibrationIntensity.heavy);
+      // Use pattern for error vibration (multiple pulses)
+      // Pattern format: [pause, vibrate, pause, vibrate, ...] - must start with pause
+      if (settings.pattern > 1) {
+        final pattern = <int>[0]; // Start with 0ms pause (required format)
+        for (int i = 0; i < settings.pattern; i++) {
+          pattern.add(duration);
+          if (i < settings.pattern - 1) {
+            pattern.add(100); // Pause between pulses
+          }
+        }
+        await Vibration.vibrate(pattern: pattern);
+      } else {
+        await Vibration.vibrate(duration: duration);
+      }
+    } catch (_) {
+      // Ignore haptic feedback errors
+    }
   }
 
   Future<void> _updateSubscriptions() async {

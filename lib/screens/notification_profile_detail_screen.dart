@@ -20,7 +20,7 @@ class NotificationProfileDetailScreen extends StatefulWidget {
 }
 
 class _NotificationProfileDetailScreenState
-    extends State<NotificationProfileDetailScreen> {
+    extends State<NotificationProfileDetailScreen> with WidgetsBindingObserver {
   final _formKey = GlobalKey<FormState>();
   NotificationProfile? _profile;
   final TextEditingController _nameController = TextEditingController();
@@ -81,13 +81,10 @@ class _NotificationProfileDetailScreenState
       }
       
       // Fallback: Try to detect timezone from the device's current offset
-      // This uses Flutter's native approach which is more reliable
       final now = DateTime.now();
       final offset = now.timeZoneOffset;
       final offsetMinutes = offset.inMinutes;
       
-      // Try to find a matching timezone from our list based on offset
-      // This is a best-effort fallback
       for (final tzItem in _commonTimezones) {
         final tzValue = tzItem['value'];
         if (tzValue != null) {
@@ -95,7 +92,6 @@ class _NotificationProfileDetailScreenState
             final tzLocation = tz.getLocation(tzValue);
             final tzNow = tz.TZDateTime.now(tzLocation);
             final tzOffset = tzNow.timeZoneOffset;
-            // Compare both hours and the exact minute offset (including sign)
             final tzTotalMinutes = tzOffset.inHours * 60 + tzOffset.inMinutes;
             if (tzTotalMinutes == offsetMinutes) {
               return tzValue;
@@ -116,9 +112,29 @@ class _NotificationProfileDetailScreenState
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      _loadProfile();
+      if (mounted) {
+        _loadProfile();
+      }
     });
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _nameController.dispose();
+    _latitudeController.dispose();
+    _longitudeController.dispose();
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    // Refresh profile data when app resumes
+    if (state == AppLifecycleState.resumed && mounted) {
+      _loadProfile();
+    }
   }
 
   void _loadProfile() {
@@ -152,36 +168,24 @@ class _NotificationProfileDetailScreenState
     _longitudeController.text = _profile!.longitude.toString();
     setState(() {});
 
-    _minMagnitude = _profile?.minMagnitude.clamp(0, 9) ?? 4.5;
-    _radius = _profile?.radius.clamp(0, 5000) ?? 0.0;
-    _quietHoursEnabled = _profile?.quietHoursEnabled ?? false;
-    _quietHoursStart = List.from(_profile?.quietHoursStart ?? [22, 0]);
-    _quietHoursEnd = List.from(_profile?.quietHoursEnd ?? [6, 0]);
-    _quietHoursDays = List.from(_profile?.quietHoursDays ?? [0, 1, 2, 3, 4, 5, 6]);
-    _alwaysNotifyRadiusEnabled = _profile?.alwaysNotifyRadiusEnabled ?? false;
-    _alwaysNotifyRadiusValue =
-        _profile?.alwaysNotifyRadiusValue.clamp(0, 500) ?? 0.0;
-    _emergencyMagnitudeThreshold =
-        _profile?.emergencyMagnitudeThreshold.clamp(0, 9) ?? 5.0;
-    _emergencyRadius = _profile?.emergencyRadius.clamp(0, 1000) ?? 100.0;
-    _globalMinMagnitudeOverrideQuietHours =
-        _profile?.globalMinMagnitudeOverrideQuietHours.clamp(0, 9) ?? 0.0;
+    _minMagnitude = _profile!.minMagnitude.clamp(0, 9);
+    _radius = _profile!.radius.clamp(0, 5000);
+    _quietHoursEnabled = _profile!.quietHoursEnabled;
+    _quietHoursStart = List.from(_profile!.quietHoursStart);
+    _quietHoursEnd = List.from(_profile!.quietHoursEnd);
+    _quietHoursDays = List.from(_profile!.quietHoursDays);
+    _alwaysNotifyRadiusEnabled = _profile!.alwaysNotifyRadiusEnabled;
+    _alwaysNotifyRadiusValue = _profile!.alwaysNotifyRadiusValue.clamp(0, 500);
+    _emergencyMagnitudeThreshold = _profile!.emergencyMagnitudeThreshold.clamp(0, 9);
+    _emergencyRadius = _profile!.emergencyRadius.clamp(0, 1000);
+    _globalMinMagnitudeOverrideQuietHours = _profile!.globalMinMagnitudeOverrideQuietHours.clamp(0, 9);
     
     // Auto-detect timezone for new profiles, or use saved timezone
-    // If existing profile has no timezone, auto-detect it too
-    if (_profile?.timezone == null || _profile?.timezone?.isEmpty == true) {
+    if (_profile!.timezone == null || _profile!.timezone!.isEmpty) {
       _timezone = _detectDeviceTimezone();
     } else {
-      _timezone = _profile?.timezone;
+      _timezone = _profile!.timezone;
     }
-  }
-
-  @override
-  void dispose() {
-    _nameController.dispose();
-    _latitudeController.dispose();
-    _longitudeController.dispose();
-    super.dispose();
   }
 
   void _saveProfile() async {
@@ -432,7 +436,8 @@ class _NotificationProfileDetailScreenState
             ),
             const SizedBox(height: 8),
             DropdownButtonFormField<String>(
-              initialValue: _timezone,
+              // ignore: deprecated_member_use
+              value: _timezone,
               decoration: const InputDecoration(
                 border: OutlineInputBorder(),
                 hintText: 'Select timezone',
@@ -558,7 +563,6 @@ class _NotificationProfileDetailScreenState
   }
 
   Future<void> _pickQuietHoursRange() async {
-    // Validate current values before showing picker
     final startHour = _quietHoursStart.isNotEmpty ? _quietHoursStart[0] : 22;
     final startMinute = _quietHoursStart.length > 1 ? _quietHoursStart[1] : 0;
     final endHour = _quietHoursEnd.isNotEmpty ? _quietHoursEnd[0] : 6;

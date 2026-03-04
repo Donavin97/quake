@@ -21,7 +21,7 @@ class FeltReportsMap extends StatefulWidget {
   State<FeltReportsMap> createState() => _FeltReportsMapState();
 }
 
-class _FeltReportsMapState extends State<FeltReportsMap> with SingleTickerProviderStateMixin {
+class _FeltReportsMapState extends State<FeltReportsMap> with SingleTickerProviderStateMixin, WidgetsBindingObserver {
   final FeltReportService _feltReportService = FeltReportService();
   List<FeltReport> _feltReports = [];
   bool _isLoading = true;
@@ -38,6 +38,7 @@ class _FeltReportsMapState extends State<FeltReportsMap> with SingleTickerProvid
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _loadFeltReports();
 
     _theoreticalFeltRadius = widget.earthquake.theoreticalFeltRadius * 1000.0; // Convert km to meters
@@ -85,16 +86,25 @@ class _FeltReportsMapState extends State<FeltReportsMap> with SingleTickerProvid
         ),
       );
     }
-        _rippleController.forward(); // Start the animation
-      }
+    _rippleController.forward(); // Start the animation
+  }
     
-      @override
-      void dispose() {
-        _rippleController.dispose();
-        super.dispose();
-      }
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _rippleController.dispose();
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    // Reload felt reports when app resumes to ensure fresh data
+    if (state == AppLifecycleState.resumed) {
+      _loadFeltReports();
+    }
+  }
     
-      Future<void> _loadFeltReports() async {
+  Future<void> _loadFeltReports() async {
     try {
       final reports = await _feltReportService.getFeltReports(widget.earthquake.id);
       if (mounted) {
@@ -127,10 +137,16 @@ class _FeltReportsMapState extends State<FeltReportsMap> with SingleTickerProvid
         final imagePath = await File('${directory.path}/felt_map.png').create();
         await imagePath.writeAsBytes(image);
 
+        // Build engaging share caption
+        final magnitude = widget.earthquake.magnitude.toStringAsFixed(1);
+        final location = widget.earthquake.place.split(',').first; // Get first part of place
+        final feltCount = _feltReports.length;
+        final shareText = 'M$magnitude earthquake near $location - $feltCount felt report${feltCount != 1 ? 's' : ''}. Track earthquakes with QuakeTrack!';
+
         await SharePlus.instance.share(
           ShareParams(
             files: [XFile(imagePath.path)],
-            text: 'Check out this earthquake map!',
+            text: shareText,
           ),
         );
       } else {

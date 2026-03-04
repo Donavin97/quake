@@ -148,14 +148,22 @@ class _ListScreenState extends State<ListScreen> {
             )
           else
             Expanded(
-              child: ListView.builder(
-                itemCount: filteredEarthquakes.length,
-                itemBuilder: (context, index) {
-                  final earthquake = filteredEarthquakes[index];
-                  return EarthquakeListItem(
-                    earthquake: earthquake,
-                  );
+              child: RefreshIndicator(
+                onRefresh: () {
+                  earthquakeProvider.refresh();
+                  // Return a future that completes when refresh is done
+                  // The provider doesn't return a future, so we use a delay as a workaround
+                  return Future.delayed(const Duration(milliseconds: 500));
                 },
+                child: ListView.builder(
+                  itemCount: filteredEarthquakes.length,
+                  itemBuilder: (context, index) {
+                    final earthquake = filteredEarthquakes[index];
+                    return EarthquakeListItem(
+                      earthquake: earthquake,
+                    );
+                  },
+                ),
               ),
             ),
         ],

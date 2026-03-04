@@ -16,7 +16,7 @@ class MapScreen extends StatefulWidget {
   State<MapScreen> createState() => _MapScreenState();
 }
 
-class _MapScreenState extends State<MapScreen> {
+class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
   late final EarthquakeProvider _earthquakeProvider;
   late final LocationProvider _locationProvider;
   List<Marker> _markers = [];
@@ -33,6 +33,7 @@ class _MapScreenState extends State<MapScreen> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _earthquakeProvider = context.read<EarthquakeProvider>();
     _locationProvider = context.read<LocationProvider>();
 
@@ -51,10 +52,19 @@ class _MapScreenState extends State<MapScreen> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _earthquakeProvider.removeListener(_onEarthquakesChanged);
     _locationProvider.removeListener(_updateMapCenter);
     _debounce?.cancel(); // Cancel debounce timer
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    // Refresh markers when app resumes to ensure data is up to date
+    if (state == AppLifecycleState.resumed) {
+      _filterAndDisplayMarkers();
+    }
   }
 
   void _updateMapCenter() {

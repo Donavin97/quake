@@ -7,8 +7,33 @@ import '../models/notification_profile.dart';
 import '../providers/settings_provider.dart';
 import '../providers/location_provider.dart'; // To get current location for new profile
 
-class NotificationProfilesScreen extends StatelessWidget {
+class NotificationProfilesScreen extends StatefulWidget {
   const NotificationProfilesScreen({super.key});
+
+  @override
+  State<NotificationProfilesScreen> createState() => _NotificationProfilesScreenState();
+}
+
+class _NotificationProfilesScreenState extends State<NotificationProfilesScreen> with WidgetsBindingObserver {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    // Refresh profiles when app resumes
+    if (state == AppLifecycleState.resumed) {
+      setState(() {}); // Trigger rebuild to refresh data
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
