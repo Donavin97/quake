@@ -34,18 +34,36 @@
 - Better screen reader support throughout the app
 - Audio player buttons (play/pause, stop, seek bar) labeled with tooltips in the seismograph screen
 
+### 🛡️ Crash-Resistant Improvements
+- Added lifecycle observers to all major screens (detail, felt reports, home, map, notification profiles)
+- App now reloads ads, felt reports, and map data when returning from background
+- Added mounted checks before using context after async operations throughout the app
+- Fixed duplicate mounted checks that could cause issues
+
+### 🔘 Play Button Logic
+- Play button now always restarts from beginning when pressed (seeks to start before playing)
+- Player auto-resets to position 0 when playback completes
+- Haptic feedback now uses success/error patterns instead of light/medium/heavy
+
 ### 🐛 Bug Fixes
 - Fixed TalkBack crashes with screen reader-compatible text fields
 - Fixed notification filtering to respect personal filter settings
 - Fixed subscription updates when filter criteria change
 
+### 🛡️ Privacy Policy Crash Fix
+- Fixed app crash when navigating to privacy policy and returning to the app
+- Added lifecycle observer to settings screen to properly handle app resume from external URLs
+- Settings now reload automatically when returning from privacy policy link
+
 ### 🔧 Code Quality
 - Replaced deprecated `withOpacity()` with `withValues(alpha:)`
 - Added const constructors for better performance
-- Fixed deprecated DropdownButtonFormField `value` to use `initialValue`
+- Fixed deprecated DropdownButtonFormField `value` parameter warning
 - Removed unused imports and variables
 - Fixed IconButton semanticLabel parameter (not valid for IconButton)
 - Added timezone package back as explicit dependency
+- Fixed async context usage in seismograph screen
+- Removed redundant argument values in vibration settings
 
 ---
 
