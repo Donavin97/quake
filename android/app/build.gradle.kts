@@ -46,11 +46,12 @@ android {
 
     defaultConfig {
         applicationId = "com.liebgott.eqtrack"
-        minSdk = flutter.minSdkVersion.toInt()
+        minSdk = 24 // Increased to 24 to resolve manifest merger conflicts with shared_preferences
         targetSdk = flutter.targetSdkVersion.toInt()
         versionCode = flutterVersionCode
         versionName = flutterVersionName
         multiDexEnabled = true
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
     aaptOptions {
@@ -79,6 +80,11 @@ android {
             )
         }
     }
+
+    testOptions {
+        animationsDisabled = true
+        unitTests.isReturnDefaultValues = true
+    }
 }
 
 dependencies {
@@ -87,8 +93,25 @@ dependencies {
     implementation(platform("com.google.firebase:firebase-bom:32.7.2"))
     implementation("com.google.firebase:firebase-auth")
     implementation("com.google.android.gms:play-services-auth:21.0.0")
+    implementation("com.google.android.gms:play-services-ads-identifier:18.0.1")
     implementation("com.google.firebase:firebase-crashlytics")
+    androidTestImplementation("androidx.test:core:1.4.0")
+    androidTestImplementation("androidx.test:runner:1.4.0")
+    androidTestImplementation("androidx.test.espresso:espresso-core:3.4.0")
+    androidTestImplementation("androidx.test:rules:1.4.0")
+    androidTestImplementation("androidx.test.ext:junit:1.1.3")
 }
+
+configurations.all {
+    resolutionStrategy {
+        force("androidx.test:core:1.4.0")
+        force("androidx.test:runner:1.4.0")
+        force("androidx.test:rules:1.4.0")
+        force("androidx.test.espresso:espresso-core:3.4.0")
+        force("androidx.test.ext:junit:1.1.3")
+    }
+}
+
 
 flutter {
     source = "../.."

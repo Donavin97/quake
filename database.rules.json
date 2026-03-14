@@ -1,0 +1,10 @@
+{
+  "rules": {
+    ".read": false,
+    ".write": false,
+    "last_timestamps": {
+      ".read": false,
+      ".write": false
+    }
+  }
+}

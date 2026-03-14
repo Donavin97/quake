@@ -1,0 +1,58 @@
+appId: com.liebgott.eqtrack
+---
+- waitForAnimationToEnd
+- stopApp
+
+- launchApp
+- waitForAnimationToEnd
+
+# 1. Intro Screen
+- assertVisible: "Welcome to QuakeTrack"
+- takeScreenshot: "01_intro"
+- tapOn: "Get Started"
+
+# 2. Disclaimer
+- assertVisible: "Disclaimer"
+- takeScreenshot: "02_disclaimer"
+- tapOn: "I Accept"
+
+# 3. Auth Screen
+- assertVisible: "Email address"
+- takeScreenshot: "03_login"
+- tapOn: "Email address"
+- inputText: "donavin@email.com"
+- tapOn: "Password"
+- inputText: "Titanic26"
+- tapOn: "Login"
+- waitForAnimationToEnd
+
+# 4. Permissions Screen
+- assertVisible: "Location & Alerts"
+- takeScreenshot: "04_permissions"
+- tapOn: "Grant Permissions"
+
+# Handle Android System Dialogs
+- runFlow:
+    when:
+      visible: "Allow"
+    commands:
+      - tapOn: "Allow"
+
+- runFlow:
+    when:
+      visible: "While using the app"
+    commands:
+      - tapOn: "While using the app"
+
+# 5. Main Screens
+- assertVisible: "Map"
+- takeScreenshot: "05_map"
+
+- tapOn: "List"
+- takeScreenshot: "06_list"
+
+- tapOn: "Stats"
+- takeScreenshot: "07_stats"
+
+- tapOn: "Safety"
+- takeScreenshot: "08_safety"

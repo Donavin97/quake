@@ -67,7 +67,7 @@ To request data deletion, contact us through the app or via our website.
 
 ## Children's Privacy
 
-QuakeTrack is not intended for children under 13. We do not knowingly collect information from children under 13.
+QuakeTrack does not address anyone under the age of 13. We do not knowingly collect personally identifiable information from children under 13. In the case we discover that a child under 13 has provided us with personal information, we immediately delete this from our servers. If you are a parent or guardian and you are aware that your child has provided us with personal information, please contact us so that we will be able to do necessary actions.
 
 ## Changes to This Policy
 
@@ -76,8 +76,8 @@ We may update this privacy policy from time to time. We will notify you of any c
 ## Contact Us
 
 If you have questions about this Privacy Policy, please contact us:
-- Email: [your-email@quaketrack.com]
-- Website: https://quaketrack.com
+- Email: donavinliebgott@gmail.com
+- Website: https://quakewatch-89047796-c7f3c.web.app
 
 ## Advertisements
 

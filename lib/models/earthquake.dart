@@ -1,49 +1,24 @@
 import 'dart:math';
-import 'package:hive/hive.dart';
 
-part 'earthquake.g.dart';
-
-@HiveType(typeId: 1)
 enum EarthquakeSource {
-  @HiveField(0)
   usgs,
-  @HiveField(1)
   emsc,
-  @HiveField(2)
   sec,
 }
 
-@HiveType(typeId: 0)
-class Earthquake extends HiveObject {
-  @HiveField(0)
+class Earthquake {
   final String id;
-
-  @HiveField(1)
   final double magnitude;
-
-  @HiveField(2)
   String place;
-
-  @HiveField(3)
   final DateTime time;
-
-  @HiveField(4)
   final double latitude;
-
-  @HiveField(5)
   final double longitude;
-
-  @HiveField(6)
   final EarthquakeSource source;
-
-  @HiveField(7)
   final String provider;
-
-  @HiveField(8)
-  double? distance;
-
-  @HiveField(9)
   final double depth;
+
+  double? distance;
+  double? filterDistance; // Non-persistent field for filtering logic
 
   Earthquake({
     required this.id,

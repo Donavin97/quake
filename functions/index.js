@@ -296,6 +296,145 @@ function shouldSendNotificationForProfile(earthquake, userLocation, profile, cur
   return shouldSend;
 }
 
+// Analyze community readings to detect potential unconfirmed seismic events
+exports.communityDetectionNotifier = functions.pubsub.schedule('every 2 minutes').onRun(async () => {
+  const now = Date.now();
+  const twoMinutesAgo = new Date(now - 2 * 60 * 1000);
+  
+  try {
+    // Get all readings from the last 2 minutes
+    const readingsSnapshot = await admin.firestore()
+      .collection('community_readings')
+      .where('timestamp', '>=', admin.firestore.Timestamp.fromDate(twoMinutesAgo))
+      .get();
+      
+    if (readingsSnapshot.empty) return;
+    
+    const readings = [];
+    readingsSnapshot.forEach(doc => {
+      readings.push({ id: doc.id, ...doc.data() });
+    });
+    
+    // Cluster readings by proximity (simple algorithm: group by geohash prefix)
+    const clusters = {};
+    readings.forEach(reading => {
+      const clusterKey = reading.geohash.substring(0, 4); // ~20km x 20km area
+      if (!clusters[clusterKey]) {
+        clusters[clusterKey] = [];
+      }
+      clusters[clusterKey].push(reading);
+    });
+    
+    for (const key in clusters) {
+      const clusterReadings = clusters[key];
+      const uniqueUsers = new Set(clusterReadings.map(r => r.userId)).size;
+      
+      // Threshold for alert: at least 3 different users in the same area
+      if (uniqueUsers >= 3) {
+        // Calculate average magnitude and center point
+        let avgLat = 0;
+        let avgLon = 0;
+        let maxMag = 0;
+        
+        clusterReadings.forEach(r => {
+          avgLat += r.latitude;
+          avgLon += r.longitude;
+          if (r.magnitude > maxMag) maxMag = r.magnitude;
+        });
+        
+        avgLat /= clusterReadings.length;
+        avgLon /= clusterReadings.length;
+        
+        // Geocode for better place description
+        const betterPlace = await reverseGeocode(avgLat, avgLon);
+        
+        // Check if we already sent an alert for this area recently (last 10 mins)
+        const recentAlerts = await admin.firestore()
+          .collection('community_alerts')
+          .where('geohashPrefix', '==', key)
+          .where('timestamp', '>=', admin.firestore.Timestamp.fromDate(new Date(now - 10 * 60 * 1000)))
+          .get();
+          
+        if (recentAlerts.empty) {
+          const alertData = {
+            latitude: avgLat,
+            longitude: avgLon,
+            magnitude: maxMag,
+            userCount: uniqueUsers,
+            geohashPrefix: key,
+            timestamp: admin.firestore.Timestamp.fromDate(new Date(now)),
+            place: betterPlace || 'Community Detected Activity'
+          };
+          
+          // Save the alert
+          await admin.firestore().collection('community_alerts').add(alertData);
+          
+          // Send notifications
+          await sendCommunityAlert(alertData);
+        }
+      }
+    }
+  } catch (error) {
+    console.error('Error in communityDetectionNotifier:', error);
+  }
+});
+
+const sendCommunityAlert = async (alert) => {
+  try {
+    // Similar to sendNotification but with "Unconfirmed" labeling
+    const earthquake = {
+      ...alert,
+      id: `comm_${alert.geohashPrefix}_${alert.timestamp.toMillis()}`,
+      source: 'COMMUNITY',
+      time: alert.timestamp.toMillis(),
+      isUnconfirmed: true
+    };
+    
+    // For community alerts, we only notify people within 50km
+    const usersCollection = admin.firestore().collection('users');
+    const usersSnapshot = await usersCollection.where('preferences.notificationsEnabled', '==', true).get();
+    
+    const recipientTokens = [];
+    usersSnapshot.forEach(doc => {
+      const userData = doc.data();
+      if (!userData.fcmToken || !userData.location) return;
+      
+      const dist = getDistance(userData.location.latitude, userData.location.longitude, alert.latitude, alert.longitude);
+      if (dist <= 50) {
+        recipientTokens.push(userData.fcmToken);
+      }
+    });
+    
+    if (recipientTokens.length === 0) return;
+    
+    const message = {
+      notification: {
+        title: '⚠️ Unconfirmed Seismic Activity',
+        body: `Multiple users reported vibrations near your location. Stay alert!`,
+      },
+      data: {
+        earthquake: JSON.stringify(earthquake),
+        type: 'community_alert',
+        isTargeted: 'true'
+      },
+      android: {
+        priority: 'high',
+        notification: {
+          channelId: 'earthquake_channel',
+          color: '#FF0000',
+        }
+      },
+      tokens: recipientTokens
+    };
+    
+    // sendEachForMulticast is better for multiple tokens
+    await admin.messaging().sendEachForMulticast(message);
+    console.log(`Sent ${recipientTokens.length} community alerts.`);
+  } catch (error) {
+    console.error('Error sending community alert:', error);
+  }
+};
+
 const sendNotification = async (earthquake) => {
   try {
     const earthquakeMagnitude = earthquake.magnitude;

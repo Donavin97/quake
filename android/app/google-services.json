@@ -31,6 +31,14 @@
           }
         },
         {
+          "client_id": "349946205462-pli5rndcqe4b58ml4hvkg90k94vc8hvi.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.liebgott.eqtrack",
+            "certificate_hash": "0a82a316a203ddbc7c79481226f53d869cac42d3"
+          }
+        },
+        {
           "client_id": "349946205462-rr9tehoefnpmhdo16lo5gt4b2te9rugc.apps.googleusercontent.com",
           "client_type": 1,
           "android_info": {

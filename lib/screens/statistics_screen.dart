@@ -1,104 +1,405 @@
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:fl_chart/fl_chart.dart';
+import '../generated/app_localizations.dart';
 
 import '../models/earthquake.dart';
 import '../providers/earthquake_provider.dart';
 
-class StatisticsScreen extends StatelessWidget {
+class StatisticsScreen extends ConsumerWidget {
   const StatisticsScreen({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Earthquake Statistics'),
+  Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = AppLocalizations.of(context)!;
+    final earthquakes = ref.watch(earthquakeNotifierProvider.select((s) => s.allEarthquakes));
+    
+    if (earthquakes.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(Icons.analytics_outlined, size: 64, color: Colors.grey),
+            const SizedBox(height: 16),
+            Text(
+              l10n.noData,
+              style: const TextStyle(fontSize: 18, color: Colors.grey),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              l10n.loading,
+              style: const TextStyle(color: Colors.grey),
+            ),
+          ],
+        ),
+      );
+    }
+
+    final stats = _calculateStatistics(earthquakes);
+
+    return RefreshIndicator(
+      onRefresh: () async => ref.read(earthquakeNotifierProvider.notifier).refresh(),
+      child: ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
+          _buildSummaryGrid(context, stats),
+          const SizedBox(height: 20),
+          _buildMagnitudeDistributionCard(context, stats),
+          const SizedBox(height: 20),
+          _buildRecentActivityTrend(context, earthquakes),
+          const SizedBox(height: 20),
+          _buildDepthAnalysisCard(context, stats),
+          const SizedBox(height: 20),
+          _buildTopRegionsCard(context, earthquakes),
+          const SizedBox(height: 100), // Spacing for ad or bottom nav
+        ],
       ),
-      body: Consumer<EarthquakeProvider>(
-        builder: (context, provider, child) {
-          final earthquakes = provider.earthquakes;
-          
-          if (earthquakes.isEmpty) {
-            return const Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(Icons.analytics_outlined, size: 64, color: Colors.grey),
-                  SizedBox(height: 16),
-                  Text(
-                    'No earthquake data available',
-                    style: TextStyle(fontSize: 18, color: Colors.grey),
+    );
+  }
+
+  Widget _buildSummaryGrid(BuildContext context, _EarthquakeStats stats) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(left: 4, bottom: 12),
+          child: Text(
+            'Seismic Summary',
+            style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+          ),
+        ),
+        GridView.count(
+          crossAxisCount: 2,
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          childAspectRatio: 1.5,
+          mainAxisSpacing: 12,
+          crossAxisSpacing: 12,
+          children: [
+            _buildSummaryItem(
+              context,
+              'Total Events',
+              stats.totalCount.toString(),
+              Icons.sensors,
+              Colors.blue,
+            ),
+            _buildSummaryItem(
+              context,
+              'Avg Magnitude',
+              stats.averageMagnitude.toStringAsFixed(1),
+              Icons.waves,
+              Colors.orange,
+            ),
+            _buildSummaryItem(
+              context,
+              'Max Magnitude',
+              stats.maxMagnitude.toStringAsFixed(1),
+              Icons.warning_amber,
+              Colors.red,
+            ),
+            _buildSummaryItem(
+              context,
+              'Deepest Quake',
+              '${stats.averageDepth.toStringAsFixed(0)} km',
+              Icons.vertical_align_bottom,
+              Colors.purple,
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _buildSummaryItem(BuildContext context, String label, String value, IconData icon, Color color) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: color.withAlpha(25),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: color.withAlpha(50)),
+      ),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(icon, color: color, size: 24),
+          const SizedBox(height: 4),
+          Text(
+            value,
+            style: TextStyle(
+              fontSize: 20,
+              fontWeight: FontWeight.bold,
+              color: color,
+            ),
+          ),
+          Text(
+            label,
+            style: TextStyle(fontSize: 11, color: Theme.of(context).hintColor),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMagnitudeDistributionCard(BuildContext context, _EarthquakeStats stats) {
+    final dist = stats.magnitudeDistribution;
+    final data = [
+      _BarData(Colors.green, dist.micro.toDouble(), '< 2.0'),
+      _BarData(Colors.lightGreen, dist.minor.toDouble(), '2-4'),
+      _BarData(Colors.yellow, dist.light.toDouble(), '4-5'),
+      _BarData(Colors.orange, dist.moderate.toDouble(), '5-6'),
+      _BarData(Colors.deepOrange, dist.strong.toDouble(), '6-7'),
+      _BarData(Colors.red, dist.major.toDouble(), '7+'),
+    ];
+
+    return Card(
+      elevation: 0,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(20),
+        side: BorderSide(color: Theme.of(context).dividerColor.withAlpha(50)),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Magnitude Frequency', style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold)),
+            const SizedBox(height: 24),
+            AspectRatio(
+              aspectRatio: 1.7,
+              child: RepaintBoundary(
+                child: BarChart(
+                  BarChartData(
+                    alignment: BarChartAlignment.spaceAround,
+                    maxY: data.map((e) => e.value).reduce((a, b) => a > b ? a : b) * 1.2,
+                    barTouchData: BarTouchData(),
+                    titlesData: FlTitlesData(
+                      bottomTitles: AxisTitles(
+                        sideTitles: SideTitles(
+                          showTitles: true,
+                          getTitlesWidget: (value, meta) {
+                            if (value.toInt() >= 0 && value.toInt() < data.length) {
+                              return Padding(
+                                padding: const EdgeInsets.only(top: 8.0),
+                                child: Text(data[value.toInt()].label, style: const TextStyle(fontSize: 10)),
+                              );
+                            }
+                            return const Text('');
+                          },
+                        ),
+                      ),
+                      leftTitles: const AxisTitles(),
+                      topTitles: const AxisTitles(),
+                      rightTitles: const AxisTitles(),
+                    ),
+                    gridData: const FlGridData(show: false),
+                    borderData: FlBorderData(show: false),
+                    barGroups: List.generate(data.length, (i) {
+                      return BarChartGroupData(
+                        x: i,
+                        barRods: [
+                          BarChartRodData(
+                            toY: data[i].value,
+                            color: data[i].color,
+                            width: 18,
+                            borderRadius: const BorderRadius.vertical(top: Radius.circular(4)),
+                          ),
+                        ],
+                      );
+                    }),
                   ),
-                  SizedBox(height: 8),
-                  Text(
-                    'Statistics will appear once data is loaded',
-                    style: TextStyle(color: Colors.grey),
-                  ),
-                ],
+                ),
               ),
-            );
-          }
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 
-          final stats = _calculateStatistics(earthquakes);
+  Widget _buildRecentActivityTrend(BuildContext context, List<Earthquake> earthquakes) {
+    // Group quakes by day for the last 7 days
+    final now = DateTime.now();
+    final Map<int, int> dayCounts = {};
+    for (int i = 0; i < 7; i++) {
+      dayCounts[i] = 0;
+    }
 
-          return ListView(
-            padding: const EdgeInsets.all(16),
-            children: [
-              _buildSummaryCard(context, stats, earthquakes.length),
-              const SizedBox(height: 16),
-              _buildMagnitudeDistributionCard(context, stats),
-              const SizedBox(height: 16),
-              _buildDepthAnalysisCard(context, stats),
-              const SizedBox(height: 16),
-              _buildTimeDistributionCard(context, stats),
-              const SizedBox(height: 16),
-              _buildTopRegionsCard(context, earthquakes),
-            ],
-          );
-        },
+    for (final eq in earthquakes) {
+      final diff = now.difference(eq.time).inDays;
+      if (diff >= 0 && diff < 7) {
+        dayCounts[diff] = (dayCounts[diff] ?? 0) + 1;
+      }
+    }
+
+    final spots = List.generate(7, (i) {
+      return FlSpot(i.toDouble(), dayCounts[6 - i]!.toDouble());
+    });
+
+    return Card(
+      elevation: 0,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(20),
+        side: BorderSide(color: Theme.of(context).dividerColor.withAlpha(50)),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('7-Day Activity Trend', style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold)),
+            const SizedBox(height: 24),
+            AspectRatio(
+              aspectRatio: 2,
+              child: RepaintBoundary(
+                child: LineChart(
+                  LineChartData(
+                    gridData: const FlGridData(show: false),
+                    titlesData: const FlTitlesData(show: false),
+                    borderData: FlBorderData(show: false),
+                    lineBarsData: [
+                      LineChartBarData(
+                        spots: spots,
+                        isCurved: true,
+                        color: Theme.of(context).primaryColor,
+                        barWidth: 4,
+                        isStrokeCapRound: true,
+                        belowBarData: BarAreaData(
+                          show: true,
+                          color: Theme.of(context).primaryColor.withAlpha(30),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDepthAnalysisCard(BuildContext context, _EarthquakeStats stats) {
+    final dist = stats.depthDistribution;
+    
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(left: 4, bottom: 12),
+          child: Text(
+            'Depth Analysis',
+            style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+          ),
+        ),
+        Row(
+          children: [
+            Expanded(
+              child: _DepthStatCard(
+                label: 'Shallow',
+                subtitle: '< 70 km',
+                count: dist.shallow,
+                avgMag: dist.shallowAvgMag,
+                color: Colors.red,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: _DepthStatCard(
+                label: 'Deep',
+                subtitle: '> 70 km',
+                count: dist.deep + dist.intermediate,
+                avgMag: (dist.deepAvgMag + dist.intermediateAvgMag) / 2,
+                color: Colors.blue,
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _buildTopRegionsCard(BuildContext context, List<Earthquake> earthquakes) {
+    final Map<String, int> regionCounts = {};
+    for (final eq in earthquakes) {
+      String region = eq.place;
+      if (region.contains(',')) {
+        region = region.split(',').last.trim();
+      }
+      final words = region.split(' ');
+      if (words.length > 2) {
+        region = words.take(3).join(' ');
+      }
+      regionCounts[region] = (regionCounts[region] ?? 0) + 1;
+    }
+
+    final topRegions = regionCounts.entries.toList()
+      ..sort((a, b) => b.value.compareTo(a.value));
+    final top5 = topRegions.take(5).toList();
+
+    return Card(
+      elevation: 0,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(20),
+        side: BorderSide(color: Theme.of(context).dividerColor.withAlpha(50)),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Most Active Regions',
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 16),
+            if (top5.isEmpty)
+              const Center(child: Text('No region data available'))
+            else
+              ...top5.map((entry) => Padding(
+                padding: const EdgeInsets.symmetric(vertical: 8),
+                child: Row(
+                  children: [
+                    CircleAvatar(
+                      radius: 14,
+                      backgroundColor: Theme.of(context).primaryColor.withAlpha(30),
+                      child: Text(
+                        (top5.indexOf(entry) + 1).toString(),
+                        style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Theme.of(context).primaryColor),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        entry.key,
+                        style: const TextStyle(fontWeight: FontWeight.w500),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    Text(
+                      '${entry.value} events',
+                      style: TextStyle(fontSize: 12, color: Theme.of(context).hintColor),
+                    ),
+                  ],
+                ),
+              )),
+          ],
+        ),
       ),
     );
   }
 
   _EarthquakeStats _calculateStatistics(List<Earthquake> earthquakes) {
-    if (earthquakes.isEmpty) {
-      return _EarthquakeStats();
-    }
+    if (earthquakes.isEmpty) return _EarthquakeStats();
 
-    // Magnitude distribution
-    int microCount = 0; // < 2
-    int minorCount = 0; // 2-3.9
-    int lightCount = 0; // 4-4.9
-    int moderateCount = 0; // 5-5.9
-    int strongCount = 0; // 6-6.9
-    int majorCount = 0; // 7-7.9
-    int greatCount = 0; // >= 8
-
-    // Depth distribution
-    double shallowTotal = 0; // < 70km
-    double intermediateTotal = 0; // 70-300km
-    double deepTotal = 0; // > 300km
-    int shallowCount = 0;
-    int intermediateCount = 0;
-    int deepCount = 0;
-
-    // Time distribution
-    int lastHour = 0;
-    int lastDay = 0;
-    int lastWeek = 0;
-    int older = 0;
-
-    double totalMagnitude = 0;
-    double totalDepth = 0;
-    double maxMagnitude = double.negativeInfinity;
-    double minMagnitude = double.infinity;
-    DateTime? oldestDate;
-    DateTime? newestDate;
-
-    final now = DateTime.now();
+    int microCount = 0, minorCount = 0, lightCount = 0, moderateCount = 0, strongCount = 0, majorCount = 0, greatCount = 0;
+    double shallowTotal = 0, intermediateTotal = 0, deepTotal = 0;
+    int shallowCount = 0, intermediateCount = 0, deepCount = 0;
+    double totalMagnitude = 0, totalDepth = 0;
+    double maxMagnitude = double.negativeInfinity, minMagnitude = double.infinity;
+    DateTime? oldestDate, newestDate;
 
     for (final eq in earthquakes) {
-      // Magnitude
       totalMagnitude += eq.magnitude;
       if (eq.magnitude < 2) {
         microCount++;
@@ -116,7 +417,6 @@ class StatisticsScreen extends StatelessWidget {
         greatCount++;
       }
 
-      // Depth
       totalDepth += eq.depth;
       if (eq.depth < 70) {
         shallowCount++;
@@ -129,22 +429,12 @@ class StatisticsScreen extends StatelessWidget {
         deepTotal += eq.magnitude;
       }
 
-      // Time
-      final diff = now.difference(eq.time);
-      if (diff.inHours < 1) {
-        lastHour++;
-      } else if (diff.inHours >= 1 && diff.inDays < 1) {
-        lastDay++;
-      } else if (diff.inDays >= 1 && diff.inDays < 7) {
-        lastWeek++;
-      } else {
-        older++;
+      if (eq.magnitude > maxMagnitude) {
+        maxMagnitude = eq.magnitude;
       }
-
-      // Min/Max
-      if (eq.magnitude > maxMagnitude) maxMagnitude = eq.magnitude;
-      if (eq.magnitude < minMagnitude) minMagnitude = eq.magnitude;
-      
+      if (eq.magnitude < minMagnitude) {
+        minMagnitude = eq.magnitude;
+      }
       if (oldestDate == null || eq.time.isBefore(oldestDate)) {
         oldestDate = eq.time;
       }
@@ -156,429 +446,30 @@ class StatisticsScreen extends StatelessWidget {
     return _EarthquakeStats(
       totalCount: earthquakes.length,
       averageMagnitude: totalMagnitude / earthquakes.length,
-      maxMagnitude: maxMagnitude == double.negativeInfinity ? 0 : maxMagnitude,
-      minMagnitude: minMagnitude == double.infinity ? 0 : minMagnitude,
+      maxMagnitude: maxMagnitude,
+      minMagnitude: minMagnitude,
       averageDepth: totalDepth / earthquakes.length,
       oldestDate: oldestDate,
       newestDate: newestDate,
       magnitudeDistribution: _MagnitudeDistribution(
-        micro: microCount,
-        minor: minorCount,
-        light: lightCount,
-        moderate: moderateCount,
-        strong: strongCount,
-        major: majorCount,
-        great: greatCount,
+        micro: microCount, minor: minorCount, light: lightCount, 
+        moderate: moderateCount, strong: strongCount, major: majorCount, great: greatCount,
       ),
       depthDistribution: _DepthDistribution(
-        shallow: shallowCount,
-        intermediate: intermediateCount,
-        deep: deepCount,
+        shallow: shallowCount, intermediate: intermediateCount, deep: deepCount,
         shallowAvgMag: shallowCount > 0 ? shallowTotal / shallowCount : 0,
         intermediateAvgMag: intermediateCount > 0 ? intermediateTotal / intermediateCount : 0,
         deepAvgMag: deepCount > 0 ? deepTotal / deepCount : 0,
       ),
-      timeDistribution: _TimeDistribution(
-        lastHour: lastHour,
-        lastDay: lastDay,
-        lastWeek: lastWeek,
-        older: older,
-      ),
     );
   }
+}
 
-  Widget _buildSummaryCard(BuildContext context, _EarthquakeStats stats, int total) {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Summary',
-              style: Theme.of(context).textTheme.titleLarge,
-            ),
-            const SizedBox(height: 16),
-            Row(
-              children: [
-                Expanded(
-                  child: _StatItem(
-                    icon: Icons.public,
-                    label: 'Total Events',
-                    value: stats.totalCount.toString(),
-                    color: Theme.of(context).colorScheme.primary,
-                  ),
-                ),
-                Expanded(
-                  child: _StatItem(
-                    icon: Icons.speed,
-                    label: 'Avg Magnitude',
-                    value: stats.averageMagnitude.toStringAsFixed(1),
-                    color: Colors.orange,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                Expanded(
-                  child: _StatItem(
-                    icon: Icons.trending_up,
-                    label: 'Max Magnitude',
-                    value: stats.maxMagnitude.toStringAsFixed(1),
-                    color: Colors.red,
-                  ),
-                ),
-                Expanded(
-                  child: _StatItem(
-                    icon: Icons.trending_down,
-                    label: 'Min Magnitude',
-                    value: stats.minMagnitude.toStringAsFixed(1),
-                    color: Colors.green,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                Expanded(
-                  child: _StatItem(
-                    icon: Icons.vertical_align_bottom,
-                    label: 'Avg Depth',
-                    value: '${stats.averageDepth.toStringAsFixed(0)} km',
-                    color: Colors.blue,
-                  ),
-                ),
-                Expanded(
-                  child: _StatItem(
-                    icon: Icons.calendar_today,
-                    label: 'Date Range',
-                    value: (stats.oldestDate != null && stats.newestDate != null)
-                        ? '${stats.newestDate!.difference(stats.oldestDate!).inDays}d'
-                        : 'N/A',
-                    color: Colors.purple,
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildMagnitudeDistributionCard(BuildContext context, _EarthquakeStats stats) {
-    final dist = stats.magnitudeDistribution;
-    final total = dist.micro + dist.minor + dist.light + dist.moderate + dist.strong + dist.major + dist.great;
-    
-    if (total == 0) {
-      return Card(
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text('Magnitude Distribution', style: Theme.of(context).textTheme.titleLarge),
-              const SizedBox(height: 16),
-              const Center(child: Text('No data available')),
-            ],
-          ),
-        ),
-      );
-    }
-
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Magnitude Distribution',
-              style: Theme.of(context).textTheme.titleLarge,
-            ),
-            const SizedBox(height: 16),
-            SizedBox(
-              height: 200,
-              child: Row(
-                children: [
-                  Expanded(
-                    child: PieChart(
-                      PieChartData(
-                        sectionsSpace: 2,
-                        centerSpaceRadius: 40,
-                        sections: [
-                          if (dist.micro > 0) PieChartSectionData(
-                            value: dist.micro.toDouble(),
-                            title: '${(dist.micro / total * 100).toStringAsFixed(0)}%',
-                            color: Colors.green,
-                            radius: 50,
-                            titleStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.white),
-                          ),
-                          if (dist.minor > 0) PieChartSectionData(
-                            value: dist.minor.toDouble(),
-                            title: '${(dist.minor / total * 100).toStringAsFixed(0)}%',
-                            color: Colors.lightGreen,
-                            radius: 50,
-                            titleStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.white),
-                          ),
-                          if (dist.light > 0) PieChartSectionData(
-                            value: dist.light.toDouble(),
-                            title: '${(dist.light / total * 100).toStringAsFixed(0)}%',
-                            color: Colors.yellow,
-                            radius: 50,
-                            titleStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.black),
-                          ),
-                          if (dist.moderate > 0) PieChartSectionData(
-                            value: dist.moderate.toDouble(),
-                            title: '${(dist.moderate / total * 100).toStringAsFixed(0)}%',
-                            color: Colors.orange,
-                            radius: 50,
-                            titleStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.white),
-                          ),
-                          if (dist.strong > 0) PieChartSectionData(
-                            value: dist.strong.toDouble(),
-                            title: '${(dist.strong / total * 100).toStringAsFixed(0)}%',
-                            color: Colors.deepOrange,
-                            radius: 50,
-                            titleStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.white),
-                          ),
-                          if (dist.major > 0) PieChartSectionData(
-                            value: dist.major.toDouble(),
-                            title: '${(dist.major / total * 100).toStringAsFixed(0)}%',
-                            color: Colors.red,
-                            radius: 50,
-                            titleStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.white),
-                          ),
-                          if (dist.great > 0) PieChartSectionData(
-                            value: dist.great.toDouble(),
-                            title: '${(dist.great / total * 100).toStringAsFixed(0)}%',
-                            color: Colors.purple,
-                            radius: 50,
-                            titleStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.white),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 16),
-                  Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      _buildLegendItem('Micro (<2)', Colors.green, dist.micro),
-                      _buildLegendItem('Minor (2-3.9)', Colors.lightGreen, dist.minor),
-                      _buildLegendItem('Light (4-4.9)', Colors.yellow, dist.light),
-                      _buildLegendItem('Moderate (5-5.9)', Colors.orange, dist.moderate),
-                      _buildLegendItem('Strong (6-6.9)', Colors.deepOrange, dist.strong),
-                      _buildLegendItem('Major (7-7.9)', Colors.red, dist.major),
-                      _buildLegendItem('Great (8+)', Colors.purple, dist.great),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildLegendItem(String label, Color color, int count) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 2),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(
-            width: 12,
-            height: 12,
-            decoration: BoxDecoration(color: color, shape: BoxShape.circle),
-          ),
-          const SizedBox(width: 6),
-          Text('$label: $count', style: const TextStyle(fontSize: 10)),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildDepthAnalysisCard(BuildContext context, _EarthquakeStats stats) {
-    final dist = stats.depthDistribution;
-    
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Depth Analysis',
-              style: Theme.of(context).textTheme.titleLarge,
-            ),
-            const SizedBox(height: 16),
-            Row(
-              children: [
-                Expanded(
-                  child: _DepthStatCard(
-                    label: 'Shallow',
-                    subtitle: '< 70 km',
-                    count: dist.shallow,
-                    avgMag: dist.shallowAvgMag,
-                    color: Colors.red,
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: _DepthStatCard(
-                    label: 'Intermediate',
-                    subtitle: '70-300 km',
-                    count: dist.intermediate,
-                    avgMag: dist.intermediateAvgMag,
-                    color: Colors.orange,
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: _DepthStatCard(
-                    label: 'Deep',
-                    subtitle: '> 300 km',
-                    count: dist.deep,
-                    avgMag: dist.deepAvgMag,
-                    color: Colors.blue,
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildTimeDistributionCard(BuildContext context, _EarthquakeStats stats) {
-    final dist = stats.timeDistribution;
-    
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Recent Activity',
-              style: Theme.of(context).textTheme.titleLarge,
-            ),
-            const SizedBox(height: 16),
-            Row(
-              children: [
-                Expanded(
-                  child: _TimeStatItem(
-                    label: 'Last Hour',
-                    count: dist.lastHour,
-                    color: Colors.red,
-                  ),
-                ),
-                Expanded(
-                  child: _TimeStatItem(
-                    label: 'Last 24h',
-                    count: dist.lastDay,
-                    color: Colors.orange,
-                  ),
-                ),
-                Expanded(
-                  child: _TimeStatItem(
-                    label: 'Last Week',
-                    count: dist.lastWeek,
-                    color: Colors.yellow[700]!,
-                  ),
-                ),
-                Expanded(
-                  child: _TimeStatItem(
-                    label: 'Older',
-                    count: dist.older,
-                    color: Colors.grey,
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildTopRegionsCard(BuildContext context, List<Earthquake> earthquakes) {
-    // Count earthquakes by region (extract region from place)
-    final Map<String, int> regionCounts = {};
-    for (final eq in earthquakes) {
-      // Extract main region name - take first part before comma or just use full place
-      String region = eq.place;
-      if (region.contains(',')) {
-        region = region.split(',').last.trim();
-      }
-      // Further simplify - take first 2-3 words for grouping
-      final words = region.split(' ');
-      if (words.length > 2) {
-        region = words.take(3).join(' ');
-      }
-      regionCounts[region] = (regionCounts[region] ?? 0) + 1;
-    }
-
-    // Sort by count and take top 5
-    final topRegions = regionCounts.entries.toList()
-      ..sort((a, b) => b.value.compareTo(a.value));
-    final top5 = topRegions.take(5).toList();
-
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Most Active Regions',
-              style: Theme.of(context).textTheme.titleLarge,
-            ),
-            const SizedBox(height: 16),
-            if (top5.isEmpty)
-              const Text('No region data available')
-            else
-              ...topRegions.take(5).map((entry) => Padding(
-                padding: const EdgeInsets.symmetric(vertical: 4),
-                child: Row(
-                  children: [
-                    const Icon(Icons.location_on, size: 16, color: Colors.grey),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        entry.key,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                      decoration: BoxDecoration(
-                        color: Theme.of(context).colorScheme.primaryContainer,
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Text(
-                        entry.value.toString(),
-                        style: TextStyle(
-                          fontWeight: FontWeight.bold,
-                          color: Theme.of(context).colorScheme.onPrimaryContainer,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              )),
-          ],
-        ),
-      ),
-    );
-  }
+class _BarData {
+  final Color color;
+  final double value;
+  final String label;
+  _BarData(this.color, this.value, this.label);
 }
 
 class _EarthquakeStats {
@@ -591,7 +482,6 @@ class _EarthquakeStats {
   final DateTime? newestDate;
   final _MagnitudeDistribution magnitudeDistribution;
   final _DepthDistribution depthDistribution;
-  final _TimeDistribution timeDistribution;
 
   _EarthquakeStats({
     this.totalCount = 0,
@@ -603,199 +493,47 @@ class _EarthquakeStats {
     this.newestDate,
     _MagnitudeDistribution? magnitudeDistribution,
     _DepthDistribution? depthDistribution,
-    _TimeDistribution? timeDistribution,
   })  : magnitudeDistribution = magnitudeDistribution ?? _MagnitudeDistribution(),
-        depthDistribution = depthDistribution ?? _DepthDistribution(),
-        timeDistribution = timeDistribution ?? _TimeDistribution();
+        depthDistribution = depthDistribution ?? _DepthDistribution();
 }
 
 class _MagnitudeDistribution {
-  final int micro;
-  final int minor;
-  final int light;
-  final int moderate;
-  final int strong;
-  final int major;
-  final int great;
-
-  _MagnitudeDistribution({
-    this.micro = 0,
-    this.minor = 0,
-    this.light = 0,
-    this.moderate = 0,
-    this.strong = 0,
-    this.major = 0,
-    this.great = 0,
-  });
+  final int micro, minor, light, moderate, strong, major, great;
+  _MagnitudeDistribution({this.micro = 0, this.minor = 0, this.light = 0, this.moderate = 0, this.strong = 0, this.major = 0, this.great = 0});
 }
 
 class _DepthDistribution {
-  final int shallow;
-  final int intermediate;
-  final int deep;
-  final double shallowAvgMag;
-  final double intermediateAvgMag;
-  final double deepAvgMag;
-
-  _DepthDistribution({
-    this.shallow = 0,
-    this.intermediate = 0,
-    this.deep = 0,
-    this.shallowAvgMag = 0,
-    this.intermediateAvgMag = 0,
-    this.deepAvgMag = 0,
-  });
-}
-
-class _TimeDistribution {
-  final int lastHour;
-  final int lastDay;
-  final int lastWeek;
-  final int older;
-
-  _TimeDistribution({
-    this.lastHour = 0,
-    this.lastDay = 0,
-    this.lastWeek = 0,
-    this.older = 0,
-  });
-}
-
-class _StatItem extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final String value;
-  final Color color;
-
-  const _StatItem({
-    required this.icon,
-    required this.label,
-    required this.value,
-    required this.color,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      children: [
-        Icon(icon, color: color, size: 28),
-        const SizedBox(height: 4),
-        Text(
-          value,
-          style: TextStyle(
-            fontSize: 20,
-            fontWeight: FontWeight.bold,
-            color: color,
-          ),
-        ),
-        Text(
-          label,
-          style: TextStyle(
-            fontSize: 12,
-            color: Colors.grey[600],
-          ),
-        ),
-      ],
-    );
-  }
+  final int shallow, intermediate, deep;
+  final double shallowAvgMag, intermediateAvgMag, deepAvgMag;
+  _DepthDistribution({this.shallow = 0, this.intermediate = 0, this.deep = 0, this.shallowAvgMag = 0, this.intermediateAvgMag = 0, this.deepAvgMag = 0});
 }
 
 class _DepthStatCard extends StatelessWidget {
-  final String label;
-  final String subtitle;
+  final String label, subtitle;
   final int count;
   final double avgMag;
   final Color color;
 
-  const _DepthStatCard({
-    required this.label,
-    required this.subtitle,
-    required this.count,
-    required this.avgMag,
-    required this.color,
-  });
+  const _DepthStatCard({required this.label, required this.subtitle, required this.count, required this.avgMag, required this.color});
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(12),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.1),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: color.withValues(alpha: 0.3)),
+        color: color.withAlpha(20),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: color.withAlpha(40)),
       ),
       child: Column(
         children: [
-          Text(
-            label,
-            style: TextStyle(
-              fontWeight: FontWeight.bold,
-              color: color,
-            ),
-          ),
-          Text(
-            subtitle,
-            style: TextStyle(fontSize: 10, color: Colors.grey[600]),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            count.toString(),
-            style: TextStyle(
-              fontSize: 24,
-              fontWeight: FontWeight.bold,
-              color: color,
-            ),
-          ),
-          Text(
-            'Avg: ${avgMag.toStringAsFixed(1)}',
-            style: TextStyle(fontSize: 11, color: Colors.grey[600]),
-          ),
+          Text(label, style: TextStyle(fontWeight: FontWeight.bold, color: color)),
+          Text(subtitle, style: TextStyle(fontSize: 10, color: Theme.of(context).hintColor)),
+          const SizedBox(height: 12),
+          Text(count.toString(), style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: color)),
+          Text('Avg M${avgMag.toStringAsFixed(1)}', style: TextStyle(fontSize: 11, color: Theme.of(context).hintColor)),
         ],
       ),
-    );
-  }
-}
-
-class _TimeStatItem extends StatelessWidget {
-  final String label;
-  final int count;
-  final Color color;
-
-  const _TimeStatItem({
-    required this.label,
-    required this.count,
-    required this.color,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      children: [
-        Container(
-          width: 48,
-          height: 48,
-          decoration: BoxDecoration(
-            color: color.withValues(alpha: 0.2),
-            shape: BoxShape.circle,
-          ),
-          child: Center(
-            child: Text(
-              count.toString(),
-              style: TextStyle(
-                fontWeight: FontWeight.bold,
-                fontSize: 16,
-                color: color,
-              ),
-            ),
-          ),
-        ),
-        const SizedBox(height: 4),
-        Text(
-          label,
-          style: TextStyle(fontSize: 11, color: Colors.grey[600]),
-          textAlign: TextAlign.center,
-        ),
-      ],
     );
   }
 }

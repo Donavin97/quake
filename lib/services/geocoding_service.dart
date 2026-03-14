@@ -1,35 +1,32 @@
 import 'dart:math';
 import 'package:dio/dio.dart';
-import 'package:hive_flutter/hive_flutter.dart';
 
-const String _geocodingCacheBox = 'geocodingCache';
+import '../config/app_config.dart';
 
 class GeocodingService {
   final Dio _dio;
-  late final Box<String> _cacheBox;
+  final Map<String, String> _cache = {};
 
-  GeocodingService({Dio? dio, Box<String>? cacheBox})
-      : _dio = dio ?? Dio() {
-    _cacheBox = cacheBox ?? Hive.box(_geocodingCacheBox);
-  }
+  GeocodingService({Dio? dio})
+      : _dio = dio ?? Dio();
 
   Future<String?> reverseGeocode(double eqLat, double eqLon) async {
     final cacheKey = '${eqLat.toStringAsFixed(5)}_${eqLon.toStringAsFixed(5)}';
 
     // Try to retrieve from cache first
-    final cachedResult = _cacheBox.get(cacheKey);
+    final cachedResult = _cache[cacheKey];
     if (cachedResult != null) {
       return cachedResult;
     }
 
     try {
       final response = await _dio.get(
-        'https://nominatim.openstreetmap.org/reverse',
+        AppConfig.nominatimUrl,
         queryParameters: {
           'format': 'jsonv2',
           'lat': eqLat.toString(),
           'lon': eqLon.toString(),
-          'addressdetails': 1,
+          'addressdetails': '1',
           'accept-language': 'en', // Request results in English
         },
         options: Options(
@@ -94,18 +91,53 @@ class GeocodingService {
               final bearing = _calculateBearing(featLat, featLon, eqLat, eqLon);
               final direction = _bearingToDirection(bearing);
               result = '${distance.toStringAsFixed(0)} km $direction of $locationName';
+            } else {
+              result = locationName;
             }
+          } else {
+            result = locationName; // Use the constructed locationName
           }
-
-          result ??= locationName; // Use the constructed locationName
         }
         
         result ??= data['display_name'];
 
         if (result != null) {
-          _cacheBox.put(cacheKey, result);
+          _cache[cacheKey] = result;
         }
         return result;
+      }
+    } catch (e) {
+      // ignore
+    }
+    return null;
+  }
+
+  Future<String?> getCountryCode(double lat, double lon) async {
+    try {
+      final response = await _dio.get(
+        AppConfig.nominatimUrl,
+        queryParameters: {
+          'format': 'jsonv2',
+          'lat': lat.toString(),
+          'lon': lon.toString(),
+          'addressdetails': '1',
+        },
+        options: Options(
+          headers: {
+            'User-Agent': 'QuakeTrackApp/1.0',
+          },
+        ),
+      );
+
+      if (response.statusCode == 200) {
+        // cast to Map<String, dynamic> if needed, but dynamic usually works
+        final data = response.data;
+        if (data is Map && data.containsKey('address')) {
+           final address = data['address'];
+           if (address is Map && address.containsKey('country_code')) {
+             return address['country_code']?.toString().toUpperCase();
+           }
+        }
       }
     } catch (e) {
       // ignore

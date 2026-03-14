@@ -8,59 +8,83 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:go_router/go_router.dart';
-import 'package:hive_flutter/hive_flutter.dart';
-import 'package:url_launcher/url_launcher.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:intl/intl.dart';
+import 'package:share_plus/share_plus.dart';
 
 import '../models/earthquake.dart';
-import '../models/notification_profile.dart'; // Import
 import 'navigation_service.dart';
 
+import '../models/user_preferences.dart';
+import '../models/notification_profile.dart';
 import '../firebase_options.dart';
 
 // Must be a top-level function (not a class method)
 @pragma('vm:entry-point')
 Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
-  await Firebase.initializeApp(
-    options: DefaultFirebaseOptions.currentPlatform,
-  );
-  
-  if (!Hive.isAdapterRegistered(0)) {
-    await Hive.initFlutter();
-    Hive.registerAdapter(EarthquakeAdapter());
-    Hive.registerAdapter(EarthquakeSourceAdapter());
-  }
-  if (!Hive.isAdapterRegistered(3)) {
-    Hive.registerAdapter(NotificationProfileAdapter());
-  }
-  
-  await Hive.openBox<Earthquake>('earthquakes');
-  final Box settingsBox = await Hive.openBox('app_settings');
+  try {
+    // Ensure Firebase is initialized.
+    await Firebase.initializeApp(
+      options: DefaultFirebaseOptions.currentPlatform,
+    );
+    
+    final prefs = await SharedPreferences.getInstance();
 
-  // Initialize local notifications for the background isolate
-  const AndroidInitializationSettings initializationSettingsAndroid =
-      AndroidInitializationSettings('@mipmap/ic_launcher');
-  const InitializationSettings initializationSettings = InitializationSettings(
-    android: initializationSettingsAndroid,
-  );
-  
-  await BackgroundService.flutterLocalNotificationsPlugin.initialize(
-    settings: initializationSettings,
-  );
-
-  // Ensure notification channel is created in the background isolate
-  await BackgroundService.setupNotificationChannel();
-
-  final earthquakeData = message.data['earthquake'] as String?;
-  
-  if (earthquakeData != null) {
-    try {
-      final earthquake = Earthquake.fromJson(jsonDecode(earthquakeData));
-      if (await BackgroundService.shouldShowNotification(earthquake, settingsBox, data: message.data)) {
-        await BackgroundService.showNotification(message);
-      }
-    } catch (e) {
-      debugPrint('Error in background handler: $e');
+    // CRITICAL: Early exit if notifications are disabled in settings
+    final bool notificationsEnabled = prefs.getBool('notificationsEnabled') ?? true;
+    if (!notificationsEnabled) {
+      debugPrint('Background handler: Notifications are disabled in app settings. Skipping.');
+      return;
     }
+
+    // Initialize local notifications
+    const AndroidInitializationSettings initializationSettingsAndroid =
+        AndroidInitializationSettings('@mipmap/ic_launcher');
+    
+    final DarwinInitializationSettings initializationSettingsDarwin =
+        DarwinInitializationSettings(
+      notificationCategories: [
+        DarwinNotificationCategory(
+          'earthquake_category',
+          actions: [
+            DarwinNotificationAction.plain('map_action', 'Map', options: {DarwinNotificationActionOption.foreground}),
+            DarwinNotificationAction.plain('share_action', 'Share', options: {DarwinNotificationActionOption.foreground}),
+            DarwinNotificationAction.plain('felt_action', 'I Felt It', options: {DarwinNotificationActionOption.foreground}),
+          ],
+        ),
+      ],
+    );
+
+    final InitializationSettings initializationSettings = InitializationSettings(
+      android: initializationSettingsAndroid,
+      iOS: initializationSettingsDarwin,
+    );
+    
+    await BackgroundService.flutterLocalNotificationsPlugin.initialize(
+      settings: initializationSettings,
+    );
+
+    await BackgroundService.setupNotificationChannel();
+
+    final earthquakeData = message.data['earthquake'] as String?;
+    
+    if (earthquakeData != null) {
+      try {
+        final Map<String, dynamic> decoded = jsonDecode(earthquakeData);
+        final earthquake = Earthquake.fromJson(decoded);
+        
+        final shouldShow = await BackgroundService.shouldShowNotification(earthquake, prefs, data: message.data);
+
+        if (shouldShow) {
+          await BackgroundService.showNotification(message, prefs);
+        }
+      } catch (e) {
+        debugPrint('Error parsing earthquake in background: $e');
+      }
+    }
+  } catch (e, stack) {
+    debugPrint('CRITICAL: Background message handler crashed: $e');
+    debugPrint(stack.toString());
   }
 }
 
@@ -78,7 +102,6 @@ class BackgroundService {
   static Stream<String> get onTokenRefresh => _firebaseMessaging.onTokenRefresh;
 
   static Future<void> setupNotificationChannel() async {
-    // Normal earthquake channel (for magnitude < 6.0)
     const AndroidNotificationChannel channel = AndroidNotificationChannel(
       'earthquake_channel',
       'Earthquake Alerts',
@@ -87,7 +110,6 @@ class BackgroundService {
       sound: RawResourceAndroidNotificationSound('earthquake'),
     );
 
-    // Large earthquake channel (for magnitude >= 6.0)
     const AndroidNotificationChannel largeChannel = AndroidNotificationChannel(
       'earthquake_large_channel',
       'Large Earthquake Alerts',
@@ -104,13 +126,32 @@ class BackgroundService {
   }
 
   static Future<void> initialize() async {
-    // Setup local notifications
     await setupNotificationChannel();
 
     const AndroidInitializationSettings initializationSettingsAndroid =
         AndroidInitializationSettings('@mipmap/ic_launcher');
-    const InitializationSettings initializationSettings = InitializationSettings(
+    
+    final List<DarwinNotificationAction> iosActions = [
+      DarwinNotificationAction.plain('map_action', 'Map', options: {DarwinNotificationActionOption.foreground}),
+      DarwinNotificationAction.plain('share_action', 'Share', options: {DarwinNotificationActionOption.foreground}),
+      DarwinNotificationAction.plain('felt_action', 'I Felt It', options: {DarwinNotificationActionOption.foreground}),
+    ];
+
+    final List<DarwinNotificationCategory> iosCategories = [
+      DarwinNotificationCategory(
+        'earthquake_category',
+        actions: iosActions,
+      ),
+    ];
+
+    final DarwinInitializationSettings initializationSettingsDarwin =
+        DarwinInitializationSettings(
+      notificationCategories: iosCategories,
+    );
+
+    final InitializationSettings initializationSettings = InitializationSettings(
       android: initializationSettingsAndroid,
+      iOS: initializationSettingsDarwin,
     );
     await flutterLocalNotificationsPlugin.initialize(
       settings: initializationSettings,
@@ -118,18 +159,36 @@ class BackgroundService {
         if (details.payload == null) return;
 
         final payloadData = jsonDecode(details.payload!);
+        final earthquake = Earthquake.fromJson(payloadData['earthquake']);
+        final context = NavigationService.navigatorKey.currentContext;
 
         if (details.actionId == 'map_action') {
-          final mapUrl = payloadData['mapUrl'] as String?;
-          if (mapUrl != null) {
-            final uri = Uri.parse(mapUrl);
-            if (await canLaunchUrl(uri)) {
-              await launchUrl(uri);
-            }
+          if (context != null) {
+            GoRouter.of(context).go('/details/${Uri.encodeComponent(earthquake.id)}');
+          }
+        } else if (details.actionId == 'share_action') {
+          final String timeStr = DateFormat.yMMMd().add_jms().format(earthquake.time.toLocal());
+          final String mapUrl = 'https://www.google.com/maps/search/?api=1&query=${earthquake.latitude},${earthquake.longitude}';
+          
+          final String shareText = 'Earthquake Alert!\n\n'
+              'Magnitude: ${earthquake.magnitude.toStringAsFixed(earthquake.source == EarthquakeSource.sec ? 2 : 1)}\n'
+              'Location: ${earthquake.place}\n'
+              'Time: $timeStr\n'
+              'Source: ${earthquake.source.name.toUpperCase()}\n\n'
+              'Epicenter: $mapUrl\n\n'
+              'Shared via QuakeTrack';
+
+          await SharePlus.instance.share(
+            ShareParams(
+              text: shareText,
+              subject: 'Earthquake in ${earthquake.place}',
+            ),
+          );
+        } else if (details.actionId == 'felt_action') {
+          if (context != null) {
+            GoRouter.of(context).go('/details/${Uri.encodeComponent(earthquake.id)}');
           }
         } else {
-          final earthquake = Earthquake.fromJson(payloadData['earthquake']);
-          final context = NavigationService.navigatorKey.currentContext;
           if (context != null) {
             GoRouter.of(context).go('/details/${Uri.encodeComponent(earthquake.id)}');
           }
@@ -139,35 +198,41 @@ class BackgroundService {
 
     // Handle foreground messages
     FirebaseMessaging.onMessage.listen((RemoteMessage message) async {
-      final settingsBox = await Hive.openBox('app_settings');
+      final prefs = await SharedPreferences.getInstance();
       final earthquakeData = message.data['earthquake'] as String?;
       if (earthquakeData != null) {
         final earthquake = Earthquake.fromJson(jsonDecode(earthquakeData));
-        if (await shouldShowNotification(earthquake, settingsBox, data: message.data)) {
-           _handleForegroundMessage(message);
+        if (await shouldShowNotification(earthquake, prefs, data: message.data)) {
+           _handleForegroundMessage(message, prefs);
         }
       }
     });
   }
 
-  static Future<bool> shouldShowNotification(Earthquake earthquake, Box settingsBox, {Map<String, dynamic>? data}) async {
-    final bool notificationsEnabled = settingsBox.get('notificationsEnabled', defaultValue: true);
+  static Future<bool> shouldShowNotification(Earthquake earthquake, SharedPreferences prefs, {Map<String, dynamic>? data}) async {
+    final bool notificationsEnabled = prefs.getBool('notificationsEnabled') ?? true;
     if (!notificationsEnabled) return false;
 
-    // Check for duplicates first to save resources
-    final earthquakeBox = await Hive.openBox<Earthquake>('earthquakes');
-    if (earthquakeBox.containsKey(earthquake.id)) {
-      return false; // Already processed this earthquake
+    // Check for duplicates
+    final String? cachedJson = prefs.getString('cached_earthquakes');
+    if (cachedJson != null) {
+      final List<dynamic> list = jsonDecode(cachedJson);
+      // We don't need to parse everything, just check IDs if possible.
+      // But IDs are inside objects.
+      // Optimized check:
+      if (list.any((e) => e['id'] == earthquake.id)) {
+        return false;
+      }
     }
 
-    // 0. Server Override (Direct Notification)
+    // 0. Server Override
     if (data != null && data['isTargeted'] == 'true') {
       return true;
     }
 
-    // 1. Get User Location (Last Known or Current)
-    double? userLat = settingsBox.get('lastLatitude') as double?;
-    double? userLon = settingsBox.get('lastLongitude') as double?;
+    // 1. Get User Location
+    double? userLat = prefs.getDouble('lastLatitude');
+    double? userLon = prefs.getDouble('lastLongitude');
     try {
       final position = await Geolocator.getCurrentPosition(
         locationSettings: const LocationSettings(timeLimit: Duration(seconds: 2), accuracy: LocationAccuracy.low),
@@ -176,41 +241,36 @@ class BackgroundService {
       userLon = position.longitude;
     } catch (_) {}
 
-    // 2. Load Profiles
+    // 2. Load Profiles from UserPreferences JSON
     final List<NotificationProfile> profilesToCheck = [];
-    final storedProfiles = settingsBox.get('notificationProfiles');
-
-    if (storedProfiles != null && storedProfiles is List && storedProfiles.isNotEmpty) {
-      // Cast safely
-      profilesToCheck.addAll(storedProfiles.whereType<NotificationProfile>());
-    } 
+    final String? userPrefsJson = prefs.getString('userPreferences');
+    if (userPrefsJson != null) {
+      try {
+        final userPrefs = UserPreferences.fromJson(jsonDecode(userPrefsJson));
+        profilesToCheck.addAll(userPrefs.notificationProfiles);
+      } catch (e) {
+        debugPrint('Error parsing user preferences in background: $e');
+      }
+    }
     
-    // Fallback: If no profiles found (e.g. legacy data), create a temporary profile from root settings
+    // Fallback
     if (profilesToCheck.isEmpty) {
+      // Create legacy profile from individual keys if available?
+      // For now, let's assume if no profiles, we use default global settings if stored
       profilesToCheck.add(NotificationProfile(
         id: 'legacy',
         name: 'Legacy Profile',
         latitude: userLat ?? 0.0,
         longitude: userLon ?? 0.0,
-        radius: (settingsBox.get('radius', defaultValue: 0.0) as num).toDouble(),
-        minMagnitude: (settingsBox.get('minMagnitude', defaultValue: 0) as num).toDouble(),
-        quietHoursEnabled: settingsBox.get('quietHoursEnabled', defaultValue: false),
-        quietHoursStart: List<int>.from(settingsBox.get('quietHoursStart', defaultValue: [22, 0])),
-        quietHoursEnd: List<int>.from(settingsBox.get('quietHoursEnd', defaultValue: [6, 0])),
-        quietHoursDays: List<int>.from(settingsBox.get('quietHoursDays', defaultValue: [0, 1, 2, 3, 4, 5, 6])),
-        alwaysNotifyRadiusEnabled: settingsBox.get('alwaysNotifyRadiusEnabled', defaultValue: false),
-        alwaysNotifyRadiusValue: (settingsBox.get('alwaysNotifyRadiusValue', defaultValue: 0.0) as num).toDouble(),
-        emergencyMagnitudeThreshold: (settingsBox.get('emergencyMagnitudeThreshold', defaultValue: 5.0) as num).toDouble(),
-        emergencyRadius: (settingsBox.get('emergencyRadius', defaultValue: 100.0) as num).toDouble(),
-        globalMinMagnitudeOverrideQuietHours: (settingsBox.get('globalMinMagnitudeOverrideQuietHours', defaultValue: 0.0) as num).toDouble(),
-        timezone: settingsBox.get('timezone') as String?,
+        radius: prefs.getDouble('radius') ?? 0.0,
+        minMagnitude: prefs.getDouble('minMagnitude') ?? 0.0,
       ));
     }
 
     // 3. Iterate Profiles
     for (final profile in profilesToCheck) {
       if (_checkProfile(earthquake, profile, userLat, userLon)) {
-        return true; // Match found!
+        return true; 
       }
     }
 
@@ -218,14 +278,11 @@ class BackgroundService {
   }
 
   static bool _checkProfile(Earthquake earthquake, NotificationProfile profile, double? userLat, double? userLon) {
-    // 1. Distance Calculation
-    // Use profile location if set, otherwise fallback to user location (mobile profile)
     final double refLat = (profile.latitude != 0.0 || profile.longitude != 0.0) ? profile.latitude : (userLat ?? 0.0);
     final double refLon = (profile.latitude != 0.0 || profile.longitude != 0.0) ? profile.longitude : (userLon ?? 0.0);
     
     final double distance = _getDistance(refLat, refLon, earthquake.latitude, earthquake.longitude);
     
-    // 2. Always Notify Checks
     if (profile.globalMinMagnitudeOverrideQuietHours > 0 && earthquake.magnitude >= profile.globalMinMagnitudeOverrideQuietHours) {
         return true;
     }
@@ -233,29 +290,23 @@ class BackgroundService {
         return true;
     }
 
-    // 3. Normal Filters
     if (earthquake.magnitude < profile.minMagnitude) return false;
     
-    // Radius check: Only if radius > 0 (not worldwide)
     if (profile.radius > 0 && distance > profile.radius) return false;
 
-    // 4. Quiet Hours
     if (profile.quietHoursEnabled) {
         if (_isDuringQuietHoursForProfile(profile)) {
-             // Emergency Override check
              if (earthquake.magnitude >= profile.emergencyMagnitudeThreshold) {
                  if (distance <= profile.emergencyRadius) return true;
              }
-             return false; // Suppressed by quiet hours
+             return false;
         }
     }
     
-    return true; // Passed all checks
+    return true;
   }
 
   static bool _isDuringQuietHoursForProfile(NotificationProfile profile) {
-    // Always use device local time for quiet hours check
-    // The quiet hours times are stored as local time values entered by the user
     final localNow = DateTime.now();
 
     if (!profile.quietHoursDays.contains(localNow.weekday % 7)) return false;
@@ -272,7 +323,7 @@ class BackgroundService {
   }
 
   static double _getDistance(double lat1, double lon1, double lat2, double lon2) {
-    const r = 6371; // Earth radius in km
+    const r = 6371; 
     final dLat = _toRadians(lat2 - lat1);
     final dLon = _toRadians(lon2 - lon1);
     final a = sin(dLat / 2) * sin(dLat / 2) +
@@ -283,32 +334,28 @@ class BackgroundService {
 
   static double _toRadians(double degree) => degree * pi / 180;
 
-  static void _handleForegroundMessage(RemoteMessage message) {
+  static Future<void> _handleForegroundMessage(RemoteMessage message, SharedPreferences prefs) async {
     final earthquakeData = message.data['earthquake'] as String?;
     if (earthquakeData != null) {
       try {
         final Map<String, dynamic> decoded = jsonDecode(earthquakeData);
         final String id = decoded['id'] ?? '';
-        final box = Hive.box<Earthquake>('earthquakes');
         
-        if (box.containsKey(id)) {
-          // If the earthquake is already in the local cache, it was likely
-          // already received via the WebSocket or a recent API fetch.
-          // We suppress the notification to avoid redundant alerts while using the app.
-          return;
+        // Check cache
+        final String? cachedJson = prefs.getString('cached_earthquakes');
+        if (cachedJson != null) {
+           final List<dynamic> list = jsonDecode(cachedJson);
+           if (list.any((e) => e['id'] == id)) {
+             return;
+           }
         }
       } catch (e) {
-        // Fallback to showing notification if parsing fails
       }
     }
-    showNotification(message);
+    await showNotification(message, prefs);
   }
 
   static Future<AuthorizationStatus> requestPermission() async {
-    // Always attempt to request permission.
-    // This will show the system prompt if permission is not yet granted/explicitly denied.
-    // If already granted, it typically just returns 'authorized' without showing a dialog again (OS dependent).
-    // If permanently denied, it will return 'denied' without showing a dialog.
     final NotificationSettings settings = await _firebaseMessaging.requestPermission();
     return settings.authorizationStatus;
   }
@@ -318,7 +365,7 @@ class BackgroundService {
     return settings.authorizationStatus;
   }
 
-  static Future<void> showNotification(RemoteMessage message) async {
+  static Future<void> showNotification(RemoteMessage message, SharedPreferences prefs) async {
     final title = message.data['title'] as String?;
     final body = message.data['body'] as String?;
     final earthquakeData = message.data['earthquake'] as String?;
@@ -330,18 +377,30 @@ class BackgroundService {
 
     final earthquake = Earthquake.fromJson(jsonDecode(earthquakeData));
     
-    // Emit through stream for foreground UI updates
     _onEarthquakeReceivedController.add(earthquake);
 
-    final box = Hive.box<Earthquake>('earthquakes');
-    await box.put(earthquake.id, earthquake);
+    // Save to cache
+    final String? cachedJson = prefs.getString('cached_earthquakes');
+    List<dynamic> list = [];
+    if (cachedJson != null) {
+      list = jsonDecode(cachedJson);
+    }
+    // Remove if exists (to update) or just add
+    list.removeWhere((e) => e['id'] == earthquake.id);
+    list.add(earthquake.toJson());
+    // Limit cache size maybe?
+    if (list.length > 500) {
+      // Sort by time? Or just remove first/random?
+      // Assuming list is somewhat ordered or we don't care about old ones.
+      list.removeAt(0);
+    }
+    await prefs.setString('cached_earthquakes', jsonEncode(list));
 
     final payload = jsonEncode({
       'earthquake': jsonDecode(earthquakeData),
       'mapUrl': mapUrl,
     });
 
-    // Use different channel for large earthquakes (magnitude >= 6.0)
     final bool isLargeEarthquake = earthquake.magnitude >= 6.0;
     final String channelId = isLargeEarthquake ? 'earthquake_large_channel' : 'earthquake_channel';
     final String channelName = isLargeEarthquake ? 'Large Earthquake Alerts' : 'Earthquake Alerts';
@@ -363,18 +422,29 @@ class BackgroundService {
       actions: <AndroidNotificationAction>[
         const AndroidNotificationAction(
           'map_action',
-          'View on Map',
-        )
+          'Map',
+          showsUserInterface: true,
+        ),
+        const AndroidNotificationAction(
+          'share_action',
+          'Share',
+          showsUserInterface: true,
+        ),
+        const AndroidNotificationAction(
+          'felt_action',
+          'I Felt It',
+          showsUserInterface: true,
+        ),
       ],
     );
     final NotificationDetails platformChannelSpecifics = NotificationDetails(
       android: androidPlatformChannelSpecifics,
       iOS: const DarwinNotificationDetails(
         threadIdentifier: 'earthquake_alerts',
+        categoryIdentifier: 'earthquake_category',
       ),
     );
 
-    // Use a unique ID based on the earthquake's timestamp or hash to prevent overwriting
     final int notificationId = earthquake.id.hashCode;
 
     await flutterLocalNotificationsPlugin.show(
@@ -385,12 +455,10 @@ class BackgroundService {
       payload: payload,
     );
 
-    // For Android, we also need to send a "summary" notification for the group to appear correctly
-    // Use the large channel if this was a large earthquake
     final String summaryChannelId = isLargeEarthquake ? 'earthquake_large_channel' : 'earthquake_channel';
     final String summaryChannelName = isLargeEarthquake ? 'Large Earthquake Alerts' : 'Earthquake Alerts';
     await flutterLocalNotificationsPlugin.show(
-      id: 0, // Summary ID is always 0
+      id: 0, 
       title: '',
       body: '',
       notificationDetails: NotificationDetails(

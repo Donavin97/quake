@@ -1,16 +1,14 @@
+import 'dart:async';
 import 'dart:io';
 import 'dart:typed_data';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
-import 'package:vibration/vibration.dart';
 import 'package:intl/intl.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:path_provider/path_provider.dart';
-import 'package:provider/provider.dart';
 
 import '../models/earthquake.dart';
-import '../models/user_preferences.dart';
-import '../providers/settings_provider.dart';
+import '../services/haptic_service.dart';
 import '../services/waveform_service.dart';
 
 class SeismographScreen extends StatefulWidget {
@@ -23,45 +21,12 @@ class SeismographScreen extends StatefulWidget {
 }
 
 class _SeismographScreenState extends State<SeismographScreen> with SingleTickerProviderStateMixin {
-  // Helper method to trigger haptic feedback safely using Vibration class
+  // Helper method to trigger haptic feedback safely using HapticService
   Future<void> _triggerHaptic(String type) async {
-    // Get vibration settings from provider BEFORE any async operations
-    // ignore: use_build_context_synchronously
-    final settings = context.read<SettingsProvider>();
-    
-    try {
-      // Check if device has vibration capability
-      final hasVibrator = await Vibration.hasVibrator();
-      if (!mounted) return;
-      if (hasVibrator != true) return;
-
-      final successSettings = settings.successVibration;
-      final errorSettings = settings.errorVibration;
-
-      if (type == 'success' || type == 'light' || type == 'medium') {
-        // Success case - use user's success vibration settings
-        final intensity = type == 'light' ? VibrationIntensity.light : VibrationIntensity.medium;
-        final duration = successSettings.getDurationForIntensity(intensity);
-        await Vibration.vibrate(duration: duration);
-      } else if (type == 'error' || type == 'heavy') {
-        // Error case - use user's error vibration settings
-        final duration = errorSettings.getDurationForIntensity(VibrationIntensity.heavy);
-        if (errorSettings.pattern > 1) {
-          // Pattern format: [pause, vibrate, pause, vibrate, ...] - must start with pause
-          final pattern = <int>[0]; // Start with 0ms pause (required format)
-          for (int i = 0; i < errorSettings.pattern; i++) {
-            pattern.add(duration);
-            if (i < errorSettings.pattern - 1) {
-              pattern.add(100); // Pause between pulses
-            }
-          }
-          await Vibration.vibrate(pattern: pattern);
-        } else {
-          await Vibration.vibrate(duration: duration);
-        }
-      }
-    } catch (_) {
-      // Ignore haptic feedback errors (e.g., on desktop/simulator)
+    if (type == 'error') {
+      await HapticService.vibrateError();
+    } else {
+      await HapticService.vibrateForEarthquake(widget.earthquake);
     }
   }
 
@@ -84,6 +49,10 @@ class _SeismographScreenState extends State<SeismographScreen> with SingleTicker
   bool _isAudioLoading = false;
   bool _isAudioReady = false;
   String? _tempAudioPath;
+  Duration _currentPosition = Duration.zero;
+  Duration _totalDuration = Duration.zero;
+  StreamSubscription? _positionSubscription;
+  StreamSubscription? _durationSubscription;
   
   // Current loading status for user feedback
   String _loadingStatus = 'Initializing...';
@@ -123,6 +92,8 @@ class _SeismographScreenState extends State<SeismographScreen> with SingleTicker
   @override
   void dispose() {
     _animationController.dispose();
+    _positionSubscription?.cancel();
+    _durationSubscription?.cancel();
     _deleteTempAudioFile();
     _audioPlayer.dispose();
     super.dispose();
@@ -156,6 +127,22 @@ class _SeismographScreenState extends State<SeismographScreen> with SingleTicker
           _audioPlayer.seek(Duration.zero);
           _audioPlayer.pause(); // Ensure it stays paused at position 0
         }
+      }
+    });
+
+    _positionSubscription = _audioPlayer.positionStream.listen((pos) {
+      if (mounted) {
+        setState(() {
+          _currentPosition = pos;
+        });
+      }
+    });
+
+    _durationSubscription = _audioPlayer.durationStream.listen((dur) {
+      if (mounted && dur != null) {
+        setState(() {
+          _totalDuration = dur;
+        });
       }
     });
   }
@@ -297,8 +284,14 @@ class _SeismographScreenState extends State<SeismographScreen> with SingleTicker
         steps = ['No waveform data available, using simulation'];
       }
 
-  // Vibrate once on successful data retrieval
-      await _triggerHaptic('success');
+      // Haptic feedback based on data quality
+      if (result.isMockData) {
+        // Vibrate with error pattern when no real stations/data found and using simulation
+        await _triggerHaptic('error');
+      } else {
+        // Vibrate once on successful live data retrieval
+        await _triggerHaptic('success');
+      }
       
       setState(() {
         _imageData = result.imageData;
@@ -332,9 +325,7 @@ class _SeismographScreenState extends State<SeismographScreen> with SingleTicker
       });
     } catch (e) {
       if (!mounted) return;
-      // Vibrate twice on failure
-      await _triggerHaptic('error');
-      await Future.delayed(const Duration(milliseconds: 150));
+      // Vibrate on failure (uses user's error pattern, defaults to 3)
       await _triggerHaptic('error');
       
       setState(() {
@@ -446,151 +437,155 @@ class _SeismographScreenState extends State<SeismographScreen> with SingleTicker
     }
 
     if (_error != null) {
+      final colorScheme = Theme.of(context).colorScheme;
       return Center(
         child: Padding(
           padding: const EdgeInsets.all(32),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(Icons.error_outline, size: 48, color: Colors.red[400]),
-              const SizedBox(height: 16),
-              Text(
-                _loadingStatus,
-                style: Theme.of(context).textTheme.titleMedium,
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 16),
-              Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: Colors.red[50],
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: Colors.red[200]!),
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.error_outline, size: 48, color: colorScheme.error),
+                const SizedBox(height: 16),
+                Text(
+                  _loadingStatus,
+                  style: Theme.of(context).textTheme.titleMedium,
+                  textAlign: TextAlign.center,
                 ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'What happened:',
-                      style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                            color: Colors.red[700],
-                          ),
-                    ),
-                    const SizedBox(height: 8),
-                    ..._loadingSteps.asMap().entries.map((entry) {
-                      return Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 4),
-                        child: Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Icon(
-                              entry.key < _loadingSteps.length - 1 
-                                  ? Icons.check_circle 
-                                  : Icons.info_outline,
-                              size: 16,
-                              color: entry.key < _loadingSteps.length - 1 
-                                  ? Colors.green[600] 
-                                  : Colors.orange[600],
-                            ),
-                            const SizedBox(width: 8),
-                            Expanded(
-                              child: Text(
-                                entry.value,
-                                style: Theme.of(context).textTheme.bodySmall,
-                              ),
-                            ),
-                          ],
-                        ),
-                      );
-                    }),
-                    if (_error != null) ...[
-                      const SizedBox(height: 12),
-                      const Divider(),
-                      const SizedBox(height: 8),
+                const SizedBox(height: 16),
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: colorScheme.errorContainer,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: colorScheme.error.withValues(alpha: 0.5)),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
                       Text(
-                        'Details: $_error',
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                              color: Colors.red[700],
-                              fontStyle: FontStyle.italic,
+                        'What happened:',
+                        style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                              color: colorScheme.onErrorContainer,
+                              fontWeight: FontWeight.bold,
                             ),
                       ),
+                      const SizedBox(height: 8),
+                      ..._loadingSteps.asMap().entries.map((entry) {
+                        return Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 4),
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Icon(
+                                entry.key < _loadingSteps.length - 1 
+                                    ? Icons.check_circle 
+                                    : Icons.info_outline,
+                                size: 16,
+                                color: entry.key < _loadingSteps.length - 1 
+                                    ? Colors.green[600] 
+                                    : Colors.orange[600],
+                              ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  entry.value,
+                                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                    color: colorScheme.onErrorContainer,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        );
+                      }),
+                      if (_error != null) ...[
+                        const SizedBox(height: 12),
+                        Divider(color: colorScheme.onErrorContainer.withValues(alpha: 0.2)),
+                        const SizedBox(height: 8),
+                        Text(
+                          'Details: $_error',
+                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                color: colorScheme.onErrorContainer.withValues(alpha: 0.8),
+                                fontStyle: FontStyle.italic,
+                              ),
+                        ),
+                      ],
                     ],
+                  ),
+                ),
+                const SizedBox(height: 24),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    ElevatedButton.icon(
+                      onPressed: _loadWaveformData,
+                      icon: const Icon(Icons.refresh),
+                      label: const Text('Retry'),
+                    ),
+                    const SizedBox(width: 16),
+                    OutlinedButton.icon(
+                      onPressed: () async {
+                        setState(() {
+                          _isMockData = true;
+                          _loadingStatus = 'Generating simulated waveform...';
+                          _loadingSteps = ['Creating waveform simulation based on earthquake parameters'];
+                        });
+                        
+                        // Generate mock data directly
+                        final result = await WaveformService().getWaveformData(
+                          widget.earthquake,
+                          onProgressUpdate: (msg) {
+                            if (mounted) {
+                              setState(() {
+                                _loadingSteps = [..._loadingSteps, msg];
+                              });
+                            }
+                          },
+                        );
+                        if (mounted) {
+                          // Vibrate once on mock/simulated data (uses user's error pattern, defaults to 3)
+                          await _triggerHaptic('error');
+                          
+                          setState(() {
+                            _imageData = result.imageData;
+                            _audioData = result.audioData;
+                            _waveformData = result.samples;
+                            _stationInfo = result.station;
+                            _error = null;
+                            _isUsingImage = result.hasImage;
+                            
+                            // Load audio if available
+                            if (result.hasAudio) {
+                              _loadAudio();
+                            }
+                            if (result.hasImage) {
+                              _loadingStatus = 'Simulated waveform plot ready';
+                              _loadingSteps = ['Simulation complete', 'Displaying waveform plot'];
+                            } else {
+                              _loadingStatus = 'Simulated waveform ready';
+                              _loadingSteps = ['Simulation complete', 'Displaying ${result.samples.length} samples'];
+                            }
+                            if (result.samples.isNotEmpty) {
+                              double maxAmp = 0;
+                              for (final sample in result.samples) {
+                                if (sample.amplitude.abs() > maxAmp) {
+                                  maxAmp = sample.amplitude.abs();
+                                }
+                              }
+                              _minY = -maxAmp * 1.2;
+                              _maxY = maxAmp * 1.2;
+                            }
+                          });
+                        }
+                      },
+                      icon: const Icon(Icons.science),
+                      label: const Text('Use Simulation'),
+                    ),
                   ],
                 ),
-              ),
-              const SizedBox(height: 24),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  ElevatedButton.icon(
-                    onPressed: _loadWaveformData,
-                    icon: const Icon(Icons.refresh),
-                    label: const Text('Retry'),
-                  ),
-                  const SizedBox(width: 16),
-                  OutlinedButton.icon(
-                    onPressed: () async {
-                      setState(() {
-                        _isMockData = true;
-                        _loadingStatus = 'Generating simulated waveform...';
-                        _loadingSteps = ['Creating waveform simulation based on earthquake parameters'];
-                      });
-                      
-                      // Generate mock data directly
-                      final result = await WaveformService().getWaveformData(
-                        widget.earthquake,
-                        onProgressUpdate: (msg) {
-                          if (mounted) {
-                            setState(() {
-                              _loadingSteps = [..._loadingSteps, msg];
-                            });
-                          }
-                        },
-                      );
-                      if (mounted) {
-                        // Vibrate twice on mock/simulated data
-                        await _triggerHaptic('error');
-                        await Future.delayed(const Duration(milliseconds: 150));
-                        await _triggerHaptic('error');
-                        
-                        setState(() {
-                          _imageData = result.imageData;
-                          _audioData = result.audioData;
-                          _waveformData = result.samples;
-                          _stationInfo = result.station;
-                          _error = null;
-                          _isUsingImage = result.hasImage;
-                          
-                          // Load audio if available
-                          if (result.hasAudio) {
-                            _loadAudio();
-                          }
-                          if (result.hasImage) {
-                            _loadingStatus = 'Simulated waveform plot ready';
-                            _loadingSteps = ['Simulation complete', 'Displaying waveform plot'];
-                          } else {
-                            _loadingStatus = 'Simulated waveform ready';
-                            _loadingSteps = ['Simulation complete', 'Displaying ${result.samples.length} samples'];
-                          }
-                          if (result.samples.isNotEmpty) {
-                            double maxAmp = 0;
-                            for (final sample in result.samples) {
-                              if (sample.amplitude.abs() > maxAmp) {
-                                maxAmp = sample.amplitude.abs();
-                              }
-                            }
-                            _minY = -maxAmp * 1.2;
-                            _maxY = maxAmp * 1.2;
-                          }
-                        });
-                      }
-                    },
-                    icon: const Icon(Icons.science),
-                    label: const Text('Use Simulation'),
-                  ),
-                ],
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       );
@@ -852,6 +847,13 @@ class _SeismographScreenState extends State<SeismographScreen> with SingleTicker
         .map((sample) => FlSpot(sample.time, sample.amplitude))
         .toList();
 
+    // Map audio position (0 to totalDuration) to chart X (0 to 360)
+    double? playheadX;
+    if (_isAudioReady && _totalDuration.inMilliseconds > 0) {
+      final progress = _currentPosition.inMilliseconds / _totalDuration.inMilliseconds;
+      playheadX = progress * 360;
+    }
+
     return GestureDetector(
       onScaleStart: (details) {
         _baseScale = _currentScale;
@@ -952,6 +954,20 @@ class _SeismographScreenState extends State<SeismographScreen> with SingleTicker
                     labelResolver: (line) => 'Quake',
                   ),
                 ),
+                if (playheadX != null)
+                  VerticalLine(
+                    x: playheadX,
+                    color: Colors.deepPurple.withValues(alpha: 0.8),
+                    strokeWidth: 3,
+                    label: VerticalLineLabel(
+                      style: const TextStyle(
+                        color: Colors.deepPurple,
+                        fontSize: 10,
+                        fontWeight: FontWeight.bold,
+                      ),
+                      labelResolver: (line) => 'Audio',
+                    ),
+                  ),
               ],
             ),
             lineBarsData: [
@@ -1028,26 +1044,28 @@ class _SeismographScreenState extends State<SeismographScreen> with SingleTicker
             stream: _audioPlayer.playerStateStream,
             builder: (context, snapshot) {
               final playerState = snapshot.data;
-              final playing = playerState?.playing;
+              final playing = playerState?.playing ?? false;
               
               return Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  // Play/Restart button - always starts from beginning
+                  // Play/Pause button
                   IconButton(
                     iconSize: 40,
-                    tooltip: playing == true ? 'Restart' : 'Play from beginning',
+                    tooltip: playing ? 'Pause' : 'Play',
                     onPressed: _isAudioReady
                         ? () {
-                            // Always restart from beginning when pressing play button
-                            _audioPlayer.seek(Duration.zero);
-                            _audioPlayer.play();
+                            if (playing) {
+                              _audioPlayer.pause();
+                            } else {
+                              _audioPlayer.play();
+                            }
                           }
                         : null,
                     icon: Icon(
                       _isAudioLoading
                           ? Icons.hourglass_empty
-                          : (playing == true ? Icons.replay : Icons.play_circle_filled),
+                          : (playing ? Icons.pause_circle_filled : Icons.play_circle_filled),
                       color: _isAudioReady ? Colors.deepPurple[700] : Colors.grey,
                     ),
                   ),
@@ -1120,17 +1138,16 @@ class _SeismographScreenState extends State<SeismographScreen> with SingleTicker
                             },
                           ),
                   ),
-                  // Stop button
+                  // Reset button
                   IconButton(
-                    tooltip: 'Stop and reset',
+                    tooltip: 'Reset to beginning',
                     onPressed: _isAudioReady
                         ? () {
-                            _audioPlayer.stop();
                             _audioPlayer.seek(Duration.zero);
                           }
                         : null,
                     icon: Icon(
-                      Icons.stop_circle,
+                      Icons.replay_circle_filled,
                       color: _isAudioReady ? Colors.deepPurple[700] : Colors.grey,
                     ),
                   ),

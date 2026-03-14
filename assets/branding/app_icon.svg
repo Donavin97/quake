@@ -1,0 +1,20 @@
+<svg width="1024" height="1024" viewBox="0 0 1024 1024" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Rounded Square Frame -->
+  <rect width="1024" height="1024" rx="224" fill="#0F1115"/>
+  
+  <!-- Outer Globe Ring (Tectonic Blue) -->
+  <circle cx="512" cy="512" r="380" stroke="#2196F3" stroke-width="24" stroke-dasharray="80 50"/>
+  
+  <!-- Inner Glow (Subtle Magma) -->
+  <circle cx="512" cy="512" r="300" fill="radial-gradient(circle, rgba(255,87,34,0.1) 0%, rgba(15,17,21,0) 70%)"/>
+
+  <!-- Seismic Pulse Wave (Magma Orange) -->
+  <path d="M180 512H340L400 320L512 704L580 440L630 512H844" 
+        stroke="#FF5722" 
+        stroke-width="70" 
+        stroke-linecap="round" 
+        stroke-linejoin="round"/>
+
+  <!-- Center Focal Point -->
+  <circle cx="512" cy="512" r="25" fill="#FFD600"/>
+</svg>

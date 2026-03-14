@@ -5,3 +5,4 @@ export 'geocoding_service.dart';
 export 'location_service.dart';
 export 'user_service.dart';
 export 'websocket_service.dart';
+export 'seismograph_background_service.dart';

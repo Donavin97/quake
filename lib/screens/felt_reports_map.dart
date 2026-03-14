@@ -11,6 +11,7 @@ import 'package:intl/intl.dart';
 import '../models/earthquake.dart';
 import '../models/felt_report.dart';
 import '../services/felt_report_service.dart';
+import '../config/app_config.dart';
 
 class FeltReportsMap extends StatefulWidget {
   final Earthquake earthquake;
@@ -192,33 +193,43 @@ class _FeltReportsMapState extends State<FeltReportsMap> with SingleTickerProvid
                     options: MapOptions(
                       initialCenter: LatLng(widget.earthquake.latitude, widget.earthquake.longitude),
                       initialZoom: 5,
+                      minZoom: 2.0,
+                      maxZoom: 18.0,
+                      cameraConstraint: CameraConstraint.contain(
+                        bounds: LatLngBounds(
+                          const LatLng(-85, -180),
+                          const LatLng(85, 180),
+                        ),
+                      ),
+                      interactionOptions: const InteractionOptions(
+                        rotationThreshold: 200, 
+                        rotationWinGestures: MultiFingerGesture.none,
+                        pinchZoomWinGestures: MultiFingerGesture.pinchZoom,
+                      ),
                     ),
                     children: [
                       TileLayer(
-                        urlTemplate: 'https://{s}.tile.openstreetmap.fr/hot/{z}/{x}/{y}.png',
+                        urlTemplate: AppConfig.osmHotTileUrl,
                         userAgentPackageName: 'com.liebgott.quaketrack',
                       ),
                       CircleLayer(
                         circles: [
-                          // Static circle for the epicenter
                           CircleMarker(
                             point: LatLng(widget.earthquake.latitude, widget.earthquake.longitude),
-                            radius: 5000, // Small static circle for epicenter
+                            radius: 5000, 
                             useRadiusInMeter: true,
                             color: Colors.red.withAlpha(200),
                             borderColor: Colors.red,
                             borderStrokeWidth: 2,
                           ),
-                          // Theoretical maximum shaking distance
                           CircleMarker(
                             point: LatLng(widget.earthquake.latitude, widget.earthquake.longitude),
-                            radius: _theoreticalFeltRadius, // Use the new calculated felt radius
+                            radius: _theoreticalFeltRadius, 
                             useRadiusInMeter: true,
-                            color: Colors.blue.withAlpha(30), // Light blue, semi-transparent
+                            color: Colors.blue.withAlpha(30), 
                             borderColor: Colors.blue,
                             borderStrokeWidth: 1,
                           ),
-                          // Animated ripples
                           ...List.generate(_rippleCount, (index) {
                             return CircleMarker(
                               point: LatLng(widget.earthquake.latitude, widget.earthquake.longitude),
@@ -233,15 +244,55 @@ class _FeltReportsMapState extends State<FeltReportsMap> with SingleTickerProvid
                       ),
                       MarkerLayer(
                         markers: [
-                          // Earthquake epicenter magnitude marker
+                          // 1. GEOGRAPHICALLY LOCKED INFO BOX
+                          // This marker holds the details and will move off-screen when the map is panned
                           Marker(
-                            width: 60.0, // Larger width for magnitude text
-                            height: 60.0, // Larger height for magnitude text
+                            width: 250.0,
+                            height: 120.0,
+                            point: LatLng(widget.earthquake.latitude, widget.earthquake.longitude),
+                            alignment: const Alignment(0.0, -1.8), // Positioned above the epicenter
+                            child: Container(
+                              padding: const EdgeInsets.all(8),
+                              decoration: BoxDecoration(
+                                color: Colors.black.withAlpha((255 * 0.7).round()),
+                                borderRadius: BorderRadius.circular(8),
+                                border: Border.all(color: Colors.white24),
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Text(
+                                    'Magnitude: ${widget.earthquake.magnitude.toStringAsFixed(1)}',
+                                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14),
+                                  ),
+                                  Text(
+                                    'Location: ${widget.earthquake.place}',
+                                    style: const TextStyle(color: Colors.white, fontSize: 12),
+                                    maxLines: 2,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                  Text(
+                                    'Time: $formattedDate',
+                                    style: const TextStyle(color: Colors.white, fontSize: 12),
+                                  ),
+                                  Text(
+                                    'Depth: ${widget.earthquake.depth.toStringAsFixed(1)} km',
+                                    style: const TextStyle(color: Colors.white, fontSize: 12),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                          // 2. Epicenter magnitude marker
+                          Marker(
+                            width: 60.0, 
+                            height: 60.0, 
                             point: LatLng(widget.earthquake.latitude, widget.earthquake.longitude),
                             child: Container(
                               alignment: Alignment.center,
                               decoration: BoxDecoration(
-                                color: Colors.red.withAlpha(150), // Semi-transparent red background
+                                color: Colors.red.withAlpha(150), 
                                 shape: BoxShape.circle,
                                 border: Border.all(color: Colors.white, width: 2),
                               ),
@@ -250,7 +301,7 @@ class _FeltReportsMapState extends State<FeltReportsMap> with SingleTickerProvid
                                 style: const TextStyle(
                                   color: Colors.white,
                                   fontWeight: FontWeight.bold,
-                                  fontSize: 16, // Fixed font size for clarity
+                                  fontSize: 16,
                                 ),
                               ),
                             ),
@@ -272,39 +323,7 @@ class _FeltReportsMapState extends State<FeltReportsMap> with SingleTickerProvid
                       ),
                     ],
                   ),
-            // Earthquake details overlay
-            Positioned(
-              top: 10,
-              left: 10,
-              child: Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: Colors.black.withAlpha((255 * 0.7).round()),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Magnitude: ${widget.earthquake.magnitude.toStringAsFixed(1)}',
-                      style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16),
-                    ),
-                    Text(
-                      'Location: ${widget.earthquake.place}',
-                      style: const TextStyle(color: Colors.white, fontSize: 14),
-                    ),
-                    Text(
-                      'Time: $formattedDate',
-                      style: const TextStyle(color: Colors.white, fontSize: 14),
-                    ),
-                    Text(
-                      'Depth: ${widget.earthquake.depth.toStringAsFixed(1)} km',
-                      style: const TextStyle(color: Colors.white, fontSize: 14),
-                    ),
-                  ],
-                ),
-              ),
-            ),
+            // MMI Scale Legend - Screen-sticky
             Positioned(
               bottom: 20,
               right: 16,

@@ -1,44 +1,60 @@
-import 'package:flutter/material.dart';
+import 'package:freezed_annotation/freezed_annotation.dart';
+import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'service_providers.dart';
 
-class UserProvider with ChangeNotifier {
-  final FirebaseAuth _auth = FirebaseAuth.instance;
-  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+part 'user_provider.freezed.dart';
+part 'user_provider.g.dart';
 
-  bool _isSetupComplete = false;
-  bool get isSetupComplete => _isSetupComplete;
+@freezed
+class UserState with _$UserState {
+  const factory UserState({
+    @Default(false) bool isSetupComplete,
+    @Default(false) bool initialized,
+  }) = _UserState;
+}
 
-  UserProvider() {
-    _auth.authStateChanges().listen((user) {
+@riverpod
+class UserNotifier extends _$UserNotifier {
+  @override
+  UserState build() {
+    _init();
+    return const UserState();
+  }
+
+  void _init() {
+    final auth = ref.read(firebaseAuthProvider);
+    auth.authStateChanges().listen((user) {
       if (user != null) {
         _loadSetupStatus(user);
       } else {
-        _isSetupComplete = false;
-        notifyListeners();
+        state = state.copyWith(isSetupComplete: false, initialized: true);
       }
     });
   }
 
   Future<void> _loadSetupStatus(User user) async {
-    final userDoc = _firestore.collection('users').doc(user.uid);
+    final firestore = ref.read(firebaseFirestoreProvider);
+    final userDoc = firestore.collection('users').doc(user.uid);
     final doc = await userDoc.get();
 
+    bool isSetupComplete = false;
     if (doc.exists && doc.data()!.containsKey('setupComplete')) {
-      _isSetupComplete = doc.data()!['setupComplete'] as bool;
-    } else {
-      _isSetupComplete = false;
+      isSetupComplete = doc.data()!['setupComplete'] as bool;
     }
-    notifyListeners();
+    
+    state = state.copyWith(isSetupComplete: isSetupComplete, initialized: true);
   }
 
   Future<void> completeSetup() async {
-    final user = _auth.currentUser;
+    final auth = ref.read(firebaseAuthProvider);
+    final user = auth.currentUser;
     if (user != null) {
-      final userDoc = _firestore.collection('users').doc(user.uid);
+      final firestore = ref.read(firebaseFirestoreProvider);
+      final userDoc = firestore.collection('users').doc(user.uid);
       await userDoc.set({'setupComplete': true}, SetOptions(merge: true));
-      _isSetupComplete = true;
-      notifyListeners();
+      state = state.copyWith(isSetupComplete: true);
     }
   }
 }

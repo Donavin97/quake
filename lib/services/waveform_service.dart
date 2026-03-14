@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:math';
 import 'dart:typed_data';
 import 'package:dio/dio.dart';
+import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import '../models/earthquake.dart';
 import '../config/app_config.dart';
 
@@ -12,40 +13,81 @@ class WaveformService {
   static const int durationSeconds = 60;
   
   final Dio _dio;
+  
+  /// Cache manager for waveform data
+  static final CacheManager _waveformCache = CacheManager(
+    Config(
+      'waveform_cache',
+      stalePeriod: const Duration(days: 7),
+      maxNrOfCacheObjects: 100,
+    ),
+  );
 
   WaveformService({Dio? dio}) : _dio = dio ?? Dio(BaseOptions(
     connectTimeout: const Duration(seconds: 15),
     receiveTimeout: const Duration(seconds: 15),
   ));
 
-  /// Fetch waveform data using the Python Cloud Function backend
-  /// Falls back to mock data if Python backend fails
+  /// Fetch waveform data using the Python Cloud Function backend with caching
   Future<WaveformResult> getWaveformData(
     Earthquake earthquake, {
     void Function(String)? onProgressUpdate,
   }) async {
-    // Try Python Cloud Function backend
+    // 1. Check Cache first
+    try {
+      final cacheKey = 'waveform_${earthquake.id}';
+      final fileInfo = await _waveformCache.getFileFromCache(cacheKey);
+      
+      if (fileInfo != null) {
+        onProgressUpdate?.call('Loading waveform from local cache...');
+        final bytes = await fileInfo.file.readAsBytes();
+        final json = jsonDecode(utf8.decode(bytes));
+        return WaveformResult.fromJson(json);
+      }
+    } catch (e) {
+      onProgressUpdate?.call('Cache read error: $e');
+    }
+
+    // 2. Fetch from Python backend if not in cache
     if (AppConfig.waveformBackend == WaveformBackend.pythonCloudFunction) {
       onProgressUpdate?.call('Using Python backend with Obspy...');
       try {
         final result = await _fetchFromPythonBackend(earthquake, onProgressUpdate: onProgressUpdate);
+        
+        // Save to cache if successful and not mock
+        if ((result.hasImage || result.hasAudio) && !result.isMockData) {
+          _saveToCache(earthquake.id, result);
+        }
+        
         if (result.imageData != null || result.isMockData) {
           return result;
         }
-        // Empty but not error - use mock fallback
         return _fetchMockData(earthquake, onProgressUpdate: onProgressUpdate);
       } catch (e) {
         onProgressUpdate?.call('Python backend error: $e');
-        // Return mock data on error
         return _fetchMockData(earthquake, onProgressUpdate: onProgressUpdate);
       }
     }
     
-    // Default: use mock data
     return _fetchMockData(earthquake, onProgressUpdate: onProgressUpdate);
   }
 
-  /// Fetch waveform data from Python Cloud Function (Obspy backend with Matplotlib plot)
+  Future<void> _saveToCache(String earthquakeId, WaveformResult result) async {
+    try {
+      final cacheKey = 'waveform_$earthquakeId';
+      final json = jsonEncode(result.toJson());
+      final bytes = utf8.encode(json);
+      await _waveformCache.putFile(
+        cacheKey,
+        Uint8List.fromList(bytes),
+        fileExtension: 'json',
+      );
+    } catch (e) {
+      // Ignore cache write errors
+    }
+  }
+
+  /// Fetch waveform data from Python Cloud Function
   Future<WaveformResult> _fetchFromPythonBackend(
     Earthquake earthquake, {
     void Function(String)? onProgressUpdate,
@@ -85,10 +127,8 @@ class WaveformService {
     if (response.statusCode == 200 && response.data != null) {
       final data = response.data as Map<String, dynamic>;
       
-      // Parse base64 image from Python response
       final imageBase64 = data['image'] as String?;
       Uint8List? imageData;
-      
       if (imageBase64 != null && imageBase64.isNotEmpty) {
         try {
           imageData = base64Decode(imageBase64);
@@ -98,7 +138,6 @@ class WaveformService {
         }
       }
 
-      // Parse station info from Python response
       StationInfo? stationInfo;
       final stationData = data['station'] as Map<String, dynamic>?;
       if (stationData != null) {
@@ -121,10 +160,8 @@ class WaveformService {
         onProgressUpdate?.call('Using simulated waveform data');
       }
 
-      // Parse base64 audio from Python response
       final audioBase64 = data['audio'] as String?;
       Uint8List? audioData;
-      
       if (audioBase64 != null && audioBase64.isNotEmpty) {
         try {
           audioData = base64Decode(audioBase64);
@@ -146,7 +183,6 @@ class WaveformService {
     throw Exception('Python backend returned status ${response.statusCode}');
   }
 
-  /// Fallback: Generate mock waveform data when Python backend fails
   Future<WaveformResult> _fetchMockData(
     Earthquake earthquake, {
     void Function(String)? onProgressUpdate,
@@ -157,55 +193,42 @@ class WaveformService {
     );
   }
 
-  /// Generate mock waveform data based on earthquake properties
   List<WaveformSample> _generateMockWaveform(Earthquake earthquake) {
     final random = Random(earthquake.id.hashCode);
     final samples = <WaveformSample>[];
     
-    // Wave characteristics based on magnitude
     final magnitude = earthquake.magnitude;
     final baseAmplitude = magnitude * 0.3;
     final frequency = 1.0 + random.nextDouble() * 2;
     
-    // P-wave and S-wave arrival times
     final pWaveArrival = 2.0 + random.nextDouble() * 3;
     final sWaveArrival = pWaveArrival + 3.0 + random.nextDouble() * 5;
     
     for (int i = 0; i < sampleRate * durationSeconds; i++) {
       final time = i / sampleRate;
       double amplitude = 0;
-      
-      // Background noise
       amplitude += (random.nextDouble() - 0.5) * 0.05;
       
-      // P-wave
       if (time >= pWaveArrival) {
         final pProgress = time - pWaveArrival;
         final pEnvelope = _getEnvelope(pProgress, 10);
         amplitude += sin(2 * pi * frequency * time) * baseAmplitude * 0.3 * pEnvelope;
       }
-      
-      // S-wave
       if (time >= sWaveArrival) {
         final sProgress = time - sWaveArrival;
         final sEnvelope = _getEnvelope(sProgress, 20);
         amplitude += sin(2 * pi * frequency * 0.8 * time) * baseAmplitude * sEnvelope;
       }
-      
-      // Surface waves
       if (time >= sWaveArrival + 5) {
         final surfaceProgress = time - sWaveArrival - 5;
         final surfaceEnvelope = _getEnvelope(surfaceProgress, 30);
         amplitude += sin(2 * pi * frequency * 0.5 * time) * baseAmplitude * 0.5 * surfaceEnvelope;
       }
-      
       samples.add(WaveformSample(time: time, amplitude: amplitude));
     }
-    
     return samples;
   }
 
-  /// Get envelope function for wave attenuation
   double _getEnvelope(double time, double decayTime) {
     if (time <= 0) return 0;
     if (time > decayTime) return exp(-(time - decayTime) / 10);
@@ -213,15 +236,15 @@ class WaveformService {
   }
 }
 
-/// Represents a single waveform data point
 class WaveformSample {
   final double time;
   final double amplitude;
-
   const WaveformSample({required this.time, required this.amplitude});
+
+  Map<String, dynamic> toJson() => {'t': time, 'a': amplitude};
+  factory WaveformSample.fromJson(Map<String, dynamic> json) => WaveformSample(time: json['t'], amplitude: json['a']);
 }
 
-/// Information about a seismic station
 class StationInfo {
   final String network;
   final String station;
@@ -248,23 +271,27 @@ class StationInfo {
   });
 
   String get displayName => '$network.$station';
-
   String get locationString {
     final parts = <String>[];
     if (siteName.isNotEmpty) parts.add(siteName);
     if (elevation != 0) parts.add('${elevation.toInt()}m');
     return parts.join(' • ');
   }
+  String get fullChannelId => locationCode != null && channel != null ? '$locationCode.$channel' : channel ?? 'N/A';
 
-  String get fullChannelId {
-    if (locationCode != null && channel != null) {
-      return '$locationCode.$channel';
-    }
-    return channel ?? 'N/A';
-  }
+  Map<String, dynamic> toJson() => {
+    'net': network, 'sta': station, 'lat': latitude, 'lon': longitude,
+    'ele': elevation, 'site': siteName, 'dist': distanceKm, 'chan': channel,
+    'loc': locationCode, 'sr': sampleRate,
+  };
+
+  factory StationInfo.fromJson(Map<String, dynamic> json) => StationInfo(
+    network: json['net'], station: json['sta'], latitude: json['lat'], longitude: json['lon'],
+    elevation: json['ele'], siteName: json['site'], distanceKm: json['dist'],
+    channel: json['chan'], locationCode: json['loc'], sampleRate: json['sr'],
+  );
 }
 
-/// Result containing waveform data and metadata
 class WaveformResult {
   final List<WaveformSample> samples;
   final Uint8List? imageData;
@@ -284,4 +311,22 @@ class WaveformResult {
 
   bool get hasImage => imageData != null && imageData!.isNotEmpty;
   bool get hasAudio => audioData != null && audioData!.isNotEmpty;
+
+  Map<String, dynamic> toJson() => {
+    'samples': samples.map((s) => s.toJson()).toList(),
+    'image': imageData != null ? base64Encode(imageData!) : null,
+    'audio': audioData != null ? base64Encode(audioData!) : null,
+    'station': station?.toJson(),
+    'isMock': isMockData,
+    'error': errorMessage,
+  };
+
+  factory WaveformResult.fromJson(Map<String, dynamic> json) => WaveformResult(
+    samples: (json['samples'] as List?)?.map((s) => WaveformSample.fromJson(s)).toList() ?? [],
+    imageData: json['image'] != null ? base64Decode(json['image']) : null,
+    audioData: json['audio'] != null ? base64Decode(json['audio']) : null,
+    station: json['station'] != null ? StationInfo.fromJson(json['station']) : null,
+    isMockData: json['isMock'] ?? false,
+    errorMessage: json['error'],
+  );
 }

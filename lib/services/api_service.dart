@@ -1,19 +1,26 @@
 import 'dart:io';
 
 import 'package:dio/dio.dart';
-import 'package:flutter/foundation.dart'; // Added this import
+import 'package:flutter/foundation.dart';
 
 import '../models/earthquake.dart';
-import '../exceptions/api_exception.dart'; // New import
+import '../exceptions/api_exception.dart';
+import '../config/app_config.dart';
 
 class ApiService {
   final Dio _dio;
 
-  ApiService({Dio? dio}) : _dio = dio ?? Dio();
+  ApiService({Dio? dio}) : _dio = dio ?? Dio(
+    BaseOptions(
+      connectTimeout: const Duration(seconds: 10),
+      receiveTimeout: const Duration(seconds: 10),
+      sendTimeout: const Duration(seconds: 10),
+    ),
+  );
 
-  static const _usgsUrl = 'https://earthquake.usgs.gov/fdsnws/event/1/query';
-  static const _emscUrl = 'https://www.seismicportal.eu/fdsnws/event/1/query';
-  static const _secUrl = 'http://quakewatch.freeddns.org:8080/fdsnws/event/1/query';
+  static const _usgsUrl = AppConfig.usgsUrl;
+  static const _emscUrl = AppConfig.emscUrl;
+  static const _secUrl = AppConfig.secUrl;
 
   Future<List<Earthquake>> fetchEarthquakes(
     String provider,
@@ -83,8 +90,9 @@ class ApiService {
       final queryParameters = {
         'format': 'json',
         'minmagnitude': minMagnitude.toString(),
-        'limit': '100',
+        'limit': '500',
         'orderby': 'time',
+        'nodata': '404',
       };
 
       if (sourceType == 'usgs') {
@@ -93,36 +101,31 @@ class ApiService {
 
       if (timeWindow != null) {
         final duration = _parseTimeWindow(timeWindow);
-        queryParameters['starttime'] = DateTime.now().subtract(duration).toIso8601String();
-        queryParameters['endtime'] = DateTime.now().toIso8601String();
+        final nowUtc = DateTime.now().toUtc();
+        final startTime = nowUtc.subtract(duration);
+        queryParameters['starttime'] = startTime.toIso8601String().split('.').first;
+        queryParameters['endtime'] = nowUtc.toIso8601String().split('.').first;
       }
 
       if (radius > 0 && latitude != null && longitude != null) {
         queryParameters['latitude'] = latitude.toString();
         queryParameters['longitude'] = longitude.toString();
+        
         if (sourceType == 'usgs') {
           queryParameters['maxradiuskm'] = radius.toString();
         } else {
-          queryParameters['maxradius'] = (radius / 111.2).toString(); // Convert km to degrees
+          queryParameters['maxradius'] = (radius / 111.2).toString();
         }
       }
 
       final response = await _dio.get(url, queryParameters: queryParameters);
 
       if (response.statusCode == 200) {
-        if (sourceType == 'sec') {
-          final events = response.data['seiscomp']?['events'] as List<dynamic>?;
-          if (events == null) return [];
-          return events.map((json) => Earthquake.fromSecJson(json)).toList();
-        } else {
-          final features = response.data['features'] as List<dynamic>?;
-          if (features == null) return [];
-          return features
-              .map((json) => sourceType == 'usgs' 
-                  ? Earthquake.fromUsgsJson(json) 
-                  : Earthquake.fromEmscJson(json))
-              .toList();
-        }
+        final params = _ParsingParams(
+          data: response.data,
+          sourceType: sourceType,
+        );
+        return await compute(_parseEarthquakes, params);
       } else {
         throw ApiException('Failed to load $providerName earthquakes', statusCode: response.statusCode);
       }
@@ -184,3 +187,30 @@ class ApiService {
   }
 }
 
+/// Parameters for the background parsing isolate
+class _ParsingParams {
+  final dynamic data;
+  final String sourceType;
+
+  _ParsingParams({required this.data, required this.sourceType});
+}
+
+/// Top-level function for compute() to handle JSON parsing in the background
+List<Earthquake> _parseEarthquakes(_ParsingParams params) {
+  final data = params.data;
+  final sourceType = params.sourceType;
+
+  if (sourceType == 'sec') {
+    final events = data['seiscomp']?['events'] as List<dynamic>?;
+    if (events == null) return [];
+    return events.map((json) => Earthquake.fromSecJson(json)).toList();
+  } else {
+    final features = data['features'] as List<dynamic>?;
+    if (features == null) return [];
+    return features
+        .map((json) => sourceType == 'usgs'
+            ? Earthquake.fromUsgsJson(json)
+            : Earthquake.fromEmscJson(json))
+        .toList();
+  }
+}

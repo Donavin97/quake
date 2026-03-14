@@ -1,43 +1,23 @@
-import 'notification_profile.dart'; // Import the new NotificationProfile model
-import 'time_window.dart'; // Import TimeWindow for global setting
+import 'package:freezed_annotation/freezed_annotation.dart';
+import 'notification_profile.dart';
+import 'time_window.dart';
 
-// Vibration intensity levels (simulated via duration)
-enum VibrationIntensity { light, medium, heavy }
+part 'user_preferences.freezed.dart';
+part 'user_preferences.g.dart';
 
-// Settings for a specific vibration type
-class VibrationSettings {
-  final int duration; // Duration in milliseconds
-  final int pattern; // Number of vibration pulses (1-3)
+@freezed
+class VibrationSettings with _$VibrationSettings {
+  const factory VibrationSettings({
+    @Default(50) int duration,
+    @Default(1) int pattern,
+  }) = _VibrationSettings;
 
-  const VibrationSettings({
-    this.duration = 50,
-    this.pattern = 1,
-  });
+  factory VibrationSettings.fromJson(Map<String, dynamic> json) =>
+      _$VibrationSettingsFromJson(json);
+}
 
-  factory VibrationSettings.fromMap(Map<String, dynamic> data) {
-    return VibrationSettings(
-      duration: (data['duration'] as num?)?.toInt() ?? 50,
-      pattern: (data['pattern'] as num?)?.toInt() ?? 1,
-    );
-  }
-
-  Map<String, dynamic> toMap() {
-    return {
-      'duration': duration,
-      'pattern': pattern,
-    };
-  }
-
-  VibrationSettings copyWith({int? duration, int? pattern}) {
-    return VibrationSettings(
-      duration: duration ?? this.duration,
-      pattern: pattern ?? this.pattern,
-    );
-  }
-
-  // Get duration for a specific intensity level
+extension VibrationSettingsX on VibrationSettings {
   int getDurationForIntensity(VibrationIntensity intensity) {
-    // Adjust duration based on pattern (more patterns = longer total vibration)
     final baseDuration = duration;
     switch (intensity) {
       case VibrationIntensity.light:
@@ -50,109 +30,24 @@ class VibrationSettings {
   }
 }
 
-class UserPreferences {
-  final bool notificationsEnabled;
-  final List<NotificationProfile> notificationProfiles; // New field for multiple profiles
+enum VibrationIntensity { light, medium, heavy }
 
-  // Truly global settings not tied to a specific notification profile
-  final int themeMode; // ThemeMode.index
-  final TimeWindow timeWindow;
-  final String earthquakeProvider;
-  final List<String> subscribedTopics;
+@freezed
+class UserPreferences with _$UserPreferences {
+  const factory UserPreferences({
+    @Default(true) bool notificationsEnabled,
+    @Default(false) bool communitySeismographEnabled,
+    @Default([]) List<NotificationProfile> notificationProfiles,
+    @Default(0) int themeMode,
+    @Default(TimeWindow.day) TimeWindow timeWindow,
+    @Default('usgs') String earthquakeProvider,
+    @Default([]) List<String> subscribedTopics,
+    @Default(VibrationSettings()) VibrationSettings successVibration,
+    @Default(VibrationSettings(duration: 100, pattern: 3)) VibrationSettings errorVibration,
+    @Default(1.0) double mapButtonScale,
+    @Default(1.0) double smallMarkerScale,
+  }) = _UserPreferences;
 
-  // Vibration settings for seismograph
-  final VibrationSettings successVibration;
-  final VibrationSettings errorVibration;
-
-  UserPreferences({
-    this.notificationsEnabled = true,
-    List<NotificationProfile>? notificationProfiles,
-    this.themeMode = 0, // Default to system theme
-    this.timeWindow = TimeWindow.day,
-    this.earthquakeProvider = 'usgs',
-    this.subscribedTopics = const [],
-    VibrationSettings? successVibration,
-    VibrationSettings? errorVibration,
-  })  : notificationProfiles = notificationProfiles ?? [],
-        successVibration = successVibration ?? const VibrationSettings(),
-        errorVibration = errorVibration ?? const VibrationSettings(duration: 100);
-
-  factory UserPreferences.fromMap(Map<String, dynamic> data) {
-    List<NotificationProfile> profiles = [];
-    if (data['notificationProfiles'] != null) {
-      profiles = (data['notificationProfiles'] as List)
-          .map((i) => NotificationProfile.fromJson(i as Map<String, dynamic>))
-          .toList();
-    }
-
-    // Backward compatibility: if no profiles exist, create one from old settings
-    if (profiles.isEmpty) {
-      profiles.add(NotificationProfile(
-        id: 'default', // Assign a default ID
-        name: 'Default Profile',
-        latitude: (data['location']?['latitude'] as num?)?.toDouble() ?? 0.0,
-        longitude: (data['location']?['longitude'] as num?)?.toDouble() ?? 0.0,
-        radius: (data['radius'] as num?)?.toDouble() ?? 0,
-        minMagnitude: (data['minMagnitude'] as num?)?.toDouble() ?? 4.5,
-        quietHoursEnabled: data['quietHoursEnabled'] as bool? ?? false,
-        quietHoursStart: (data['quietHoursStart'] as List<dynamic>?)?.map((e) => e as int).toList() ?? const [22, 0],
-        quietHoursEnd: (data['quietHoursEnd'] as List<dynamic>?)?.map((e) => e as int).toList() ?? const [6, 0],
-        quietHoursDays: (data['quietHoursDays'] as List<dynamic>?)?.map((e) => e as int).toList() ?? const [0, 1, 2, 3, 4, 5, 6],
-        alwaysNotifyRadiusEnabled: data['alwaysNotifyRadiusEnabled'] as bool? ?? false,
-        alwaysNotifyRadiusValue: (data['alwaysNotifyRadiusValue'] as num?)?.toDouble() ?? 0.0,
-        emergencyMagnitudeThreshold: (data['emergencyMagnitudeThreshold'] as num?)?.toDouble() ?? 5.0,
-        emergencyRadius: (data['emergencyRadius'] as num?)?.toDouble() ?? 100.0,
-      ));
-    }
-
-    return UserPreferences(
-      notificationsEnabled: data['notificationsEnabled'] as bool? ?? true,
-      notificationProfiles: profiles,
-      themeMode: data['themeMode'] as int? ?? 0,
-      timeWindow: TimeWindow.values[data['timeWindow'] as int? ?? 0],
-      earthquakeProvider: data['earthquakeProvider'] as String? ?? 'usgs',
-      subscribedTopics: (data['subscribedTopics'] as List<dynamic>?)?.map((e) => e as String).toList() ?? [],
-      successVibration: data['successVibration'] != null 
-          ? VibrationSettings.fromMap(data['successVibration'] as Map<String, dynamic>)
-          : null,
-      errorVibration: data['errorVibration'] != null 
-          ? VibrationSettings.fromMap(data['errorVibration'] as Map<String, dynamic>)
-          : null,
-    );
-  }
-
-  Map<String, dynamic> toMap() {
-    return {
-      'notificationsEnabled': notificationsEnabled,
-      'notificationProfiles': notificationProfiles.map((p) => p.toJson()).toList(),
-      'themeMode': themeMode,
-      'timeWindow': timeWindow.index,
-      'earthquakeProvider': earthquakeProvider,
-      'subscribedTopics': subscribedTopics,
-      'successVibration': successVibration.toMap(),
-      'errorVibration': errorVibration.toMap(),
-    };
-  }
-
-  UserPreferences copyWith({
-    bool? notificationsEnabled,
-    List<NotificationProfile>? notificationProfiles,
-    int? themeMode,
-    TimeWindow? timeWindow,
-    String? earthquakeProvider,
-    List<String>? subscribedTopics,
-    VibrationSettings? successVibration,
-    VibrationSettings? errorVibration,
-  }) {
-    return UserPreferences(
-      notificationsEnabled: notificationsEnabled ?? this.notificationsEnabled,
-      notificationProfiles: notificationProfiles ?? [...this.notificationProfiles],
-      themeMode: themeMode ?? this.themeMode,
-      timeWindow: timeWindow ?? this.timeWindow,
-      earthquakeProvider: earthquakeProvider ?? this.earthquakeProvider,
-      subscribedTopics: subscribedTopics ?? [...this.subscribedTopics],
-      successVibration: successVibration ?? this.successVibration,
-      errorVibration: errorVibration ?? this.errorVibration,
-    );
-  }
+  factory UserPreferences.fromJson(Map<String, dynamic> json) =>
+      _$UserPreferencesFromJson(json);
 }

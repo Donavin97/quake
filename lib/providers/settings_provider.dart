@@ -1,471 +1,359 @@
-import 'package:firebase_auth/firebase_auth.dart';
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:dart_geohash/dart_geohash.dart';
-import 'package:hive/hive.dart';
 import 'package:vibration/vibration.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:riverpod_annotation/riverpod_annotation.dart';
+import 'package:freezed_annotation/freezed_annotation.dart';
 
 import '../models/time_window.dart';
 import '../services/background_service.dart';
-import '../services/user_service.dart';
-import '../models/user_preferences.dart'; // Import UserPreferences
-import '../models/notification_profile.dart'; // Import NotificationProfile
+import '../models/user_preferences.dart';
+import '../models/notification_profile.dart';
 import 'location_provider.dart';
+import 'service_providers.dart';
 
-class SettingsProvider with ChangeNotifier {
-  final _auth = FirebaseAuth.instance;
-  final _userService = UserService();
-  final LocationProvider _locationProvider;
+part 'settings_provider.freezed.dart';
+part 'settings_provider.g.dart';
 
-  bool _isLoaded = false;
-  bool get isLoaded => _isLoaded;
+@freezed
+class SettingsState with _$SettingsState {
+  const factory SettingsState({
+    @Default(false) bool isLoaded,
+    @Default(UserPreferences()) UserPreferences userPreferences,
+    NotificationProfile? activeNotificationProfile,
+    @Default(ThemeMode.system) ThemeMode themeMode,
+    @Default(TimeWindow.day) TimeWindow timeWindow,
+    @Default('usgs') String earthquakeProvider,
+    @Default({}) Set<String> subscribedTopics,
+    @Default(true) bool showPlates,
+    @Default(true) bool showFaults,
+    @Default(true) bool showFeltRadius,
+    @Default(1.0) double mapButtonScale,
+    @Default(1.0) double smallMarkerScale,
+    DateTime? lastSynced,
+  }) = _SettingsState;
+}
 
-  UserPreferences _userPreferences = UserPreferences(); // Store the full user preferences
-  NotificationProfile? _activeNotificationProfile; // The profile currently being viewed/edited
+@riverpod
+class Settings extends _$Settings {
+  @override
+  SettingsState build() {
+    // Immediate build with default state
+    _init();
+    return const SettingsState();
+  }
 
-  // App-wide settings not tied to a specific notification profile
-  var _themeMode = ThemeMode.system;
-  var _timeWindow = TimeWindow.day;
-  var _earthquakeProvider = 'usgs';
-  var _subscribedTopics = <String>{};
-
-  // Getters for main settings (delegated to _userPreferences or _activeNotificationProfile)
-  ThemeMode get themeMode => _themeMode; // This remains for app-wide theme
-  TimeWindow get timeWindow => _timeWindow; // This remains for app-wide list filtering
-  String get earthquakeProvider => _earthquakeProvider; // This remains for app-wide list filtering
-
-  // Access the list of all notification profiles
-  List<NotificationProfile> get notificationProfiles => _userPreferences.notificationProfiles;
-
-  // Access settings from the active profile
-  int get minMagnitude => _activeNotificationProfile?.minMagnitude.toInt() ?? 0;
-  bool get notificationsEnabled => _userPreferences.notificationsEnabled; // This remains for global enable/disable
-  double get radius => _activeNotificationProfile?.radius ?? 0.0;
-  double get listRadius => (_activeNotificationProfile?.radius ?? 0.0); // Use active profile's radius for list display
-  bool get quietHoursEnabled => _activeNotificationProfile?.quietHoursEnabled ?? false;
-  List<int> get quietHoursStart => _activeNotificationProfile?.quietHoursStart ?? const [22, 0];
-  List<int> get quietHoursEnd => _activeNotificationProfile?.quietHoursEnd ?? const [6, 0];
-  List<int> get quietHoursDays => _activeNotificationProfile?.quietHoursDays ?? const [0, 1, 2, 3, 4, 5, 6];
-  double get emergencyMagnitudeThreshold => _activeNotificationProfile?.emergencyMagnitudeThreshold ?? 0.0;
-  double get emergencyRadius => _activeNotificationProfile?.emergencyRadius ?? 0.0;
-  double get globalMinMagnitudeOverrideQuietHours => _activeNotificationProfile?.globalMinMagnitudeOverrideQuietHours ?? 0.0;
-  bool get alwaysNotifyRadiusEnabled => _activeNotificationProfile?.alwaysNotifyRadiusEnabled ?? false;
-  double get alwaysNotifyRadiusValue => _activeNotificationProfile?.alwaysNotifyRadiusValue ?? 0.0;
-
-  // Vibration settings getters
-  VibrationSettings get successVibration => _userPreferences.successVibration;
-  VibrationSettings get errorVibration => _userPreferences.errorVibration;
-
-  SettingsProvider(this._locationProvider) {
-    _loadPreferences();
-    _auth.userChanges().listen((user) {
+  void _init() {
+    // Listen to auth changes - this is our primary trigger
+    final auth = ref.read(firebaseAuthProvider);
+    auth.userChanges().listen((user) {
       if (user != null) {
+        // User logged in or already logged in
         _loadPreferences();
+      } else {
+        // User logged out
+        _resetToDefaults();
       }
     });
-    _locationProvider.locationStream.listen((_) {
-      _updateSubscriptions();
+
+    // Reactively update subscriptions when location changes
+    ref.listen(locationProvider, (previous, next) {
+      if (previous?.position != next.position) {
+        _updateSubscriptions();
+      }
     });
+  }
+
+  void _resetToDefaults() {
+    state = state.copyWith(userPreferences: const UserPreferences(), isLoaded: true);
   }
 
   Future<void> _loadPreferences() async {
     try {
-      final user = _auth.currentUser;
-      if (user != null) {
-        _userPreferences = (await _userService.getUserPreferences(user.uid)) ?? UserPreferences();
-        
-        // If there are no profiles (e.g., new user or old data without profiles), create a default one
-        if (_userPreferences.notificationProfiles.isEmpty) {
-            final currentPosition = _locationProvider.currentPosition;
-            _userPreferences = _userPreferences.copyWith(
-              notificationProfiles: [
-                NotificationProfile(
-                  id: 'default',
-                  name: 'Default Profile',
-                  latitude: currentPosition?.latitude ?? 0.0,
-                  longitude: currentPosition?.longitude ?? 0.0,
-                  radius: 0.0, // Default to worldwide
-                  minMagnitude: 4.5,
-                )
-              ]
-            );
+      final auth = ref.read(firebaseAuthProvider);
+      final user = auth.currentUser;
+      
+      // 1. First, load from SharedPreferences for "Instant On" UI
+      final prefs = await SharedPreferences.getInstance();
+      
+      UserPreferences? currentPrefs;
+      final userPrefsJson = prefs.getString('userPreferences');
+      if (userPrefsJson != null) {
+        try {
+          currentPrefs = UserPreferences.fromJson(jsonDecode(userPrefsJson));
+        } catch (e) {
+          debugPrint('Settings Parse Error: $e');
         }
-        _activeNotificationProfile = _userPreferences.notificationProfiles.first; // Set the first profile as active
-        
-        // Load app-wide settings from the loaded UserPreferences object
-        _themeMode = ThemeMode.values[_userPreferences.themeMode];
-        _timeWindow = _userPreferences.timeWindow;
-        _earthquakeProvider = _userPreferences.earthquakeProvider;
-        _subscribedTopics = Set<String>.from(_userPreferences.subscribedTopics);
-
-      } else {
-        _userPreferences = UserPreferences(); // Reset to default if no user
-        _activeNotificationProfile = null;
       }
+      
+      currentPrefs ??= const UserPreferences();
+
+      // Load app-wide specific keys
+      final showPlates = prefs.getBool('showPlates') ?? true;
+      final showFaults = prefs.getBool('showFaults') ?? true;
+      final showFeltRadius = prefs.getBool('showFeltRadius') ?? true;
+      final mapButtonScale = prefs.getDouble('mapButtonScale') ?? 1.0;
+      final smallMarkerScale = prefs.getDouble('smallMarkerScale') ?? 1.0;
+
+      // Update state immediately with local data
+      state = state.copyWith(
+        userPreferences: currentPrefs,
+        activeNotificationProfile: currentPrefs.notificationProfiles.firstOrNull,
+        themeMode: ThemeMode.values[currentPrefs.themeMode.clamp(0, 2)],
+        timeWindow: currentPrefs.timeWindow,
+        earthquakeProvider: currentPrefs.earthquakeProvider,
+        subscribedTopics: Set<String>.from(currentPrefs.subscribedTopics),
+        showPlates: showPlates,
+        showFaults: showFaults,
+        showFeltRadius: showFeltRadius,
+        mapButtonScale: mapButtonScale,
+        smallMarkerScale: smallMarkerScale,
+        isLoaded: true,
+      );
+
+      // 2. Then, fetch from Firestore to sync (Background)
+      if (user != null) {
+        final userService = ref.read(userServiceProvider);
+        final remotePrefs = await userService.getUserPreferences(user.uid);
+        
+        if (remotePrefs != null) {
+          // Compare or merge (Simple override for now as Firestore is truth)
+          state = state.copyWith(
+            userPreferences: remotePrefs,
+            activeNotificationProfile: remotePrefs.notificationProfiles.firstOrNull,
+            themeMode: ThemeMode.values[remotePrefs.themeMode.clamp(0, 2)],
+            timeWindow: remotePrefs.timeWindow,
+            earthquakeProvider: remotePrefs.earthquakeProvider,
+            subscribedTopics: Set<String>.from(remotePrefs.subscribedTopics),
+            lastSynced: DateTime.now(),
+          );
+          
+          // Sync back to local storage
+          await _saveToLocalCache();
+        }
+      }
+
       await _updateSubscriptions();
-      await _saveToLocalCache();
     } catch (e) {
       debugPrint('Error loading preferences: $e');
-    } finally {
-      _isLoaded = true;
-      notifyListeners();
+      state = state.copyWith(isLoaded: true);
     }
   }
 
   Future<void> _saveToLocalCache() async {
-    final box = await Hive.openBox('app_settings');
-    final position = _locationProvider.currentPosition;
-    await box.putAll({
-      'minMagnitude': _activeNotificationProfile?.minMagnitude.toInt() ?? 0,
-      'notificationsEnabled': _userPreferences.notificationsEnabled,
-      'radius': _activeNotificationProfile?.radius ?? 0.0,
-      'listRadius': _activeNotificationProfile?.radius ?? 0.0, // Use active profile's radius for list display
-      'quietHoursEnabled': _activeNotificationProfile?.quietHoursEnabled ?? false,
-      'quietHoursStart': _activeNotificationProfile?.quietHoursStart,
-      'quietHoursEnd': _activeNotificationProfile?.quietHoursEnd,
-      'quietHoursDays': _activeNotificationProfile?.quietHoursDays,
-      'emergencyMagnitudeThreshold': _activeNotificationProfile?.emergencyMagnitudeThreshold ?? 0.0,
-      'emergencyRadius': _activeNotificationProfile?.emergencyRadius ?? 0.0,
-      'globalMinMagnitudeOverrideQuietHours': _activeNotificationProfile?.globalMinMagnitudeOverrideQuietHours ?? 0.0,
-      'alwaysNotifyRadiusEnabled': _activeNotificationProfile?.alwaysNotifyRadiusEnabled ?? false,
-      'alwaysNotifyRadiusValue': _activeNotificationProfile?.alwaysNotifyRadiusValue ?? 0.0,
-      'successVibration': _userPreferences.successVibration.toMap(),
-      'errorVibration': _userPreferences.errorVibration.toMap(),
-      'lastLatitude': position?.latitude,
-      'lastLongitude': position?.longitude,
-      'notificationProfiles': _userPreferences.notificationProfiles, // Save full list
-    });
+    final prefs = await SharedPreferences.getInstance();
+    final locationState = ref.read(locationProvider);
+    final position = locationState.position;
+    
+    await prefs.setString('userPreferences', jsonEncode(state.userPreferences.toJson()));
+    await prefs.setDouble('minMagnitude', state.activeNotificationProfile?.minMagnitude ?? 0.0);
+    await prefs.setBool('notificationsEnabled', state.userPreferences.notificationsEnabled);
+    await prefs.setBool('communitySeismographEnabled', state.userPreferences.communitySeismographEnabled);
+    await prefs.setDouble('radius', state.activeNotificationProfile?.radius ?? 0.0);
+    // vibration settings are complex, just relying on userPreferences object for those in local cache primarily
+    if (position != null) {
+      await prefs.setDouble('lastLatitude', position.latitude);
+      await prefs.setDouble('lastLongitude', position.longitude);
+    }
+    
+    await prefs.setBool('showPlates', state.showPlates);
+    await prefs.setBool('showFaults', state.showFaults);
+    await prefs.setBool('showFeltRadius', state.showFeltRadius);
+    await prefs.setDouble('mapButtonScale', state.mapButtonScale);
+    await prefs.setDouble('smallMarkerScale', state.smallMarkerScale);
   }
 
   Future<void> _savePreferences() async {
-    final user = _auth.currentUser;
+    final auth = ref.read(firebaseAuthProvider);
+    final user = auth.currentUser;
     if (user != null) {
+      final userService = ref.read(userServiceProvider);
+      final locationState = ref.read(locationProvider);
       final fcmToken = await FirebaseMessaging.instance.getToken();
-      final position = _locationProvider.currentPosition;
       
-      // Update app-wide preferences within the _userPreferences object
-      _userPreferences = _userPreferences.copyWith(
-        notificationsEnabled: _userPreferences.notificationsEnabled,
-        themeMode: _themeMode.index,
-        timeWindow: _timeWindow,
-        earthquakeProvider: _earthquakeProvider,
-        subscribedTopics: _subscribedTopics.toList(),
+      final updatedPrefs = state.userPreferences.copyWith(
+        notificationsEnabled: state.userPreferences.notificationsEnabled,
+        themeMode: state.themeMode.index,
+        timeWindow: state.timeWindow,
+        earthquakeProvider: state.earthquakeProvider,
+        subscribedTopics: state.subscribedTopics.toList(),
+        mapButtonScale: state.mapButtonScale,
+        smallMarkerScale: state.smallMarkerScale,
       );
 
-      await _userService.saveUserPreferences(
+      await userService.saveUserPreferences(
         user.uid, 
-        _userPreferences, // Pass the entire UserPreferences object
+        updatedPrefs,
         fcmToken: fcmToken, 
-        position: position
+        position: locationState.position
       );
       await _saveToLocalCache();
     }
   }
 
   Future<void> setThemeMode(ThemeMode mode) async {
-    _themeMode = mode;
+    state = state.copyWith(themeMode: mode);
     await _savePreferences();
-    notifyListeners();
   }
 
   Future<void> setTimeWindow(TimeWindow window) async {
-    _timeWindow = window;
+    state = state.copyWith(timeWindow: window);
     await _savePreferences();
-    notifyListeners();
-  }
-
-  Future<void> setMinMagnitude(int magnitude) async {
-    if (_activeNotificationProfile == null) return;
-    _activeNotificationProfile = _activeNotificationProfile!.copyWith(minMagnitude: magnitude.toDouble());
-    // Find and update the profile in the userPreferences list
-    _userPreferences = _userPreferences.copyWith(
-      notificationProfiles: _userPreferences.notificationProfiles.map((p) => 
-        p.id == _activeNotificationProfile!.id ? _activeNotificationProfile! : p
-      ).toList(),
-    );
-    await _savePreferences();
-    await _updateSubscriptions();
-    notifyListeners();
-  }
-
-  Future<void> setNotificationsEnabled(bool enabled) async {
-    // Only proceed if enabling notifications
-    if (enabled) {
-      final AuthorizationStatus status = await BackgroundService.requestPermission();
-      if (status == AuthorizationStatus.denied) {
-        // User denied permissions permanently, update internal state to reflect this
-        _userPreferences = _userPreferences.copyWith(notificationsEnabled: false);
-        await _savePreferences(); // Save the new 'false' status
-        notifyListeners();
-        // Potentially show a dialog to the user guiding them to settings
-        return;
-      }
-      // If authorized or provisional, proceed
-      _userPreferences = _userPreferences.copyWith(notificationsEnabled: enabled); // Re-set, in case it was provisional or authorized
-      await _savePreferences();
-      await _updateSubscriptions();
-    } else {
-      // If disabling notifications
-      _userPreferences = _userPreferences.copyWith(notificationsEnabled: enabled);
-      await _savePreferences();
-      await _unsubscribeFromAllTopics();
-    }
-    notifyListeners();
-  }
-
-  Future<void> setRadius(double radius) async {
-    if (_activeNotificationProfile == null) return;
-    _activeNotificationProfile = _activeNotificationProfile!.copyWith(radius: radius);
-    _userPreferences = _userPreferences.copyWith(
-      notificationProfiles: _userPreferences.notificationProfiles.map((p) => 
-        p.id == _activeNotificationProfile!.id ? _activeNotificationProfile! : p
-      ).toList(),
-    );
-    await _savePreferences();
-    await _updateSubscriptions();
-    notifyListeners();
-  }
-
-  Future<void> setListRadius(double radius) async {
-    // This setter might become obsolete or needs to update a specific profile's radius
-    // For now, it will update the active profile's radius
-    if (_activeNotificationProfile == null) return;
-    _activeNotificationProfile = _activeNotificationProfile!.copyWith(radius: radius);
-    _userPreferences = _userPreferences.copyWith(
-      notificationProfiles: _userPreferences.notificationProfiles.map((p) => 
-        p.id == _activeNotificationProfile!.id ? _activeNotificationProfile! : p
-      ).toList(),
-    );
-    await _savePreferences();
-    await _updateSubscriptions();
-    notifyListeners();
   }
 
   Future<void> setEarthquakeProvider(String provider) async {
-    _earthquakeProvider = provider;
+    state = state.copyWith(earthquakeProvider: provider);
     await _savePreferences();
-    notifyListeners();
   }
 
-  // New setters for quiet hours and emergency override
-  Future<void> setQuietHoursEnabled(bool enabled) async {
-    if (_activeNotificationProfile == null) return;
-    _activeNotificationProfile = _activeNotificationProfile!.copyWith(quietHoursEnabled: enabled);
-    _userPreferences = _userPreferences.copyWith(
-      notificationProfiles: _userPreferences.notificationProfiles.map((p) => 
-        p.id == _activeNotificationProfile!.id ? _activeNotificationProfile! : p
-      ).toList(),
-    );
-    await _savePreferences();
-    await _updateSubscriptions();
-    notifyListeners();
-  }
-
-  Future<void> setQuietHoursStart(List<int> time) async {
-    if (_activeNotificationProfile == null) return;
-    _activeNotificationProfile = _activeNotificationProfile!.copyWith(quietHoursStart: time);
-    _userPreferences = _userPreferences.copyWith(
-      notificationProfiles: _userPreferences.notificationProfiles.map((p) => 
-        p.id == _activeNotificationProfile!.id ? _activeNotificationProfile! : p
-      ).toList(),
-    );
-    await _savePreferences();
-    await _updateSubscriptions();
-    notifyListeners();
-  }
-
-  Future<void> setQuietHoursEnd(List<int> time) async {
-    if (_activeNotificationProfile == null) return;
-    _activeNotificationProfile = _activeNotificationProfile!.copyWith(quietHoursEnd: time);
-    _userPreferences = _userPreferences.copyWith(
-      notificationProfiles: _userPreferences.notificationProfiles.map((p) => 
-        p.id == _activeNotificationProfile!.id ? _activeNotificationProfile! : p
-      ).toList(),
-    );
-    await _savePreferences();
-    await _updateSubscriptions();
-    notifyListeners();
-  }
-
-  Future<void> setQuietHoursDays(List<int> days) async {
-    if (_activeNotificationProfile == null) return;
-    _activeNotificationProfile = _activeNotificationProfile!.copyWith(quietHoursDays: days);
-    _userPreferences = _userPreferences.copyWith(
-      notificationProfiles: _userPreferences.notificationProfiles.map((p) => 
-        p.id == _activeNotificationProfile!.id ? _activeNotificationProfile! : p
-      ).toList(),
-    );
-    await _savePreferences();
-    await _updateSubscriptions();
-    notifyListeners();
-  }
-
-  Future<void> setEmergencyMagnitudeThreshold(double magnitude) async {
-    if (_activeNotificationProfile == null) return;
-    _activeNotificationProfile = _activeNotificationProfile!.copyWith(emergencyMagnitudeThreshold: magnitude);
-    _userPreferences = _userPreferences.copyWith(
-      notificationProfiles: _userPreferences.notificationProfiles.map((p) => 
-        p.id == _activeNotificationProfile!.id ? _activeNotificationProfile! : p
-      ).toList(),
-    );
-    await _savePreferences();
-    await _updateSubscriptions();
-    notifyListeners();
-  }
-
-  Future<void> setEmergencyRadius(double radius) async {
-    if (_activeNotificationProfile == null) return;
-    _activeNotificationProfile = _activeNotificationProfile!.copyWith(emergencyRadius: radius);
-    _userPreferences = _userPreferences.copyWith(
-      notificationProfiles: _userPreferences.notificationProfiles.map((p) => 
-        p.id == _activeNotificationProfile!.id ? _activeNotificationProfile! : p
-      ).toList(),
-    );
-    await _savePreferences();
-    await _updateSubscriptions();
-    notifyListeners();
-  }
-
-  // New setters for override fields
-  Future<void> setGlobalMinMagnitudeOverrideQuietHours(double magnitude) async {
-    if (_activeNotificationProfile == null) return;
-    _activeNotificationProfile = _activeNotificationProfile!.copyWith(globalMinMagnitudeOverrideQuietHours: magnitude);
-    _userPreferences = _userPreferences.copyWith(
-      notificationProfiles: _userPreferences.notificationProfiles.map((p) => 
-        p.id == _activeNotificationProfile!.id ? _activeNotificationProfile! : p
-      ).toList(),
-    );
-    await _savePreferences();
-    await _updateSubscriptions();
-    notifyListeners();
-  }
-
-  Future<void> setAlwaysNotifyRadiusEnabled(bool enabled) async {
-    if (_activeNotificationProfile == null) return;
-    _activeNotificationProfile = _activeNotificationProfile!.copyWith(alwaysNotifyRadiusEnabled: enabled);
-    _userPreferences = _userPreferences.copyWith(
-      notificationProfiles: _userPreferences.notificationProfiles.map((p) => 
-        p.id == _activeNotificationProfile!.id ? _activeNotificationProfile! : p
-      ).toList(),
-    );
-    await _savePreferences();
-    await _updateSubscriptions();
-    notifyListeners();
-  }
-
-  Future<void> setAlwaysNotifyRadiusValue(double value) async {
-    if (_activeNotificationProfile == null) return;
-    _activeNotificationProfile = _activeNotificationProfile!.copyWith(alwaysNotifyRadiusValue: value);
-    _userPreferences = _userPreferences.copyWith(
-      notificationProfiles: _userPreferences.notificationProfiles.map((p) => 
-        p.id == _activeNotificationProfile!.id ? _activeNotificationProfile! : p
-      ).toList(),
-    );
-    await _savePreferences();
-    await _updateSubscriptions();
-    notifyListeners();
-  }
-
-  // Vibration settings setters
-  Future<void> setSuccessVibration(VibrationSettings settings) async {
-    _userPreferences = _userPreferences.copyWith(successVibration: settings);
-    await _savePreferences();
-    notifyListeners();
-  }
-
-  Future<void> setErrorVibration(VibrationSettings settings) async {
-    _userPreferences = _userPreferences.copyWith(errorVibration: settings);
-    await _savePreferences();
-    notifyListeners();
-  }
-
-  // Test vibration with current settings
-  Future<void> testSuccessVibration() async {
-    try {
-      final hasVibrator = await Vibration.hasVibrator();
-      if (hasVibrator != true) return;
-      
-      final settings = _userPreferences.successVibration;
-      final duration = settings.getDurationForIntensity(VibrationIntensity.medium);
-      await Vibration.vibrate(duration: duration);
-    } catch (_) {
-      // Ignore haptic feedback errors
-    }
-  }
-
-  Future<void> testErrorVibration() async {
-    try {
-      final hasVibrator = await Vibration.hasVibrator();
-      if (hasVibrator != true) return;
-      
-      final settings = _userPreferences.errorVibration;
-      final duration = settings.getDurationForIntensity(VibrationIntensity.heavy);
-      // Use pattern for error vibration (multiple pulses)
-      // Pattern format: [pause, vibrate, pause, vibrate, ...] - must start with pause
-      if (settings.pattern > 1) {
-        final pattern = <int>[0]; // Start with 0ms pause (required format)
-        for (int i = 0; i < settings.pattern; i++) {
-          pattern.add(duration);
-          if (i < settings.pattern - 1) {
-            pattern.add(100); // Pause between pulses
-          }
-        }
-        await Vibration.vibrate(pattern: pattern);
-      } else {
-        await Vibration.vibrate(duration: duration);
+  Future<void> setNotificationsEnabled(bool enabled) async {
+    if (enabled) {
+      final AuthorizationStatus status = await BackgroundService.requestPermission();
+      if (status == AuthorizationStatus.denied) {
+        state = state.copyWith(
+          userPreferences: state.userPreferences.copyWith(notificationsEnabled: false)
+        );
+        await _savePreferences();
+        return;
       }
-    } catch (_) {
-      // Ignore haptic feedback errors
+      state = state.copyWith(
+        userPreferences: state.userPreferences.copyWith(notificationsEnabled: true)
+      );
+      await _savePreferences();
+      await _updateSubscriptions();
+    } else {
+      state = state.copyWith(
+        userPreferences: state.userPreferences.copyWith(notificationsEnabled: false)
+      );
+      await _savePreferences();
+      await _unsubscribeFromAllTopics();
+      try {
+        await FirebaseMessaging.instance.deleteToken();
+      } catch (e) {
+        debugPrint('Error deleting FCM token: $e');
+      }
     }
+  }
+
+  Future<void> setCommunitySeismographEnabled(bool enabled) async {
+    state = state.copyWith(
+      userPreferences: state.userPreferences.copyWith(communitySeismographEnabled: enabled)
+    );
+    await _savePreferences();
+
+    // Store userId for background isolate access
+    if (enabled) {
+      final auth = ref.read(firebaseAuthProvider);
+      final user = auth.currentUser;
+      if (user != null) {
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setString('bg_user_id', user.uid);
+      }
+    }
+  }
+
+  Future<void> setShowPlates(bool show) async {
+    state = state.copyWith(showPlates: show);
+    await _saveToLocalCache();
+  }
+
+  Future<void> setShowFaults(bool show) async {
+    state = state.copyWith(showFaults: show);
+    await _saveToLocalCache();
+  }
+
+  Future<void> setShowFeltRadius(bool show) async {
+    state = state.copyWith(showFeltRadius: show);
+    await _saveToLocalCache();
+  }
+
+  Future<void> setMapButtonScale(double scale) async {
+    state = state.copyWith(mapButtonScale: scale);
+    await _savePreferences();
+  }
+
+  Future<void> setSmallMarkerScale(double scale) async {
+    state = state.copyWith(smallMarkerScale: scale);
+    await _savePreferences();
+  }
+
+  Future<void> setActiveNotificationProfile(NotificationProfile? profile) async {
+    state = state.copyWith(activeNotificationProfile: profile);
+  }
+
+  Future<void> updateProfile(NotificationProfile profile) async {
+    final auth = ref.read(firebaseAuthProvider);
+    final user = auth.currentUser;
+    if (user == null) return;
+    
+    final userService = ref.read(userServiceProvider);
+    await userService.updateNotificationProfile(user.uid, profile);
+    await _loadPreferences();
+  }
+
+  Future<void> addProfile(NotificationProfile profile) async {
+    final auth = ref.read(firebaseAuthProvider);
+    final user = auth.currentUser;
+    if (user == null) return;
+    
+    final userService = ref.read(userServiceProvider);
+    await userService.addNotificationProfile(user.uid, profile);
+    await _loadPreferences();
+  }
+
+  Future<void> deleteProfile(String profileId) async {
+    final auth = ref.read(firebaseAuthProvider);
+    final user = auth.currentUser;
+    if (user == null) return;
+    
+    final userService = ref.read(userServiceProvider);
+    await userService.deleteNotificationProfile(user.uid, profileId);
+    await _loadPreferences();
   }
 
   Future<void> _updateSubscriptions() async {
-    if (!_userPreferences.notificationsEnabled) return;
+    if (!state.userPreferences.notificationsEnabled) return;
 
     final newTopics = <String>{'global'};
     
-    // Determine global minMagnitude by finding the lowest minMagnitude across all profiles
-    int globalMinMagnitude = 9; // Start with highest possible magnitude
-    if (_userPreferences.notificationProfiles.isNotEmpty) {
-      for(final profile in _userPreferences.notificationProfiles) {
+    int globalMinMagnitude = 9;
+    if (state.userPreferences.notificationProfiles.isNotEmpty) {
+      for(final profile in state.userPreferences.notificationProfiles) {
         if (profile.minMagnitude < globalMinMagnitude) {
           globalMinMagnitude = profile.minMagnitude.toInt();
         }
       }
     } else {
-      // Fallback if somehow no profiles, use a default value (e.g., 0 for all)
       globalMinMagnitude = 0;
     }
 
-
-    // Subscribe to all magnitude levels from our determined global minimum up to 9.
     for (int i = globalMinMagnitude; i <= 9; i++) {
       newTopics.add('minmag_$i');
     }
 
-    // 1. Current Position Geohash
-    final currentPosition = _locationProvider.currentPosition;
+    final locationState = ref.read(locationProvider);
+    final currentPosition = locationState.position;
     if (currentPosition != null) {
       final geohash = GeoHasher().encode(currentPosition.longitude, currentPosition.latitude);
       newTopics.add('geo_${geohash.substring(0, 1)}');
       newTopics.add('geo_${geohash.substring(0, 2)}');
     }
 
-    // 2. Geohashes for ALL Notification Profiles
-    for (final profile in _userPreferences.notificationProfiles) {
+    for (final profile in state.userPreferences.notificationProfiles) {
       final geohash = GeoHasher().encode(profile.longitude, profile.latitude);
-      // Use 1 and 2 character prefixes for broad and local geohash topics
       newTopics.add('geo_${geohash.substring(0, 1)}');
       newTopics.add('geo_${geohash.substring(0, 2)}');
     }
 
-    final toAdd = newTopics.difference(_subscribedTopics);
-    final toRemove = _subscribedTopics.difference(newTopics);
+    final currentSubscribed = state.subscribedTopics;
+    final toAdd = newTopics.difference(currentSubscribed);
+    final toRemove = currentSubscribed.difference(newTopics);
 
     for (final topic in toAdd) {
       try {
         await FirebaseMessaging.instance.subscribeToTopic(topic);
-        _subscribedTopics.add(topic);
       } catch (e) {
         debugPrint('Error subscribing to topic $topic: $e');
       }
@@ -474,50 +362,68 @@ class SettingsProvider with ChangeNotifier {
     for (final topic in toRemove) {
       try {
         await FirebaseMessaging.instance.unsubscribeFromTopic(topic);
-        _subscribedTopics.remove(topic);
       } catch (e) {
         debugPrint('Error unsubscribing from topic $topic: $e');
       }
     }
 
+    state = state.copyWith(subscribedTopics: newTopics);
     await _savePreferences();
   }
 
   Future<void> _unsubscribeFromAllTopics() async {
-    for (final topic in _subscribedTopics) {
+    for (final topic in state.subscribedTopics) {
       await FirebaseMessaging.instance.unsubscribeFromTopic(topic);
     }
-    _subscribedTopics.clear();
+    state = state.copyWith(subscribedTopics: {});
     await _savePreferences();
   }
 
-  // Method to set the active notification profile for editing
-  void setActiveNotificationProfile(NotificationProfile? profile) {
-    _activeNotificationProfile = profile;
-    notifyListeners();
+  Future<void> setSuccessVibration(VibrationSettings settings) async {
+    state = state.copyWith(
+      userPreferences: state.userPreferences.copyWith(successVibration: settings)
+    );
+    await _savePreferences();
   }
 
-  // Method to add a new profile (delegates to UserService)
-  Future<void> addProfile(NotificationProfile profile) async {
-    final user = _auth.currentUser;
-    if (user == null) return;
-    await _userService.addNotificationProfile(user.uid, profile);
-    await _loadPreferences(); // Reload all preferences
+  Future<void> setErrorVibration(VibrationSettings settings) async {
+    state = state.copyWith(
+      userPreferences: state.userPreferences.copyWith(errorVibration: settings)
+    );
+    await _savePreferences();
   }
 
-  // Method to update an existing profile (delegates to UserService)
-  Future<void> updateProfile(NotificationProfile profile) async {
-    final user = _auth.currentUser;
-    if (user == null) return;
-    await _userService.updateNotificationProfile(user.uid, profile);
-    await _loadPreferences(); // Reload all preferences
+  // Vibration test methods
+  Future<void> testSuccessVibration([VibrationSettings? temporarySettings]) async {
+    try {
+      final hasVibrator = await Vibration.hasVibrator();
+      if (hasVibrator != true) return;
+      
+      final settings = temporarySettings ?? state.userPreferences.successVibration;
+      final duration = settings.getDurationForIntensity(VibrationIntensity.medium);
+      await Vibration.vibrate(duration: duration);
+    } catch (_) {}
   }
 
-  // Method to delete a profile (delegates to UserService)
-  Future<void> deleteProfile(String profileId) async {
-    final user = _auth.currentUser;
-    if (user == null) return;
-    await _userService.deleteNotificationProfile(user.uid, profileId);
-    await _loadPreferences(); // Reload all preferences
+  Future<void> testErrorVibration([VibrationSettings? temporarySettings]) async {
+    try {
+      final hasVibrator = await Vibration.hasVibrator();
+      if (hasVibrator != true) return;
+      
+      final settings = temporarySettings ?? state.userPreferences.errorVibration;
+      final duration = settings.getDurationForIntensity(VibrationIntensity.heavy);
+      if (settings.pattern > 1) {
+        final pattern = <int>[0];
+        for (int i = 0; i < settings.pattern; i++) {
+          pattern.add(duration);
+          if (i < settings.pattern - 1) {
+            pattern.add(100);
+          }
+        }
+        await Vibration.vibrate(pattern: pattern);
+      } else {
+        await Vibration.vibrate(duration: duration);
+      }
+    } catch (_) {}
   }
 }

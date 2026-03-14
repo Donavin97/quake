@@ -1,0 +1,71 @@
+{
+  "appTitle": "QuakeTrack",
+  "@appTitle": {
+    "description": "The title of the application"
+  },
+  "mapTab": "Map",
+  "listTab": "List",
+  "statsTab": "Stats",
+  "settingsTab": "Settings",
+  "magnitude": "Magnitude",
+  "depth": "Depth",
+  "distance": "Distance",
+  "time": "Time",
+  "source": "Source",
+  "feltRadius": "Felt Radius",
+  "plateBoundaries": "Plate Boundaries",
+  "faultLines": "Fault Lines",
+  "showFeltRadius": "Show Felt Radius",
+  "theoreticalFeltRadius": "Theoretical Felt Radius",
+  "didYouFeelIt": "Did You Feel It?",
+  "viewFeltReports": "View Felt Reports",
+  "seismograph": "Seismograph",
+  "share": "Share",
+  "retry": "Retry",
+  "loading": "Loading...",
+  "noData": "No earthquake data available",
+  "offlineMode": "Showing offline data. Check connection.",
+  "searchPlace": "Search by place...",
+  "searchArchive": "Search global history...",
+  "archiveToggle": "Global Archive",
+  "noArchiveData": "No archived earthquakes found matching your search.",
+  "searchLoading": "Searching global archive...",
+  "profile": "Profile",
+  "signOut": "Sign Out",
+  "signIn": "Sign In",
+  "authRequired": "Authentication Required",
+  "authRequiredMessage": "Please sign in to access and modify settings.",
+  "safetyTab": "Safety",
+  "duringQuake": "During an Earthquake",
+  "dropCoverHold": "Drop, Cover, and Hold On!",
+  "dropDesc": "DROP down onto your hands and knees.",
+  "coverDesc": "COVER your head and neck with your arms. Seek shelter under a sturdy table.",
+  "holdDesc": "HOLD ON to your shelter until the shaking stops.",
+  "afterQuake": "After an Earthquake",
+  "checkInjuries": "Check for Injuries",
+  "checkGas": "Check Gas, Water, and Electricity",
+  "bePreparedAftershocks": "Be Prepared for Aftershocks",
+  "emergencyKit": "Safety Kit Checklist",
+  "kitWater": "Water (one gallon per person per day)",
+  "kitFood": "Non-perishable Food",
+  "kitFlashlight": "Flashlight and extra batteries",
+  "kitFirstAid": "First Aid Kit",
+  "emergencyContacts": "Emergency Contacts",
+  "callEmergency": "Call 911 (Local Emergency)",
+  "near": "Near {place}",
+  "@near": {
+    "placeholders": {
+      "place": {
+        "type": "String"
+      }
+    }
+  },
+  "distanceFromYou": "Distance from you: {distance} km",
+  "@distanceFromYou": {
+    "placeholders": {
+      "distance": {
+        "type": "String"
+      }
+    }
+  }
+}

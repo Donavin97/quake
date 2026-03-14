@@ -20,6 +20,13 @@ rootProject.layout.buildDirectory.value(newBuildDir)
 subprojects {
     val newSubprojectBuildDir: Directory = newBuildDir.dir(project.name)
     project.layout.buildDirectory.value(newSubprojectBuildDir)
+
+    // Force all subprojects to use at least minSdk 24 and compileSdk 36
+    project.afterEvaluate {
+        val extension = project.extensions.findByName("android") as? com.android.build.gradle.BaseExtension
+        extension?.defaultConfig?.minSdk = 24
+        extension?.compileSdkVersion(36)
+    }
 }
 subprojects {
     project.evaluationDependsOn(":app")

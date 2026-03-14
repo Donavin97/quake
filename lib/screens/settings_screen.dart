@@ -1,34 +1,31 @@
-
-
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
-import 'package:go_router/go_router.dart'; // Import GoRouter
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../models/time_window.dart';
-import '../models/user_preferences.dart';
 import '../providers/settings_provider.dart';
 import '../providers/earthquake_provider.dart';
+import '../config/app_config.dart';
+import '../widgets/community_seismograph_status.dart';
+import '../widgets/vibration_settings_dialog.dart';
 
-class SettingsScreen extends StatefulWidget {
+class SettingsScreen extends ConsumerStatefulWidget {
   const SettingsScreen({super.key});
 
   @override
-  State<SettingsScreen> createState() => _SettingsScreenState();
+  ConsumerState<SettingsScreen> createState() => _SettingsScreenState();
 }
 
-class _SettingsScreenState extends State<SettingsScreen> with WidgetsBindingObserver {
-  late ThemeMode _themeMode;
-  late TimeWindow _timeWindow;
-  late bool _notificationsEnabled;
-  late String _earthquakeProvider;
-  
-  // Vibration settings - initialize with defaults to prevent crashes
-  int _successDuration = 50;
-  int _successPattern = 1;
-  int _errorDuration = 100;
-  int _errorPattern = 2;
-  bool _vibrationSettingsLoaded = false;
+class _SettingsScreenState extends ConsumerState<SettingsScreen> with WidgetsBindingObserver {
+  ThemeMode _themeMode = ThemeMode.system;
+  TimeWindow _timeWindow = TimeWindow.day;
+  bool _notificationsEnabled = true;
+  bool _communitySeismographEnabled = false;
+  String _earthquakeProviderValue = 'usgs';
+  double _mapButtonScale = 1.0;
+  double _smallMarkerScale = 1.0;
+  bool _settingsLoaded = false;
 
   @override
   void initState() {
@@ -44,7 +41,6 @@ class _SettingsScreenState extends State<SettingsScreen> with WidgetsBindingObse
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    // Reinitialize settings when app resumes to ensure valid state
     if (state == AppLifecycleState.resumed && mounted) {
       _loadSettings();
     }
@@ -52,84 +48,55 @@ class _SettingsScreenState extends State<SettingsScreen> with WidgetsBindingObse
 
   void _loadSettings() {
     if (!mounted) return;
-    // Use listen: true to ensure we rebuild when provider notifies
-    final settings = Provider.of<SettingsProvider>(context);
-    
-    _themeMode = settings.themeMode;
-    _timeWindow = settings.timeWindow;
-    _notificationsEnabled = settings.notificationsEnabled;
-    _earthquakeProvider = settings.earthquakeProvider;
-    
-    // Load vibration settings
-    _successDuration = settings.successVibration.duration;
-    _successPattern = settings.successVibration.pattern;
-    _errorDuration = settings.errorVibration.duration;
-    _errorPattern = settings.errorVibration.pattern;
-    _vibrationSettingsLoaded = true;
-    
-    if (mounted) {
-      setState(() {});
+    try {
+      final settings = ref.read(settingsProvider);
+      
+      setState(() {
+        _themeMode = settings.themeMode;
+        _timeWindow = settings.timeWindow;
+        _notificationsEnabled = settings.userPreferences.notificationsEnabled;
+        _communitySeismographEnabled = settings.userPreferences.communitySeismographEnabled;
+        _earthquakeProviderValue = settings.earthquakeProvider;
+        _mapButtonScale = settings.mapButtonScale;
+        _smallMarkerScale = settings.smallMarkerScale;
+        _settingsLoaded = true;
+      });
+    } catch (e) {
+      debugPrint('Error loading settings: $e');
     }
   }
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    // Only load settings once
-    if (!_vibrationSettingsLoaded) {
+    if (!_settingsLoaded) {
       _loadSettings();
     }
   }
 
   void _applySettings() {
-    final settings = Provider.of<SettingsProvider>(context, listen: false);
-    settings.setThemeMode(_themeMode);
-    settings.setTimeWindow(_timeWindow);
-    settings.setNotificationsEnabled(_notificationsEnabled);
-    settings.setEarthquakeProvider(_earthquakeProvider);
+    final notifier = ref.read(settingsProvider.notifier);
+    notifier.setThemeMode(_themeMode);
+    notifier.setTimeWindow(_timeWindow);
+    notifier.setNotificationsEnabled(_notificationsEnabled);
+    notifier.setCommunitySeismographEnabled(_communitySeismographEnabled);
+    notifier.setEarthquakeProvider(_earthquakeProviderValue);
+    notifier.setMapButtonScale(_mapButtonScale);
+    notifier.setSmallMarkerScale(_smallMarkerScale);
     
-    // Apply vibration settings
-    settings.setSuccessVibration(VibrationSettings(
-      duration: _successDuration,
-      pattern: _successPattern,
-    ));
-    settings.setErrorVibration(VibrationSettings(
-      duration: _errorDuration,
-      pattern: _errorPattern,
-    ));
-
     // Refresh earthquake list after applying settings
-    Provider.of<EarthquakeProvider>(context, listen: false).refresh();
+    ref.read(earthquakeNotifierProvider.notifier).refresh();
 
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('Settings Applied')),
     );
   }
 
-  void _testSuccessVibration() {
-    final settings = Provider.of<SettingsProvider>(context, listen: false);
-    settings.testSuccessVibration();
-  }
-
-  void _testErrorVibration() {
-    final settings = Provider.of<SettingsProvider>(context, listen: false);
-    settings.testErrorVibration();
-  }
-
-  void _saveSuccessVibration() {
-    final settings = Provider.of<SettingsProvider>(context, listen: false);
-    settings.setSuccessVibration(VibrationSettings(
-      duration: _successDuration,
-      pattern: _successPattern,
-    ));
-  }
-
-  void _saveErrorVibration() {
-    final settings = Provider.of<SettingsProvider>(context, listen: false);
-    settings.setErrorVibration(VibrationSettings(
-      duration: _errorDuration,
-      pattern: _errorPattern,
-    ));
+  void _showVibrationSettings() {
+    showDialog(
+      context: context,
+      builder: (context) => const VibrationSettingsDialog(),
+    );
   }
 
   @override
@@ -142,6 +109,52 @@ class _SettingsScreenState extends State<SettingsScreen> with WidgetsBindingObse
         padding: const EdgeInsets.all(16.0),
         child: ListView(
           children: [
+            const CommunitySeismographStatus(),
+            const SizedBox(height: 8),
+            Text(
+              'UI Customization',
+              style: Theme.of(context).textTheme.titleLarge,
+            ),
+            const SizedBox(height: 8),
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(12.0),
+                child: Column(
+                  children: [
+                    Row(
+                      children: [
+                        const Icon(Icons.ads_click, size: 20),
+                        const SizedBox(width: 8),
+                        Expanded(child: Text('Map Button Scale: ${_mapButtonScale.toStringAsFixed(1)}x')),
+                      ],
+                    ),
+                    Slider(
+                      value: _mapButtonScale,
+                      min: 0.5,
+                      max: 2.0,
+                      divisions: 15,
+                      onChanged: (val) => setState(() => _mapButtonScale = val),
+                    ),
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        const Icon(Icons.radio_button_checked, size: 20),
+                        const SizedBox(width: 8),
+                        Expanded(child: Text('Small Marker Scale (<3.0): ${_smallMarkerScale.toStringAsFixed(1)}x')),
+                      ],
+                    ),
+                    Slider(
+                      value: _smallMarkerScale,
+                      min: 0.5,
+                      max: 3.0,
+                      divisions: 25,
+                      onChanged: (val) => setState(() => _smallMarkerScale = val),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 24),
             Text(
               'Theme',
               style: Theme.of(context).textTheme.titleLarge,
@@ -214,6 +227,27 @@ class _SettingsScreenState extends State<SettingsScreen> with WidgetsBindingObse
                 });
               },
             ),
+            SwitchListTile(
+              title: const Text('Community Seismograph'),
+              subtitle: const Text('Help detect earthquakes by using your phone sensors while charging.'),
+              contentPadding: EdgeInsets.zero,
+              value: _communitySeismographEnabled,
+              onChanged: (value) {
+                setState(() {
+                  _communitySeismographEnabled = value;
+                });
+              },
+            ),
+            if (_communitySeismographEnabled)
+              ListTile(
+                title: const Text('My Contributions'),
+                subtitle: const Text('View your recorded seismic detections'),
+                contentPadding: const EdgeInsets.only(left: 16),
+                trailing: const Icon(Icons.history),
+                onTap: () {
+                  GoRouter.of(context).go('/settings/community_detections');
+                },
+              ),
             ListTile(
               title: const Text('Manage Notification Profiles'),
               contentPadding: EdgeInsets.zero,
@@ -222,164 +256,41 @@ class _SettingsScreenState extends State<SettingsScreen> with WidgetsBindingObse
                 GoRouter.of(context).go('/settings/notification_profiles');
               },
             ),
+            const SizedBox(height: 8),
+            ListTile(
+              title: const Text('Vibration Settings'),
+              subtitle: const Text('Customize seismograph feedback vibrations'),
+              contentPadding: EdgeInsets.zero,
+              trailing: const Icon(Icons.vibration),
+              onTap: _showVibrationSettings,
+            ),
             const SizedBox(height: 24),
             Text(
               'Earthquake Provider',
               style: Theme.of(context).textTheme.titleLarge,
             ),
-            DropdownButton<String>(
-              value: _earthquakeProvider,
+            const SizedBox(height: 8),
+            DropdownButtonFormField<String>(
+              initialValue: _earthquakeProviderValue,
+              decoration: const InputDecoration(
+                contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                border: OutlineInputBorder(),
+                labelText: 'Data Source',
+              ),
               onChanged: (String? newValue) {
                 if (newValue != null) {
                   setState(() {
-                    _earthquakeProvider = newValue;
+                    _earthquakeProviderValue = newValue;
                   });
                 }
               },
-              items: <String>['usgs', 'emsc', 'sec', 'both', 'all']
+              items: <String>['usgs', 'emsc', 'sec', 'all']
                   .map<DropdownMenuItem<String>>((String value) {
                 return DropdownMenuItem<String>(
                   value: value,
                   child: Text(value.toUpperCase()),
                 );
               }).toList(),
-            ),
-            Semantics(
-              label: 'Earthquake data provider selection',
-              child: const SizedBox.shrink(),
-            ),
-            const SizedBox(height: 24),
-            Text(
-              'Seismograph Vibration Settings',
-              style: Theme.of(context).textTheme.titleLarge,
-            ),
-            const SizedBox(height: 8),
-            // Success Vibration Settings
-            Card(
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Icon(Icons.check_circle, color: Colors.green[600]),
-                        const SizedBox(width: 8),
-                        Text(
-                          'Success Vibration',
-                          style: Theme.of(context).textTheme.titleMedium,
-                        ),
-                        const Spacer(),
-                        OutlinedButton.icon(
-                          onPressed: _testSuccessVibration,
-                          icon: const Icon(Icons.vibration, size: 18),
-                          label: const Text('Test'),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 16),
-                    // Duration slider
-                    Text('Duration: ${_successDuration}ms'),
-                    Slider(
-                      value: _successDuration.toDouble(),
-                      min: 10,
-                      max: 200,
-                      divisions: 19,
-                      label: '${_successDuration}ms',
-                      onChanged: (value) {
-                        setState(() {
-                          _successDuration = value.toInt();
-                        });
-                      },
-                      onChangeEnd: (value) {
-                        _saveSuccessVibration();
-                      },
-                    ),
-                    const SizedBox(height: 8),
-                    // Pattern selector
-                    Text('Intensity (pulses): $_successPattern'),
-                    Slider(
-                      value: _successPattern.toDouble(),
-                      min: 1,
-                      max: 3,
-                      divisions: 20, // Allow any value from 1 to 3
-                      label: '$_successPattern pulse${_successPattern > 1 ? 's' : ''}',
-                      onChanged: (value) {
-                        setState(() {
-                          _successPattern = value.round().clamp(1, 3);
-                        });
-                      },
-                      onChangeEnd: (value) {
-                        _saveSuccessVibration();
-                      },
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            const SizedBox(height: 12),
-            // Error Vibration Settings
-            Card(
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Icon(Icons.error, color: Colors.red[600]),
-                        const SizedBox(width: 8),
-                        Text(
-                          'Error Vibration',
-                          style: Theme.of(context).textTheme.titleMedium,
-                        ),
-                        const Spacer(),
-                        OutlinedButton.icon(
-                          onPressed: _testErrorVibration,
-                          icon: const Icon(Icons.vibration, size: 18),
-                          label: const Text('Test'),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 16),
-                    // Duration slider
-                    Text('Duration: ${_errorDuration}ms'),
-                    Slider(
-                      value: _errorDuration.toDouble(),
-                      min: 50,
-                      max: 300,
-                      divisions: 25,
-                      label: '${_errorDuration}ms',
-                      onChanged: (value) {
-                        setState(() {
-                          _errorDuration = value.toInt();
-                        });
-                      },
-                      onChangeEnd: (value) {
-                        _saveErrorVibration();
-                      },
-                    ),
-                    const SizedBox(height: 8),
-                    // Pattern selector
-                    Text('Intensity (pulses): $_errorPattern'),
-                    Slider(
-                      value: _errorPattern.toDouble(),
-                      min: 1,
-                      max: 3,
-                      divisions: 20, // Allow any value from 1 to 3
-                      label: '$_errorPattern pulse${_errorPattern > 1 ? 's' : ''}',
-                      onChanged: (value) {
-                        setState(() {
-                          _errorPattern = value.round().clamp(1, 3);
-                        });
-                      },
-                      onChangeEnd: (value) {
-                        _saveErrorVibration();
-                      },
-                    ),
-                  ],
-                ),
-              ),
             ),
             const SizedBox(height: 24),
             Text(
@@ -391,9 +302,25 @@ class _SettingsScreenState extends State<SettingsScreen> with WidgetsBindingObse
               contentPadding: EdgeInsets.zero,
               trailing: const Icon(Icons.arrow_forward_ios),
               onTap: () async {
-                final uri = Uri.parse('https://quakewatch-89047796-c7f3c.web.app/privacy.html');
-                if (await canLaunchUrl(uri)) {
-                  await launchUrl(uri, mode: LaunchMode.externalApplication);
+                final uri = Uri.parse(AppConfig.privacyPolicyUrl);
+                try {
+                  if (await canLaunchUrl(uri)) {
+                    await launchUrl(uri, mode: LaunchMode.inAppBrowserView);
+                  } else {
+                    // Fallback or error message
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Could not open privacy policy. Please check your browser settings.')),
+                      );
+                    }
+                  }
+                } catch (e) {
+                  debugPrint('Error launching privacy policy: $e');
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('Error: Could not open link. $e')),
+                    );
+                  }
                 }
               },
             ),

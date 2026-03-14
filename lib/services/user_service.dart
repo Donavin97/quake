@@ -9,7 +9,7 @@ class UserService {
 
   Future<void> saveUserPreferences(String userId, UserPreferences preferences, {Position? position, String? fcmToken}) async {
     final userRef = _firestore.collection('users').doc(userId);
-    final Map<String, dynamic> dataToSet = {'preferences': preferences.toMap()};
+    final Map<String, dynamic> dataToSet = {'preferences': preferences.toJson()};
 
     if (position != null) {
       final geohash = GeoHasher().encode(position.longitude, position.latitude);
@@ -36,7 +36,7 @@ class UserService {
     if (doc.exists && doc.data() != null) {
       final data = doc.data()!;
       if (data.containsKey('preferences')) {
-        return UserPreferences.fromMap(data['preferences'] as Map<String, dynamic>);
+        return UserPreferences.fromJson(data['preferences'] as Map<String, dynamic>);
       }
     }
     return null;

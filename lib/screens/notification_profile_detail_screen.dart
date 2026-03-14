@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'package:provider/provider.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
 import 'package:timezone/timezone.dart' as tz;
 import 'package:timezone/data/latest.dart' as tz_data;
@@ -9,18 +9,18 @@ import '../models/notification_profile.dart';
 import '../providers/settings_provider.dart';
 import '../providers/location_provider.dart';
 
-class NotificationProfileDetailScreen extends StatefulWidget {
+class NotificationProfileDetailScreen extends ConsumerStatefulWidget {
   final String profileId;
 
   const NotificationProfileDetailScreen({super.key, required this.profileId});
 
   @override
-  State<NotificationProfileDetailScreen> createState() =>
+  ConsumerState<NotificationProfileDetailScreen> createState() =>
       _NotificationProfileDetailScreenState();
 }
 
 class _NotificationProfileDetailScreenState
-    extends State<NotificationProfileDetailScreen> with WidgetsBindingObserver {
+    extends ConsumerState<NotificationProfileDetailScreen> with WidgetsBindingObserver {
   final _formKey = GlobalKey<FormState>();
   NotificationProfile? _profile;
   final TextEditingController _nameController = TextEditingController();
@@ -138,12 +138,12 @@ class _NotificationProfileDetailScreenState
   }
 
   void _loadProfile() {
-    final settingsProvider =
-        Provider.of<SettingsProvider>(context, listen: false);
-    final locationProvider =
-        Provider.of<LocationProvider>(context, listen: false);
+    final settingsState = ref.read(settingsProvider);
+    final locationState = ref.read(locationProvider);
+    final profiles = settingsState.userPreferences.notificationProfiles;
+
     if (widget.profileId == 'new') {
-      final position = locationProvider.currentPosition;
+      final position = locationState.position;
       _profile = NotificationProfile(
         id: const Uuid().v4(),
         name: '',
@@ -153,7 +153,7 @@ class _NotificationProfileDetailScreenState
         minMagnitude: 4.5,
       );
     } else {
-      _profile = settingsProvider.notificationProfiles
+      _profile = profiles
           .cast<NotificationProfile?>()
           .firstWhere(
             (p) => p?.id == widget.profileId,
@@ -161,7 +161,12 @@ class _NotificationProfileDetailScreenState
           );
     }
 
-    if (_profile == null) return;
+    if (_profile == null) {
+      if (mounted && widget.profileId != 'new') {
+        GoRouter.of(context).pop();
+      }
+      return;
+    }
 
     _nameController.text = _profile!.name;
     _latitudeController.text = _profile!.latitude.toString();
@@ -192,8 +197,7 @@ class _NotificationProfileDetailScreenState
     if (_profile == null) return;
     if (_formKey.currentState!.validate()) {
       _formKey.currentState!.save();
-      final settingsProvider =
-          Provider.of<SettingsProvider>(context, listen: false);
+      final settingsNotifier = ref.read(settingsProvider.notifier);
 
       final updatedProfile = _profile!.copyWith(
         name: _nameController.text,
@@ -215,19 +219,76 @@ class _NotificationProfileDetailScreenState
       );
 
       if (widget.profileId == 'new') {
-        await settingsProvider.addProfile(updatedProfile);
+        await settingsNotifier.addProfile(updatedProfile);
       } else {
-        await settingsProvider.updateProfile(updatedProfile);
+        await settingsNotifier.updateProfile(updatedProfile);
       }
       if (mounted) GoRouter.of(context).pop();
     }
   }
 
+  void _showTutorialDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Row(
+          children: [
+            Icon(Icons.lightbulb_outline, color: Colors.orange),
+            SizedBox(width: 10),
+            Text('Seismology 101'),
+          ],
+        ),
+        content: SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _buildTutorialItem(
+                'Magnitude (M)',
+                'Magnitude represents the energy released. Each step (e.g., from 4 to 5) is roughly 32x more energy!\n'
+                '• M4.5: Usually the minimum to be felt over a wide area.\n'
+                '• M6.0: Can cause significant damage in populated areas.\n'
+                '• M8.0+: "Great" earthquakes capable of massive destruction.',
+              ),
+              const SizedBox(height: 12),
+              _buildTutorialItem(
+                'Radius & Alerts',
+                'Setting a radius (e.g., 500km) means you only get push notifications for events within that circle. Use "Worldwide" (0km) to be notified of major global events.',
+              ),
+              const SizedBox(height: 12),
+              _buildTutorialItem(
+                'Quiet Hours',
+                'You can silence notifications during sleep. "Emergency Overrides" ensure you still wake up for large or very close events.',
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Got it!'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTutorialItem(String title, String description) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(title, style: const TextStyle(fontWeight: FontWeight.bold)),
+        const SizedBox(height: 4),
+        Text(description, style: const TextStyle(fontSize: 13, color: Colors.grey)),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    final settingsProvider = Provider.of<SettingsProvider>(context);
+    final settingsState = ref.watch(settingsProvider);
 
-    if (!settingsProvider.isLoaded || _profile == null) {
+    if (!settingsState.isLoaded || _profile == null) {
       return Scaffold(
         appBar: AppBar(title: const Text('Loading Profile...')),
         body: const Center(child: CircularProgressIndicator()),
@@ -248,6 +309,11 @@ class _NotificationProfileDetailScreenState
         title: Text(
             _nameController.text.isEmpty ? 'Profile Detail' : _nameController.text),
         actions: [
+          IconButton(
+            tooltip: 'How to use filters',
+            icon: const Icon(Icons.help_outline),
+            onPressed: _showTutorialDialog,
+          ),
           IconButton(
             tooltip: 'Save Profile Settings',
             icon: const Icon(Icons.check),
@@ -321,16 +387,16 @@ class _NotificationProfileDetailScreenState
                   icon: const Icon(Icons.my_location),
                   tooltip: 'Use Current Location',
                   onPressed: () async {
-                    final lp = Provider.of<LocationProvider>(context,
-                        listen: false);
-                    await lp.determinePosition();
+                    final lpNotifier = ref.read(locationProvider.notifier);
+                    await lpNotifier.determinePosition();
                     if (!mounted) return;
-                    if (lp.currentPosition != null) {
+                    final position = ref.read(locationProvider).position;
+                    if (position != null) {
                       setState(() {
                         _latitudeController.text =
-                            lp.currentPosition!.latitude.toString();
+                            position.latitude.toString();
                         _longitudeController.text =
-                            lp.currentPosition!.longitude.toString();
+                            position.longitude.toString();
                       });
                     }
                   },
@@ -436,12 +502,12 @@ class _NotificationProfileDetailScreenState
             ),
             const SizedBox(height: 8),
             DropdownButtonFormField<String>(
-              // ignore: deprecated_member_use
-              value: _timezone,
+              initialValue: (_timezone != null && _commonTimezones.any((tz) => tz['value'] == _timezone)) ? _timezone : null,
               decoration: const InputDecoration(
                 border: OutlineInputBorder(),
                 hintText: 'Select timezone',
               ),
+
               items: [
                 const DropdownMenuItem<String>(
                   child: Text('Use device default'),
@@ -573,15 +639,14 @@ class _NotificationProfileDetailScreenState
       initialTime: TimeOfDay(hour: startHour, minute: startMinute),
       helpText: 'QUIET HOURS START',
     );
-    if (start == null) return;
-    if (!mounted) return;
+    if (start == null || !mounted) return;
 
     final end = await showTimePicker(
       context: context,
       initialTime: TimeOfDay(hour: endHour, minute: endMinute),
       helpText: 'QUIET HOURS END',
     );
-    if (end == null) return;
+    if (end == null || !mounted) return;
 
     setState(() {
       _quietHoursStart = [start.hour, start.minute];

@@ -5,7 +5,13 @@ class LocationService {
   Future<Position> getCurrentPosition() async {
     // When we reach here, permissions are granted and we can
     // continue accessing the position of the device.
-    return await Geolocator.getCurrentPosition();
+    // Added a 15-second timeout to prevent indefinite waiting.
+    return await Geolocator.getCurrentPosition(
+      locationSettings: const LocationSettings(
+        accuracy: LocationAccuracy.high,
+        timeLimit: Duration(seconds: 15),
+      ),
+    );
   }
 
   Future<LocationPermission> requestPermission() async {

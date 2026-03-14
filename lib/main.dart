@@ -5,48 +5,53 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
-import 'package:provider/provider.dart';
-import 'package:hive_flutter/hive_flutter.dart';
+
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import 'package:flutter_localizations/flutter_localizations.dart';
+import 'generated/app_localizations.dart';
 
 import 'firebase_options.dart';
-import 'models/earthquake.dart';
-import 'models/notification_profile.dart'; // Import NotificationProfile
-import 'providers/disclaimer_provider.dart';
-import 'providers/earthquake_provider.dart';
-import 'providers/location_provider.dart';
 import 'providers/settings_provider.dart';
 import 'providers/theme_provider.dart';
-import 'providers/user_provider.dart';
 import 'routes.dart';
-import 'services/navigation_service.dart';
 import 'services/services.dart';
+import 'services/shortcut_service.dart';
+import 'services/navigation_service.dart';
 import 'theme.dart';
+import 'widgets/global_error_view.dart';
 
 import 'package:firebase_messaging/firebase_messaging.dart';
-import 'package:google_mobile_ads/google_mobile_ads.dart'; // Import google_mobile_ads
+import 'package:google_mobile_ads/google_mobile_ads.dart';
 
-void main() async {
+Future<void> main() async {
+  debugPrint('--- [QUAKE_MAIN] main() started ---');
   await runZonedGuarded(() async {
+    debugPrint('--- [QUAKE_MAIN] Inside runZonedGuarded ---');
     WidgetsFlutterBinding.ensureInitialized();
+    debugPrint('--- [QUAKE_MAIN] WidgetsBinding initialized ---');
+    
     await Firebase.initializeApp(
       options: DefaultFirebaseOptions.currentPlatform,
     );
+    debugPrint('--- [QUAKE_MAIN] Firebase initialized ---');
+
     // Initialize Mobile Ads SDK
     MobileAds.instance.initialize();
+    debugPrint('--- [QUAKE_MAIN] MobileAds initialized ---');
     
     // Register background handler BEFORE any other initialization
     FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
+    debugPrint('--- [QUAKE_MAIN] Background handler registered ---');
 
-    await Hive.initFlutter();
-    Hive.registerAdapter(EarthquakeAdapter());
-    Hive.registerAdapter(EarthquakeSourceAdapter());
-    await Hive.openBox<Earthquake>('earthquakes');
-    await Hive.openBox<String>('geocodingCache');
-
+    await SeismographBackgroundService.initialize();
     await BackgroundService.initialize();
+    debugPrint('--- [QUAKE_MAIN] BackgroundService initialized ---');
 
     final NotificationAppLaunchDetails? notificationAppLaunchDetails =
         await FlutterLocalNotificationsPlugin().getNotificationAppLaunchDetails();
+    debugPrint('--- [QUAKE_MAIN] LocalNotifications initialized ---');
+
     final String? launchPayload =
         notificationAppLaunchDetails?.notificationResponse?.payload;
     if (launchPayload != null) {
@@ -64,88 +69,61 @@ void main() async {
       }
     }
 
-    FlutterError.onError = FirebaseCrashlytics.instance.recordFlutterError;
-    runApp(const MyApp());
-  }, (error, stack) => FirebaseCrashlytics.instance.recordError(error, stack));
+    const bool isTest = bool.fromEnvironment('IS_TEST_MODE');
+    if (!isTest) {
+      FlutterError.onError = FirebaseCrashlytics.instance.recordFlutterError;
+
+      // Global Error Boundary UI
+      ErrorWidget.builder = (FlutterErrorDetails details) {
+        FirebaseCrashlytics.instance.recordFlutterError(details);
+        return GlobalErrorView(errorDetails: details);
+      };
+    }
+
+    debugPrint('--- [QUAKE_MAIN] Calling runApp ---');
+    runApp(const ProviderScope(child: MyApp()));
+
+  }, (error, stack) {
+    debugPrint('--- [QUAKE_MAIN] runZonedGuarded ERROR: $error ---');
+    FirebaseCrashlytics.instance.recordError(error, stack);
+  });
 }
 
-class MyApp extends StatelessWidget {
+class MyApp extends ConsumerWidget {
   const MyApp({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    return MultiProvider(
-      providers: [
-        Provider<ApiService>(
-          create: (_) => ApiService(),
-        ),
-        Provider<GeocodingService>(
-          create: (_) => GeocodingService(),
-        ),
-        Provider<WebSocketService>(
-          create: (_) => WebSocketService(),
-          dispose: (_, service) => service.dispose(),
-        ),
-        ChangeNotifierProvider<AuthService>(
-          create: (_) => AuthService(),
-        ),
-        ChangeNotifierProvider(
-          create: (context) => UserProvider(),
-        ),
-        ChangeNotifierProvider(
-          create: (context) => LocationProvider(),
-        ),
-        ChangeNotifierProvider(
-          create: (context) => SettingsProvider(context.read<LocationProvider>()),
-        ),
-        ChangeNotifierProvider(
-          create: (context) => DisclaimerProvider(),
-        ),
-        ChangeNotifierProvider(
-          create: (context) => ThemeProvider(),
-        ),
-        ChangeNotifierProxyProvider2<SettingsProvider, LocationProvider,
-            EarthquakeProvider>(
-          create: (context) {
-            final settings = context.read<SettingsProvider>();
-            // Ensure settings are loaded before accessing notificationProfiles
-            // _loadPreferences in SettingsProvider should ensure notificationProfiles is never empty
-            final initialFilterProfile = settings.notificationProfiles.isNotEmpty
-                ? settings.notificationProfiles.first
-                : NotificationProfile(id: 'default_temp', name: 'Default', latitude: 0, longitude: 0, radius: 0, minMagnitude: 0); // Fallback
+  Widget build(BuildContext context, WidgetRef ref) {
+    final router = ref.watch(routerProvider);
+    final themeMode = ref.watch(themeProvider);
+    final settings = ref.watch(settingsProvider);
 
-            return EarthquakeProvider(
-              context.read<ApiService>(),
-              context.read<WebSocketService>(),
-              settings, // Pass settings instance
-              context.read<LocationProvider>(),
-              context.read<GeocodingService>(),
-              initialFilterProfile, // New parameter
-            );
-          },
-          update: (context, settings, location, previous) =>
-              previous!..updateSettings(settings),
-        ),
+    // Initialize shortcuts
+    // We can use ref.listen to initialize once or just call it here (if it's idempotent)
+    // ShortcutService.initialize needs a BuildContext, so we'll call it in a Builder or similar.
+    
+    return MaterialApp.router(
+      routerConfig: router,
+      title: 'QuakeTrack',
+      theme: AppTheme.lightTheme,
+      darkTheme: AppTheme.darkTheme,
+      themeMode: settings.isLoaded ? settings.themeMode : themeMode,
+      localizationsDelegates: const [
+        AppLocalizations.delegate,
+        GlobalMaterialLocalizations.delegate,
+        GlobalWidgetsLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
       ],
-
-      child: Builder(
-        builder: (context) {
-          final userProvider = Provider.of<UserProvider>(context);
-          final router = AppRouter(userProvider).router;
-
-          return Consumer<SettingsProvider>(
-            builder: (context, settingsProvider, child) {
-              return MaterialApp.router(
-                routerConfig: router,
-                title: 'QuakeTrack',
-                theme: AppTheme.lightTheme,
-                darkTheme: AppTheme.darkTheme,
-                themeMode: settingsProvider.themeMode,
-              );
-            },
-          );
-        },
-      ),
+      supportedLocales: const [
+        Locale('en'), // English
+        Locale('tr'), // Turkish
+        Locale('es'), // Spanish
+      ],
+      builder: (context, child) {
+        // Initialize shortcuts once context is ready
+        ShortcutService.initialize(context, ref);
+        return child!;
+      },
     );
   }
 }

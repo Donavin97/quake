@@ -1,25 +1,42 @@
 import 'dart:async';
-
 import 'package:flutter/foundation.dart';
+import 'package:freezed_annotation/freezed_annotation.dart';
+import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:geolocator/geolocator.dart';
-import 'package:hive/hive.dart';
 
 import '../models/earthquake.dart';
 import '../models/sort_criterion.dart';
 import '../models/time_window.dart';
-import '../services/api_service.dart';
-import '../services/websocket_service.dart';
-import '../services/geocoding_service.dart'; // Import GeocodingService
-import '../models/notification_profile.dart'; // Import NotificationProfile
+import '../models/notification_profile.dart';
 import 'location_provider.dart';
 import 'settings_provider.dart';
+import 'service_providers.dart';
 
-/// Data class to pass parameters to the background Isolate
+part 'earthquake_provider.freezed.dart';
+part 'earthquake_provider.g.dart';
+
+@freezed
+class EarthquakeState with _$EarthquakeState {
+  const factory EarthquakeState({
+    @Default([]) List<Earthquake> allEarthquakes,
+    @Default([]) List<Earthquake> displayEarthquakes,
+    @Default([]) List<Earthquake> archiveEarthquakes,
+    String? error,
+    DateTime? lastUpdated,
+    @Default(SortCriterion.date) SortCriterion sortCriterion,
+    @Default(false) bool isProcessing,
+    @Default(false) bool isInitializing,
+    @Default(false) bool isSearchingArchive,
+    @Default(false) bool isArchiveMode,
+    NotificationProfile? filterNotificationProfile,
+  }) = _EarthquakeState;
+}
+
 class _ProcessingParams {
   final List<Earthquake> earthquakes;
   final Position? userPosition;
   final TimeWindow timeWindow;
-  final int minMagnitude;
+  final double minMagnitude;
   final SortCriterion sortCriterion;
   final String selectedProvider;
   final double listRadius;
@@ -39,254 +56,235 @@ class _ProcessingParams {
   });
 }
 
-class EarthquakeProvider with ChangeNotifier {
-  final ApiService _apiService;
-  final WebSocketService _webSocketService;
-  final LocationProvider _locationProvider;
-  final GeocodingService _geocodingService;
-  late SettingsProvider _settingsProvider; // Keep for global settings like theme, provider choices
-  StreamSubscription<Position>? _locationSubscription;
-  StreamSubscription<Earthquake>? _websocketSubscription;
-  StreamSubscription<Earthquake>? _fcmSubscription;
-  StreamSubscription<BoxEvent>? _boxSubscription;
+@riverpod
+class EarthquakeNotifier extends _$EarthquakeNotifier {
+  StreamSubscription? _websocketSubscription;
+  StreamSubscription? _boxSubscription;
+  Timer? _debounceTimer;
+  bool _fetchRequestedWhileInitializing = false;
 
-  List<Earthquake> _earthquakes = [];
-  String? _error;
-  DateTime? _lastUpdated;
-  SortCriterion _sortCriterion = SortCriterion.date;
-  late Box<Earthquake> _earthquakeBox;
-  bool _isProcessing = false;
-  bool _isInitializing = false;
-  final Set<String> _pendingGeocoding = {}; // Track IDs being geocoded
+  @override
+  EarthquakeState build() {
+    final repository = ref.read(earthquakeRepositoryProvider);
+    final webSocketService = ref.read(webSocketServiceProvider);
 
-  NotificationProfile _filterNotificationProfile; // New field for selected profile
-
-  List<Earthquake> get earthquakes => _earthquakes;
-  String? get error => _error;
-  DateTime? get lastUpdated => _lastUpdated;
-  SortCriterion get sortCriterion => _sortCriterion;
-  bool get isProcessing => _isProcessing;
-  NotificationProfile get filterNotificationProfile => _filterNotificationProfile;
-
-  EarthquakeProvider(
-    this._apiService,
-    this._webSocketService,
-    this._settingsProvider,
-    this._locationProvider,
-    this._geocodingService,
-    NotificationProfile initialFilterProfile, // New parameter
-  ) : _filterNotificationProfile = initialFilterProfile {
-    _earthquakeBox = Hive.box<Earthquake>('earthquakes');
-    _init();
-  }
-
-
-  void _init() async {
-    if (_isInitializing) return;
-    _isInitializing = true;
-
-    _locationSubscription?.cancel();
-    _websocketSubscription?.cancel();
-    _fcmSubscription?.cancel();
-    _boxSubscription?.cancel();
-
-    // 1. Load initial data from Hive
-    _earthquakes = _earthquakeBox.values.toList();
-    await _processAndRefresh();
-    _geocodeMissingPlaces();
-
-    try {
-      // Use location from the filter profile for API fetch, or user's current if profile radius is 0
-      final double fetchLatitude = _filterNotificationProfile.latitude;
-      final double fetchLongitude = _filterNotificationProfile.longitude;
-      final double fetchRadius = _filterNotificationProfile.radius;
-      final double fetchMinMagnitude = _filterNotificationProfile.minMagnitude;
-      final TimeWindow fetchTimeWindow = _settingsProvider.timeWindow; // Time window remains global for now
-
-      // 2. Fetch new data from API
-      final allEarthquakes = await _apiService.fetchEarthquakes(
-        _settingsProvider.earthquakeProvider, // Earthquake provider remains global
-        fetchMinMagnitude,
-        fetchRadius,
-        fetchLatitude,
-        fetchLongitude,
-        timeWindow: fetchTimeWindow.name,
-      );
-
-      final Set<String> apiEarthquakeIds = allEarthquakes.map((e) => e.id).toSet();
-      final List<String> idsToRemove = [];
-
-      // Identify earthquakes in local storage that are no longer in the API response
-      for (final localEarthquake in _earthquakes) {
-        if (!apiEarthquakeIds.contains(localEarthquake.id)) {
-          idsToRemove.add(localEarthquake.id);
-        }
-      }
-
-      // Remove from Hive and in-memory list
-      if (idsToRemove.isNotEmpty) {
-        await _earthquakeBox.deleteAll(idsToRemove);
-        _earthquakes.removeWhere((eq) => idsToRemove.contains(eq.id));
-        debugPrint('Removed ${idsToRemove.length} earthquakes from Hive and in-memory list.');
-      }
-
-      final List<Earthquake> earthquakesToUpdate = [];
-
-      for (final earthquakeFromApi in allEarthquakes) {
-        final index = _earthquakes.indexWhere((e) => e.id == earthquakeFromApi.id);
-        
-        if (index == -1) {
-          // New earthquake: add to list immediately with API place
-          _earthquakes.add(earthquakeFromApi);
-          earthquakesToUpdate.add(earthquakeFromApi);
-          
-          // Trigger background geocoding
-          _geocodeIndividual(earthquakeFromApi);
-        } else {
-          // Existing earthquake: update fields but preserve locally geocoded place if it seems better
-          final localEq = _earthquakes[index];
-          
-          // If local has a km-based geocoded name, keep it for now
-          if (localEq.place.contains(' km ') && !earthquakeFromApi.place.contains(' km ')) {
-            earthquakeFromApi.place = localEq.place;
-          }
-          
-          _earthquakes[index] = earthquakeFromApi;
-          earthquakesToUpdate.add(earthquakeFromApi);
-
-          // Still attempt to update geocoding in background if needed
-          if (!earthquakeFromApi.place.contains(' km ')) {
-             _geocodeIndividual(earthquakeFromApi);
-          }
-        }
-      }
-
-      // 3. Persist all updates to Hive
-      if (earthquakesToUpdate.isNotEmpty) {
-        await _earthquakeBox.putAll(
-          {for (final eq in earthquakesToUpdate) eq.id: eq},
-        );
-      }
-
-      await _processAndRefresh();
-      _lastUpdated = DateTime.now();
-      _error = null;
-    } catch (e) {
-      _error = e.toString();
-    } finally {
-      _isInitializing = false;
-      notifyListeners();
-    }
-
-    _locationSubscription = _locationProvider.locationStream.listen((position) {
-      _processAndRefresh();
-    });
-
-    // Subscribe to WebSocket stream
-    _websocketSubscription = _webSocketService.earthquakeStream.listen((newEarthquake) async {
-      _addNewEarthquake(newEarthquake);
-      // Trigger background geocoding
-      _geocodeIndividual(newEarthquake);
-    });
-
-    // Subscribe to Hive box changes (handles background updates and foreground FCM writes)
-    _boxSubscription = _earthquakeBox.watch().listen((event) {
-      // If the event value is null, it might be a deletion, or we should ignore it if not relevant
-      if (event.deleted) {
-         _earthquakes.removeWhere((e) => e.id == event.key);
-         _processAndRefresh();
-      } else if (event.value != null && event.value is Earthquake) {
-        final newEq = event.value as Earthquake;
-        final index = _earthquakes.indexWhere((e) => e.id == newEq.id);
-        if (index != -1) {
-          // Update existing
-          _earthquakes[index] = newEq;
-        } else {
-          // Add new
-          _earthquakes.add(newEq);
-        }
+    // Watch settings to react to profile/preference changes
+    ref.listen(settingsProvider, (previous, next) {
+      if (!next.isLoaded) return;
+      
+      final nextProfile = next.activeNotificationProfile ?? 
+          next.userPreferences.notificationProfiles.firstOrNull;
+      
+      if (previous == null || !previous.isLoaded || state.filterNotificationProfile != nextProfile) {
+        state = state.copyWith(filterNotificationProfile: nextProfile);
+        _fetchNewData();
+      } else {
         _processAndRefresh();
-        _lastUpdated = DateTime.now();
       }
+    });
+
+    ref.onDispose(() {
+      _websocketSubscription?.cancel();
+      _boxSubscription?.cancel();
+      _debounceTimer?.cancel();
+    });
+
+    _websocketSubscription = webSocketService.earthquakeStream.listen((newEq) {
+      _addNewEarthquake(newEq);
+    });
+
+    // OPTIMIZATION: Debounced listener for background or external box changes
+    // This prevents "flicker" during massive batch updates
+    _boxSubscription = repository.watch().listen((_) {
+      _debounceRefreshFromRepository();
+    });
+
+    // Initial state with local data
+    final settings = ref.read(settingsProvider);
+    final initialProfile = settings.activeNotificationProfile ?? 
+        settings.userPreferences.notificationProfiles.firstOrNull;
+
+    if (settings.isLoaded) {
+      Future.microtask(() => _fetchNewData());
+    }
+    
+    // Load cache from SharedPreferences
+    Future.microtask(() => repository.loadCache());
+
+    return EarthquakeState(
+      allEarthquakes: repository.allEarthquakes,
+      filterNotificationProfile: initialProfile,
+    );
+  }
+
+  void _debounceRefreshFromRepository() {
+    _debounceTimer?.cancel();
+    _debounceTimer = Timer(const Duration(milliseconds: 500), () {
+      _refreshFromRepository();
     });
   }
 
-  /// High-level method to trigger processing
-  Future<void> _processAndRefresh() async {
-    if (_earthquakes.isEmpty) {
-      notifyListeners();
+  void _refreshFromRepository() {
+    final repository = ref.read(earthquakeRepositoryProvider);
+    state = state.copyWith(allEarthquakes: repository.allEarthquakes);
+    _processAndRefresh();
+  }
+
+  Future<void> _fetchNewData() async {
+    if (state.isInitializing) {
+      _fetchRequestedWhileInitializing = true;
       return;
     }
 
-    _isProcessing = true;
-    notifyListeners();
+    state = state.copyWith(isInitializing: true);
 
     try {
-      final params = _ProcessingParams(
-        earthquakes: _earthquakes,
-        userPosition: _locationProvider.currentPosition, // User's actual position for distance calculation
-        timeWindow: _settingsProvider.timeWindow, // Global time window for now
-        minMagnitude: _filterNotificationProfile.minMagnitude.toInt(), // From selected profile
-        sortCriterion: _sortCriterion,
-        selectedProvider: _settingsProvider.earthquakeProvider, // Global provider for now
-        listRadius: _filterNotificationProfile.radius, // From selected profile
-        latitude: _filterNotificationProfile.latitude, // Profile's location
-        longitude: _filterNotificationProfile.longitude, // Profile's location
-      );
+      final repository = ref.read(earthquakeRepositoryProvider);
+      final settings = ref.read(settingsProvider);
+      final locationState = ref.read(locationProvider);
 
-      // Run directly in main isolate to avoid HiveObject serialization issues
-      _earthquakes = _processEarthquakes(params);
-      
+      while (true) {
+        _fetchRequestedWhileInitializing = false;
+        
+        final profile = state.filterNotificationProfile;
+        if (profile == null) break;
+
+        final currentPos = locationState.position;
+        final double effectiveLat = (profile.latitude != 0.0 || profile.longitude != 0.0)
+            ? profile.latitude
+            : (currentPos?.latitude ?? 0.0);
+        final double effectiveLon = (profile.latitude != 0.0 || profile.longitude != 0.0)
+            ? profile.longitude
+            : (currentPos?.longitude ?? 0.0);
+
+        // OPTIMIZATION: Use the returned list directly to avoid redundant Hive reads
+        final updatedList = await repository.sync(
+          provider: settings.earthquakeProvider,
+          minMagnitude: profile.minMagnitude,
+          radius: profile.radius,
+          latitude: effectiveLat,
+          longitude: effectiveLon,
+          timeWindow: settings.timeWindow,
+        );
+
+        state = state.copyWith(
+          allEarthquakes: updatedList,
+          lastUpdated: DateTime.now(),
+          error: null,
+        );
+        
+        await _processAndRefresh(immediate: true);
+
+        if (!_fetchRequestedWhileInitializing) break;
+      }
     } catch (e) {
-      debugPrint('Processing error: $e');
+      debugPrint('Fetch failed: $e');
+      state = state.copyWith(error: 'Showing offline data. Check connection.');
     } finally {
-      _isProcessing = false;
-      notifyListeners();
+      state = state.copyWith(isInitializing: false);
+      _fetchRequestedWhileInitializing = false;
     }
   }
 
-  /// Synchronous processor running on main thread
+  Future<void> _processAndRefresh({bool immediate = false}) async {
+    if (state.isProcessing) return;
+
+    if (!immediate) {
+      _debounceTimer?.cancel();
+      _debounceTimer = Timer(const Duration(milliseconds: 300), () {
+        _processAndRefresh(immediate: true);
+      });
+      return;
+    }
+
+    if (state.allEarthquakes.isEmpty) {
+      state = state.copyWith(displayEarthquakes: [], isProcessing: false);
+      return;
+    }
+
+    state = state.copyWith(isProcessing: true);
+
+    try {
+      final locationState = ref.read(locationProvider);
+      final settings = ref.read(settingsProvider);
+      final profile = state.filterNotificationProfile;
+      
+      if (profile == null) {
+        state = state.copyWith(isProcessing: false);
+        return;
+      }
+
+      final currentPos = locationState.position;
+      final double effectiveLat = (profile.latitude != 0.0 || profile.longitude != 0.0)
+          ? profile.latitude
+          : (currentPos?.latitude ?? 0.0);
+      final double effectiveLon = (profile.latitude != 0.0 || profile.longitude != 0.0)
+          ? profile.longitude
+          : (currentPos?.longitude ?? 0.0);
+
+      final params = _ProcessingParams(
+        earthquakes: state.allEarthquakes,
+        userPosition: currentPos,
+        timeWindow: settings.timeWindow,
+        minMagnitude: profile.minMagnitude,
+        sortCriterion: state.sortCriterion,
+        selectedProvider: settings.earthquakeProvider,
+        listRadius: profile.radius,
+        latitude: effectiveLat,
+        longitude: effectiveLon,
+      );
+
+      final processedList = await compute(_processEarthquakes, params);
+      state = state.copyWith(displayEarthquakes: processedList, isProcessing: false);
+    } catch (e) {
+      debugPrint('Processing error: $e');
+      state = state.copyWith(isProcessing: false);
+    }
+  }
+
   static List<Earthquake> _processEarthquakes(_ProcessingParams params) {
     List<Earthquake> list = List.from(params.earthquakes);
-    final now = DateTime.now();
+    final now = DateTime.now().toUtc();
 
-    // 1. Filter by Provider
     if (params.selectedProvider != 'all') {
       list = list.where((eq) {
         if (params.selectedProvider == 'usgs') return eq.source == EarthquakeSource.usgs;
         if (params.selectedProvider == 'emsc') return eq.source == EarthquakeSource.emsc;
         if (params.selectedProvider == 'sec') return eq.source == EarthquakeSource.sec;
-        if (params.selectedProvider == 'both') {
-          return eq.source == EarthquakeSource.usgs || eq.source == EarthquakeSource.emsc;
-        }
         return true;
       }).toList();
     }
 
-    // 2. Calculate distances relative to the profile's location (params.latitude, params.longitude)
-    //    and apply basic filters.
     for (final eq in list) {
-      eq.distance = Geolocator.distanceBetween(
-        params.latitude, // Profile's latitude
-        params.longitude, // Profile's longitude
+      eq.filterDistance = Geolocator.distanceBetween(
+        params.latitude,
+        params.longitude,
         eq.latitude,
         eq.longitude,
       );
+
+      if (params.userPosition != null) {
+        eq.distance = Geolocator.distanceBetween(
+          params.userPosition!.latitude,
+          params.userPosition!.longitude,
+          eq.latitude,
+          eq.longitude,
+        );
+      } else {
+        eq.distance = eq.filterDistance;
+      }
     }
 
     list = list.where((eq) {
-      // Time window
-      final diff = now.difference(eq.time).inDays;
-      if (params.timeWindow == TimeWindow.day && diff > 1) return false;
-      if (params.timeWindow == TimeWindow.week && diff > 7) return false;
-      if (params.timeWindow == TimeWindow.month && diff > 30) return false;
+      final diffInHours = now.difference(eq.time).inHours;
+      if (params.timeWindow == TimeWindow.day && diffInHours > 24) return false;
+      if (params.timeWindow == TimeWindow.week && diffInHours > 168) return false;
+      if (params.timeWindow == TimeWindow.month && diffInHours > 720) return false;
 
-      // Magnitude
       if (eq.magnitude < params.minMagnitude) return false;
 
-      // Distance (Radius)
-      if (params.listRadius > 0 && eq.distance != null) {
-        if (eq.distance! > (params.listRadius * 1000)) { // listRadius is in km, distance is in meters
+      if (params.listRadius > 0 && eq.filterDistance != null) {
+        if (eq.filterDistance! > (params.listRadius * 1000)) {
           return false;
         }
       }
@@ -294,9 +292,7 @@ class EarthquakeProvider with ChangeNotifier {
       return true;
     }).toList();
 
-    // 3. Deduplicate (only across different sources)
-    if (params.selectedProvider == 'all' || params.selectedProvider == 'both') {
-      // Sort by source priority: USGS (0) > EMSC (1) > SEC (2)
+    if (params.selectedProvider == 'all') {
       list.sort((a, b) {
         const priority = {
           EarthquakeSource.usgs: 0,
@@ -310,18 +306,16 @@ class EarthquakeProvider with ChangeNotifier {
       for (final eq in list) {
         bool isDuplicate = false;
         for (final existing in deduplicatedList) {
-          // If from same source, it's a distinct event (like an aftershock)
           if (eq.source == existing.source) continue;
-
           final timeDiff = eq.time.difference(existing.time).inSeconds.abs();
-          if (timeDiff < 60) { // 1 minute threshold for cross-provider matching
+          if (timeDiff < 60) {
             final distance = Geolocator.distanceBetween(
               eq.latitude,
               eq.longitude,
               existing.latitude,
               existing.longitude,
             );
-            if (distance < 50000) { // 50km threshold
+            if (distance < 50000) {
               isDuplicate = true;
               break;
             }
@@ -334,7 +328,6 @@ class EarthquakeProvider with ChangeNotifier {
       list = deduplicatedList;
     }
 
-    // 4. Sort according to user preference
     list.sort((a, b) {
       int comparison;
       switch (params.sortCriterion) {
@@ -362,81 +355,74 @@ class EarthquakeProvider with ChangeNotifier {
     return list;
   }
 
-  Future<void> _geocodeMissingPlaces() async {
-    // We only geocode the most recent 50 to avoid massive API hits on startup
-    final listToGeocode = _earthquakes.where((eq) => !eq.place.contains(' km ')).toList();
-    listToGeocode.sort((a, b) => b.time.compareTo(a.time));
-    
-    final targets = listToGeocode.take(50).toList();
-
-    for (final eq in targets) {
-      if (!eq.place.contains(' km ') && !_pendingGeocoding.contains(eq.id)) {
-        await _geocodeIndividual(eq);
-        // Small delay to respect Nominatim rate limit (1 req/sec recommended)
-        await Future.delayed(const Duration(milliseconds: 1000));
-      }
-    }
-  }
-
-  /// Geocodes a single earthquake in the background and updates UI/Hive
-  Future<void> _geocodeIndividual(Earthquake eq) async {
-    if (_pendingGeocoding.contains(eq.id)) return;
-    
-    _pendingGeocoding.add(eq.id);
-    try {
-      final betterPlace = await _geocodingService.reverseGeocode(eq.latitude, eq.longitude);
-      if (betterPlace != null && betterPlace != eq.place) {
-        eq.place = betterPlace;
-        await _earthquakeBox.put(eq.id, eq);
-        
-        // Find in memory list and update if present
-        final idx = _earthquakes.indexWhere((e) => e.id == eq.id);
-        if (idx != -1) {
-          _earthquakes[idx] = eq;
-        }
-        notifyListeners();
-      }
-    } finally {
-      _pendingGeocoding.remove(eq.id);
-    }
-  }
-
-  void _addNewEarthquake(Earthquake newEarthquake) async {
-    // Prevent duplicates
-    if (!_earthquakes.any((eq) => eq.id == newEarthquake.id)) {
-      _earthquakes.add(newEarthquake);
-      await _earthquakeBox.put(newEarthquake.id, newEarthquake);
-      await _processAndRefresh();
-      _lastUpdated = DateTime.now();
+  void _addNewEarthquake(Earthquake newEq) async {
+    if (!state.allEarthquakes.any((eq) => eq.id == newEq.id)) {
+      final repository = ref.read(earthquakeRepositoryProvider);
+      await repository.addEarthquake(newEq);
+      // The box listener will trigger the refresh automatically
     }
   }
 
   void setFilterProfile(NotificationProfile profile) {
-    _filterNotificationProfile = profile;
-    _init(); // Re-fetch and re-process with new profile settings
-    notifyListeners();
+    state = state.copyWith(filterNotificationProfile: profile);
+    _fetchNewData();
   }
 
   void refresh() {
-    _init();
-  }
-
-  void updateSettings(SettingsProvider newSettings) {
-    _settingsProvider = newSettings;
-    _init();
+    _fetchNewData();
   }
 
   void setSortCriterion(SortCriterion criterion) {
-    _sortCriterion = criterion;
+    state = state.copyWith(sortCriterion: criterion);
     _processAndRefresh();
   }
 
-  @override
-  void dispose() {
-    _locationSubscription?.cancel();
-    _websocketSubscription?.cancel();
-    _boxSubscription?.cancel();
-    super.dispose();
+  void toggleArchiveMode(bool enabled) {
+    state = state.copyWith(isArchiveMode: enabled);
+    if (!enabled) {
+      state = state.copyWith(archiveEarthquakes: []);
+    }
+  }
+
+  Future<void> searchGlobalArchive(String query) async {
+    if (query.isEmpty) {
+      state = state.copyWith(archiveEarthquakes: []);
+      return;
+    }
+
+    state = state.copyWith(isSearchingArchive: true);
+
+    try {
+      final apiService = ref.read(apiServiceProvider);
+      final locationState = ref.read(locationProvider);
+      
+      final results = await apiService.fetchEarthquakes('all', 2.0, 0, 0, 0, timeWindow: 'month');
+
+      final queryLower = query.toLowerCase();
+      final archive = results.where((eq) {
+        return eq.place.toLowerCase().contains(queryLower) ||
+               eq.id.toLowerCase().contains(queryLower) ||
+               eq.provider.toLowerCase().contains(queryLower);
+      }).toList();
+
+      archive.sort((a, b) => b.time.compareTo(a.time));
+      
+      final currentPos = locationState.position;
+      if (currentPos != null) {
+        for (final eq in archive) {
+          eq.distance = Geolocator.distanceBetween(
+            currentPos.latitude,
+            currentPos.longitude,
+            eq.latitude,
+            eq.longitude,
+          );
+        }
+      }
+      state = state.copyWith(archiveEarthquakes: archive);
+    } catch (e) {
+      state = state.copyWith(error: 'Archive search failed. Check connection.');
+    } finally {
+      state = state.copyWith(isSearchingArchive: false);
+    }
   }
 }
-

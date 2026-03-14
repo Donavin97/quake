@@ -1,29 +1,41 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'package:provider/provider.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
-import 'package:firebase_messaging/firebase_messaging.dart'; // For AuthorizationStatus
-import 'package:geolocator/geolocator.dart'; // For Geolocator.openAppSettings
+import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:geolocator/geolocator.dart';
+import '../generated/app_localizations.dart';
 
+import '../models/earthquake.dart';
 import '../models/sort_criterion.dart';
 import '../providers/earthquake_provider.dart';
 import '../providers/location_provider.dart';
-import '../providers/settings_provider.dart'; // Explicitly import SettingsProvider
+import '../providers/settings_provider.dart';
+import '../providers/user_provider.dart';
+import '../providers/safety_provider.dart';
+import '../providers/service_providers.dart';
+import '../services/navigation_service.dart';
 import '../services/services.dart';
+import '../theme.dart';
+import '../config/app_config.dart';
 import 'list_screen.dart';
 import 'map_screen.dart';
+import 'statistics_screen.dart';
+import 'safety_screen.dart';
 import 'settings_screen.dart';
+import 'circles_screen.dart';
 
-class HomeScreen extends StatefulWidget {
+class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
 
   @override
-  State<HomeScreen> createState() => _HomeScreenState();
+  ConsumerState<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
+class _HomeScreenState extends ConsumerState<HomeScreen> with WidgetsBindingObserver {
   int _currentIndex = 0;
-  late BannerAd _bannerAd;
+  BannerAd? _bannerAd;
   bool _isAdLoaded = false;
   bool _askedLocationPermission = false;
   bool _askedNotificationPermission = false;
@@ -37,178 +49,236 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addObserver(this); // Add observer
-    _requestPermissions(); // Request permissions after widget is built
+    WidgetsBinding.instance.addObserver(this);
+    
+    // Handle initial route from shortcuts
+    if (NavigationService.initialRoute == '/safety_tab') {
+      _currentIndex = 3; 
+      NavigationService.initialRoute = null;
+    }
 
-    _bannerAd = BannerAd(
-      adUnitId: 'ca-app-pub-7112901918437892/4314697520', // User's Ad Unit ID
-      size: AdSize.banner,
-      request: const AdRequest(),
-      listener: BannerAdListener(
-        onAdLoaded: (ad) {
-          setState(() {
-            _isAdLoaded = true;
-          });
-        },
-        onAdFailedToLoad: (ad, err) {
-          debugPrint('Failed to load a banner ad: ${err.message}');
-          ad.dispose();
-        },
+    // Trigger permissions and initial state
+    Future.microtask(() => _requestPermissions());
+  }
+
+  void _showSafetyCheckDialog(Earthquake quake) {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        title: const Text('Are you safe?'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('A significant earthquake (${quake.magnitude}) occurred near your location.'),
+            const SizedBox(height: 16),
+            const Text('Mark your status for your Safety Circles:'),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              ref.read(safetyProvider.notifier).ignore();
+              Navigator.pop(context);
+            },
+            child: const Text('IGNORE'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              ref.read(safetyProvider.notifier).markUnsafe();
+              Navigator.pop(context);
+            },
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            child: const Text('I NEED HELP'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              ref.read(safetyProvider.notifier).markSafe();
+              Navigator.pop(context);
+            },
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
+            child: const Text('I AM SAFE'),
+          ),
+        ],
       ),
     );
-    _bannerAd.load();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_bannerAd == null) {
+      _bannerAd = BannerAd(
+        adUnitId: AppConfig.homeBannerAdUnitId,
+        size: AdSize.banner,
+        request: const AdRequest(),
+        listener: BannerAdListener(
+          onAdLoaded: (ad) {
+            if (mounted) {
+              setState(() {
+                _isAdLoaded = true;
+              });
+            }
+          },
+          onAdFailedToLoad: (ad, err) {
+            debugPrint('Failed to load a banner ad: ${err.message}');
+            ad.dispose();
+          },
+        ),
+      );
+      _bannerAd!.load();
+    }
   }
 
   Future<void> _requestPermissions() async {
-    if (!mounted) return;
-    
-    // 1. Request Location Permissions first
-    await _requestLocationPermissions();
-    if (!mounted) return;
+    final userState = ref.read(userNotifierProvider);
+    if (!userState.isSetupComplete) return;
 
-    // 2. Then request Notification Permissions
+    await _requestLocationPermissions();
     await _requestNotificationPermissions();
-    if (!mounted) return;
   }
 
-  // --- Helper Methods for Permissions ---
   Future<void> _requestLocationPermissions() async {
-    if (!mounted) return; // Already asked in this session
-    if (_askedLocationPermission) return; // Already asked in this session
+    if (_askedLocationPermission) return;
 
-    final locationProvider = Provider.of<LocationProvider>(context, listen: false);
-    if (!mounted) return;
-    if (!mounted) return;
+    final locationNotifier = ref.read(locationProvider.notifier);
     
-    await locationProvider.checkPermission();
-    if (!mounted) return;
-    if (!locationProvider.isPermissionGranted) {
-      // If not granted, try to request
-      await locationProvider.requestPermission();
-      if (!mounted) return;
-      if (locationProvider.isPermissionGranted) {
-        // If granted after request, determine position
-        locationProvider.determinePosition();
-        if (!mounted) return;
+    // In current locationNotifier, checkPermission doesn't exist, it's called in build
+    // But determinePosition exists.
+    
+    final locationState = ref.read(locationProvider);
+
+    if (!locationState.permissionGranted) {
+      await locationNotifier.requestPermission();
+      final updatedState = ref.read(locationProvider);
+      if (updatedState.permissionGranted) {
+        locationNotifier.determinePosition();
       } else {
-        // Still not granted, show a message or guide to settings
-        if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: const Text('Location permission is required for radius-based alerts and list filtering.'),
-            action: SnackBarAction(label: 'Settings', onPressed: () => Geolocator.openAppSettings()),
-          ),
-        );
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: const Text('Location permission is required for radius-based alerts and list filtering.'),
+              action: SnackBarAction(label: 'Settings', onPressed: () => Geolocator.openAppSettings()),
+            ),
+          );
+        }
       }
     } else {
-      // Permission already granted, just determine position
-      locationProvider.determinePosition();
+      locationNotifier.determinePosition();
     }
     _askedLocationPermission = true;
   }
 
   Future<void> _requestNotificationPermissions() async {
-    if (!mounted) return; // Already asked in this session
-    if (_askedNotificationPermission) return; // Already asked in this session
+    if (_askedNotificationPermission) return;
 
-    final settingsProvider = Provider.of<SettingsProvider>(context, listen: false);
-    if (!mounted) return;
+    final settingsNotifier = ref.read(settingsProvider.notifier);
+    final settingsState = ref.read(settingsProvider);
 
-    // Get current OS notification permission status
     final AuthorizationStatus currentStatus = await BackgroundService.getNotificationStatus();
-    if (!mounted) return;
 
-    // If OS permission is denied or not determined, request it
     if (currentStatus == AuthorizationStatus.denied || currentStatus == AuthorizationStatus.notDetermined) {
       final AuthorizationStatus status = await BackgroundService.requestPermission();
-      if (!mounted) return;
-
       if (status == AuthorizationStatus.denied) {
-        // User denied permissions permanently, update internal state
-        await settingsProvider.setNotificationsEnabled(false); // This saves and notifies
-        if (!mounted) return;
+        await settingsNotifier.setNotificationsEnabled(false);
       } else if (status == AuthorizationStatus.authorized || status == AuthorizationStatus.provisional) {
-        // If granted or provisional, ensure app state is enabled
-        await settingsProvider.setNotificationsEnabled(true); // This saves and updates subscriptions
-        if (!mounted) return;
+        await settingsNotifier.setNotificationsEnabled(true);
       }
     } else if (currentStatus == AuthorizationStatus.authorized || currentStatus == AuthorizationStatus.provisional) {
-        // Permissions already granted at OS level, ensure app state is enabled
-        if (!settingsProvider.notificationsEnabled) {
-          await settingsProvider.setNotificationsEnabled(true); // This saves and updates subscriptions
-          if (!mounted) return;
+        if (!settingsState.userPreferences.notificationsEnabled) {
+          await settingsNotifier.setNotificationsEnabled(true);
         }
     }
     _askedNotificationPermission = true;
   }
 
-
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
-      // When app resumes from background, re-check permissions
       _requestPermissions();
     }
   }
 
   @override
   void dispose() {
-    WidgetsBinding.instance.removeObserver(this); // Remove observer
-    _bannerAd.dispose();
+    WidgetsBinding.instance.removeObserver(this);
+    _bannerAd?.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    final authService = Provider.of<AuthService>(context, listen: false);
-    final earthquakeProvider = Provider.of<EarthquakeProvider>(context);
+    final eqState = ref.watch(earthquakeNotifierProvider);
+    final l10n = AppLocalizations.of(context)!;
+
+    // Listen to safety checks
+    ref.listen(safetyProvider, (previous, next) {
+      if (next.pendingSafetyCheck != null && previous?.pendingSafetyCheck == null) {
+        _showSafetyCheckDialog(next.pendingSafetyCheck!);
+      }
+    });
+
+    // Listen to navigation service tab changes
+    ref.listen(navigationServiceTabProvider, (previous, next) {
+      final index = next.value;
+      if (index != null) {
+        setState(() {
+          _currentIndex = index;
+        });
+      }
+    });
 
     final List<Widget> screens = [
       const MapScreen(),
       ListScreen(navigateTo: _navigateTo),
+      const StatisticsScreen(),
+      const CirclesScreen(),
+      const SafetyScreen(),
       const SettingsScreen(),
     ];
 
     return Scaffold(
       appBar: AppBar(
+        backgroundColor: Theme.of(context).brightness == Brightness.dark 
+            ? AppTheme.obsidian 
+            : Theme.of(context).primaryColor,
         leading: PopupMenuButton<String>(
           tooltip: 'Menu',
           onSelected: (value) async {
-            final router = GoRouter.of(context);
+            final authService = ref.read(authServiceProvider);
             if (value == 'profile') {
-              router.go('/profile');
+              context.go('/profile');
             } else if (value == 'statistics') {
-              router.go('/statistics');
+              setState(() {
+                _currentIndex = 2;
+              });
             } else if (value == 'signOut') {
               await authService.signOut();
-              router.go('/auth');
+              if (context.mounted) context.go('/auth');
             }
           },
           itemBuilder: (BuildContext context) => <PopupMenuEntry<String>>[
-            const PopupMenuItem<String>(
+            PopupMenuItem<String>(
               value: 'profile',
-              child: Text('Profile'),
-            ),
-            const PopupMenuItem<String>(
-              value: 'statistics',
-              child: Text('Statistics'),
+              child: Text(l10n.profile),
             ),
             const PopupMenuDivider(),
-            const PopupMenuItem<String>(
+            PopupMenuItem<String>(
               value: 'signOut',
-              child: Text('Sign Out'),
+              child: Text(l10n.signOut),
             ),
           ],
           icon: const Icon(Icons.more_vert),
         ),
-        title: const Text('QuakeTrack'),
+        title: Text(l10n.appTitle),
         actions: [
           if (_currentIndex == 1)
             DropdownButton<SortCriterion>(
-              value: earthquakeProvider.sortCriterion,
+              value: eqState.sortCriterion,
               onChanged: (value) {
                 if (value != null) {
-                  earthquakeProvider.setSortCriterion(value);
+                  ref.read(earthquakeNotifierProvider.notifier).setSortCriterion(value);
                 }
               },
               items: SortCriterion.values.map((criterion) {
@@ -223,33 +293,38 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       ),
       body: Column(
         children: [
-          Expanded(child: screens[_currentIndex]),
-          if (_isAdLoaded)
+          Expanded(
+            child: IndexedStack(
+              index: _currentIndex,
+              children: screens,
+            ),
+          ),
+          if (_isAdLoaded && _bannerAd != null)
             SizedBox(
-              width: _bannerAd.size.width.toDouble(),
-              height: _bannerAd.size.height.toDouble(),
-              child: AdWidget(ad: _bannerAd),
+              width: _bannerAd!.size.width.toDouble(),
+              height: _bannerAd!.size.height.toDouble(),
+              child: AdWidget(ad: _bannerAd!),
             ),
         ],
       ),
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: _currentIndex,
         onTap: (index) async {
-          if (index == 2) {
+          if (index == 5) {
+            final authService = ref.read(authServiceProvider);
             if (authService.currentUser == null) {
               await showDialog(
                 context: context,
                 builder: (context) => AlertDialog(
-                  title: const Text('Authentication Required'),
-                  content: const Text(
-                      'Please sign in to access and modify settings.'),
+                  title: Text(l10n.authRequired),
+                  content: Text(l10n.authRequiredMessage),
                   actions: [
                     TextButton(
                       onPressed: () {
                         Navigator.of(context).pop();
                         context.go('/auth');
                       },
-                      child: const Text('Sign In'),
+                      child: Text(l10n.signIn),
                     ),
                   ],
                 ),
@@ -261,21 +336,49 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             _currentIndex = index;
           });
         },
-        items: const [
+        type: BottomNavigationBarType.fixed,
+        items: [
           BottomNavigationBarItem(
-            icon: Icon(Icons.map),
-            label: 'Map',
+            icon: const Icon(Icons.map),
+            label: l10n.mapTab,
           ),
           BottomNavigationBarItem(
-            icon: Icon(Icons.list),
-            label: 'List',
+            icon: const Icon(Icons.list),
+            label: l10n.listTab,
           ),
           BottomNavigationBarItem(
-            icon: Icon(Icons.settings),
-            label: 'Settings',
+            icon: const Icon(Icons.bar_chart),
+            label: l10n.statsTab,
+          ),
+          const BottomNavigationBarItem(
+            icon: Icon(Icons.people),
+            label: 'Circles',
+          ),
+          BottomNavigationBarItem(
+            icon: const Icon(Icons.emergency_outlined),
+            label: l10n.safetyTab,
+          ),
+          BottomNavigationBarItem(
+            icon: const Icon(Icons.settings),
+            label: l10n.settingsTab,
           ),
         ],
       ),
     );
   }
 }
+
+final navigationServiceTabProvider = StreamProvider<int?>((ref) {
+  final controller = StreamController<int?>();
+  void listener() {
+    if (!controller.isClosed) {
+      controller.add(NavigationService.tabChangeNotifier.value);
+    }
+  }
+  NavigationService.tabChangeNotifier.addListener(listener);
+  ref.onDispose(() {
+    NavigationService.tabChangeNotifier.removeListener(listener);
+    controller.close();
+  });
+  return controller.stream;
+});

@@ -136,10 +136,20 @@ FDSN_PROVIDERS = [
     "GFZ",    # Germany
     "EMSC",   # Europe-Mediterranean
     "SCEDC",  # Southern California (often has good data for US quakes)
-    "NIED",   # Japan
+    "NCEDC",  # Northern California
+    "AUSPASS", # Australia
+    "NOA",  # Greace 
+    "GEONET",  # New Zeeland
+    "INGV",  # Italy
+    "IPGP", # France 
+    "KOERI",  # Turkey
+    "IESDMC",  # Iceland
+    "ICGC",  # Colombia
+    "ODC",  # Orphius
+    "USP",  # Brazil
 ]
 # Only query these providers for station lookups (not all 13)
-STATION_PROVIDERS = ["IRIS", "GFZ", "EMSC", "GEONET", "SCEDC", "NCEDC"]
+STATION_PROVIDERS = ["IRIS", "GFZ", "EMSC", "GEONET", "SCEDC", "NCEDC", "NOA", "AUSPASS", "INGV", "IPGP", "TEXNET", "ICGC", "IESDMC", "KOERI", "ODC", "USP"]
 
 def get_client(provider: str):
     """Get or create FDSN client for a provider.

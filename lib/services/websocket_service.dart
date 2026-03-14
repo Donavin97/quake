@@ -3,11 +3,15 @@ import 'package:web_socket_channel/web_socket_channel.dart';
 import 'package:rxdart/rxdart.dart';
 import 'package:flutter/foundation.dart'; // For debugPrint
 import '../models/earthquake.dart'; // Assuming Earthquake model is defined here
+import '../config/app_config.dart';
 
 class WebSocketService {
-  final String _emscWebSocketUrl = 'wss://www.seismicportal.eu/standing_order/websocket';
+  final String _emscWebSocketUrl = AppConfig.emscWebSocketUrl;
   WebSocketChannel? _channel;
   final BehaviorSubject<Earthquake> _earthquakeSubject = BehaviorSubject<Earthquake>();
+  
+  int _reconnectAttempts = 0;
+  final int _maxReconnectDelaySeconds = 64;
 
   Stream<Earthquake> get earthquakeStream => _earthquakeSubject.stream;
 
@@ -20,6 +24,7 @@ class WebSocketService {
       _channel = WebSocketChannel.connect(Uri.parse(_emscWebSocketUrl));
       _channel!.stream.listen(
         (message) {
+          _reconnectAttempts = 0; // Reset on successful message
           _handleMessage(message);
         },
         onDone: () {
@@ -40,7 +45,13 @@ class WebSocketService {
 
   void _reconnect() {
     _channel?.sink.close();
-    Future.delayed(const Duration(seconds: 5), () {
+    
+    // Exponential backoff: 2, 4, 8, 16, 32, 64...
+    final delay = Duration(seconds: (1 << _reconnectAttempts).clamp(1, _maxReconnectDelaySeconds));
+    debugPrint('WebSocket: Retrying in ${delay.inSeconds} seconds (Attempt ${_reconnectAttempts + 1})');
+    
+    Future.delayed(delay, () {
+      _reconnectAttempts++;
       _connect();
     });
   }

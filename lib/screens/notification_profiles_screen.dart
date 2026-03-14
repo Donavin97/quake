@@ -1,20 +1,20 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'package:provider/provider.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart'; // For generating unique IDs
 
 import '../models/notification_profile.dart';
 import '../providers/settings_provider.dart';
 import '../providers/location_provider.dart'; // To get current location for new profile
 
-class NotificationProfilesScreen extends StatefulWidget {
+class NotificationProfilesScreen extends ConsumerStatefulWidget {
   const NotificationProfilesScreen({super.key});
 
   @override
-  State<NotificationProfilesScreen> createState() => _NotificationProfilesScreenState();
+  ConsumerState<NotificationProfilesScreen> createState() => _NotificationProfilesScreenState();
 }
 
-class _NotificationProfilesScreenState extends State<NotificationProfilesScreen> with WidgetsBindingObserver {
+class _NotificationProfilesScreenState extends ConsumerState<NotificationProfilesScreen> with WidgetsBindingObserver {
   @override
   void initState() {
     super.initState();
@@ -37,32 +37,32 @@ class _NotificationProfilesScreenState extends State<NotificationProfilesScreen>
 
   @override
   Widget build(BuildContext context) {
-    final settingsProvider = Provider.of<SettingsProvider>(context);
-    final locationProvider = Provider.of<LocationProvider>(context, listen: false);
+    final settingsState = ref.watch(settingsProvider);
+    final profiles = settingsState.userPreferences.notificationProfiles;
 
     return Scaffold(
       appBar: AppBar(
         title: const Text('Notification Profiles'),
       ),
-      body: settingsProvider.notificationProfiles.isEmpty
+      body: profiles.isEmpty
           ? const Center(
               child: Text('No notification profiles found. Create one!'),
             )
           : ListView.builder(
-              itemCount: settingsProvider.notificationProfiles.length,
+              itemCount: profiles.length,
               itemBuilder: (context, index) {
-                final profile = settingsProvider.notificationProfiles[index];
+                final profile = profiles[index];
                 return ListTile(
                   title: Text(profile.name),
                   subtitle: Text(
                       'Mag: ${profile.minMagnitude.toStringAsFixed(1)}, Rad: ${profile.radius == 0.0 ? 'Worldwide' : '${profile.radius.toStringAsFixed(0)} km'}'),
                   onTap: () {
-                    settingsProvider.setActiveNotificationProfile(profile);
+                    ref.read(settingsProvider.notifier).setActiveNotificationProfile(profile);
                     // Navigate to a detail screen for editing this profile
                     context.go('/settings/notification_profile_detail/${profile.id}');
                   },
                   trailing: IconButton(
-                    tooltip: 'Delete Profile', // Add this line
+                    tooltip: 'Delete Profile',
                     icon: const Icon(Icons.delete, color: Colors.red),
                     onPressed: () async {
                       // Confirm deletion
@@ -86,12 +86,14 @@ class _NotificationProfilesScreenState extends State<NotificationProfilesScreen>
                         },
                       );
                       if (confirm == true) {
-                        await settingsProvider.deleteProfile(profile.id);
+                        await ref.read(settingsProvider.notifier).deleteProfile(profile.id);
+                        if (!mounted) return;
                         // If the deleted profile was active, set a new active one or null
-                        if (settingsProvider.notificationProfiles.isEmpty) {
-                            settingsProvider.setActiveNotificationProfile(null); // No active profile
-                        } else if (settingsProvider.minMagnitude == profile.minMagnitude.toInt()) { // Check if it was the active one by comparing a field (simplistic)
-                             settingsProvider.setActiveNotificationProfile(settingsProvider.notificationProfiles.first); // Set first as active
+                        final updatedProfiles = ref.read(settingsProvider).userPreferences.notificationProfiles;
+                        if (updatedProfiles.isEmpty) {
+                          ref.read(settingsProvider.notifier).setActiveNotificationProfile(null); // No active profile
+                        } else if (settingsState.activeNotificationProfile?.id == profile.id) { 
+                          ref.read(settingsProvider.notifier).setActiveNotificationProfile(updatedProfiles.first); // Set first as active
                         }
                       }
                     },
@@ -100,24 +102,26 @@ class _NotificationProfilesScreenState extends State<NotificationProfilesScreen>
               },
             ),
       floatingActionButton: FloatingActionButton(
-        tooltip: 'Add New Profile', // Add this line
+        tooltip: 'Add New Profile',
         onPressed: () async {
           // Create a new default profile
           const uuid = Uuid();
           final newProfileId = uuid.v4();
-          final currentPosition = locationProvider.currentPosition;
+          final locationState = ref.read(locationProvider);
+          final settingsNotifier = ref.read(settingsProvider.notifier);
+          final currentPosition = locationState.position;
 
           final newProfile = NotificationProfile(
             id: newProfileId,
-            name: 'New Profile ${settingsProvider.notificationProfiles.length + 1}',
+            name: 'New Profile ${profiles.length + 1}',
             latitude: currentPosition?.latitude ?? 0.0,
             longitude: currentPosition?.longitude ?? 0.0,
             radius: 0.0,
             minMagnitude: 4.5,
           );
-          await settingsProvider.addProfile(newProfile);
+          await settingsNotifier.addProfile(newProfile);
           if (!context.mounted) return;
-          settingsProvider.setActiveNotificationProfile(newProfile); // Set new profile as active
+          settingsNotifier.setActiveNotificationProfile(newProfile); // Set new profile as active
           context.go('/settings/notification_profile_detail/$newProfileId'); // Navigate to edit
         },
         child: const Icon(Icons.add),
@@ -125,7 +129,3 @@ class _NotificationProfilesScreenState extends State<NotificationProfilesScreen>
     );
   }
 }
-
-// You will also need a detail screen (notification_profile_detail_screen.dart)
-// where users can actually edit the settings of a NotificationProfile.
-// This is a placeholder for navigation.

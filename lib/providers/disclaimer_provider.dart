@@ -1,25 +1,25 @@
-import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-class DisclaimerProvider with ChangeNotifier {
-  bool _disclaimerAccepted = false;
-
-  bool get disclaimerAccepted => _disclaimerAccepted;
-
-  DisclaimerProvider() {
+class DisclaimerNotifier extends Notifier<bool> {
+  @override
+  bool build() {
     _loadDisclaimerState();
+    return false;
   }
 
   Future<void> _loadDisclaimerState() async {
     final prefs = await SharedPreferences.getInstance();
-    _disclaimerAccepted = prefs.getBool('disclaimer_accepted') ?? false;
-    notifyListeners();
+    state = prefs.getBool('disclaimer_accepted') ?? false;
   }
 
   Future<void> acceptDisclaimer() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool('disclaimer_accepted', true);
-    _disclaimerAccepted = true;
-    notifyListeners();
+    state = true;
   }
 }
+
+final disclaimerProvider = NotifierProvider<DisclaimerNotifier, bool>(() {
+  return DisclaimerNotifier();
+});
